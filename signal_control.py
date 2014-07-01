@@ -213,6 +213,14 @@ class Thread_Source(threading.Thread):
 		self.tcpCliSock.send("adc:run:\n")
 		time.sleep(0.01)
 	
+	def sample(self):
+		self.tcpCliSock.send("adc:cfg:channel:0\n")
+		time.sleep(0.01)
+		self.tcpCliSock.send("adc:sample:\n")
+		time.sleep(0.01)
+		self.GetData()
+		return self.queue_out.get()[1]
+
 	def calibrate_append(self,value):
 		real_value = float(value)
 		sample_value = self.sample()
