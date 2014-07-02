@@ -216,15 +216,17 @@ class Thread_Source(threading.Thread):
 	def sample(self):
 		self.tcpCliSock.send("adc:cfg:channel:0\n")
 		time.sleep(0.01)
-		self.tcpCliSock.send("adc:sample:\n")
-		time.sleep(0.01)
-		self.GetData()
-		return self.queue_out.get()[1]
+		self.tcpCliSock.send("adc:sample:\n") // request sample
+		time.sleep(0.01)		// wait for data from source
+		self.GetData()   // data is in self.queue_out 
+		return self.queue_out.get()[1] // fetch data from self.queue_out
 
 	def calibrate_append(self,value):
 		real_value = float(value)
 		sample_value = self.sample()
 		self.cailbrate_table.append((real_value,sample_value))
+		event = MyEvent(60001) # event id is 60001 , new calibrate entry 
+		wx.PostEvent(self.window, event) //tell front to update
 
 	def calibrate(self,command):
 		if command.startswith("append:"):
