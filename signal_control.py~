@@ -216,15 +216,40 @@ class Thread_Source(threading.Thread):
 	def sample(self):
 		self.tcpCliSock.send("adc:cfg:channel:0\n")
 		time.sleep(0.01)
-		self.tcpCliSock.send("adc:sample:\n")
-		time.sleep(0.01)
+		self.tcpCliSock.send("adc:sample:\n") // request sample
+		time.sleep(0.01)		// wait for data from source
+		self.GetData()   // data is in self.queue_out 
+		return self.queue_out.get() // fetch value from self.queue_out[pos,value),....]
 
 	def calibrate_append(self,value):
 		real_value = float(value)
-		sample_value = self.sample()
+		sample_value = self.sample()[1]  //  return (pos,value)
 		self.cailbrate_table.append((real_value,sample_value))
-		self.GetData()
-		return self.queue_out.get()[1]
+		self.cailbrate_table.sort()
+		wx.PostEvent(self.window,MyEvent(60001)) //tell front to update
+
+	def calibrate_delete(self,index):
+		del self.cailbrate_table[int(index)]
+		self.cailbrate_table.sort()
+		wx.PostEvent(self.window,MyEvent(60001)) //tell front to update
+
+	def calibrate_save(self,filename):
+		self.cailbrate_table.sort()
+		calib_file = open(filename,'w')
+		for x in self.cailbrate_table:
+			calib_file.write('%5.3f \t %5.3f\n' %(x[0],x[1]))
+		calib_file.close()
+
+	def calibrate_load(self,filename):
+		self.cailbrate_table=[]
+		calib_file = open(filename,'r')
+		for line in calib_file.readlines():
+			real_value = float(line[:line.find('\t')])
+			sample_value = float(line[line.find('\t')+1:])
+			self.cailbrate_table.append((real_value,sample_value))
+		self.cailbrate_table.sort()
+		wx.PostEvent(self.window,MyEvent(60001)) //tell front to update
+		calib_file.close()
 
 	def calibrate(self,command):
 		if command.startswith("append:"):
@@ -272,7 +297,7 @@ class Thread_Source(threading.Thread):
 				raw_data = ''.join(self.buffer_recv)
 				if raw_data.startswith("0x:"):
 					data_str = raw_data[3:]
-					len_data = len(data_str)/8 
+					len_data = data_str.find('\0')/8 
 					for i in range(0,len_data):
 						data_x = int(data_str[i*8:i*8+4],16)
 						data_y = int(data_str[i*8+4:i*8+8],16)
