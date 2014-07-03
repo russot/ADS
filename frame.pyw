@@ -43,7 +43,7 @@ class Frame(wx.Frame):   #3
 		self.btn_run = wx.Button(self,-1,"start")
 		self.step_add = wx.SpinCtrl(self, -1,"5", wx.DefaultPosition, (50,-1), wx.SP_ARROW_KEYS,0, 20, 1)
 		self.sizer_toolbar = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
-		self.sizer_toolbar.Add(self.btn_run)  # run 放在第一位
+		#self.sizer_toolbar.Add(self.btn_run)  # run 放在第一位
 		self.sizer_toolbar.Add((100,20))
 		self.sizer_toolbar.Add(self.step_add)
 		self.sizer_toolbar.Add(self.btn_add)
@@ -79,7 +79,7 @@ class Frame(wx.Frame):   #3
 
 		
 		self.topsizer =wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
-		self.topsizer.Add(self.sizer_toolbar)
+#		self.topsizer.Add(self.sizer_toolbar)
 		self.topsizer.Add(self.scroller)
 
 		self.SetSizer(self.topsizer)
@@ -274,7 +274,8 @@ class Frame(wx.Frame):   #3
 					url_name = pair[1].strip('"')
 				elif pair[0] == "refer_file":
 					refer_file = pair[1].strip('"')
-
+				elif pair[0] == "calib_file":
+					calib_file = pair[1].strip('"')
 				elif pair[0] == "eut_name":
 					eut_name = pair[1].strip('"')
 				elif pair[0] == "eut_serial":
@@ -293,6 +294,7 @@ class Frame(wx.Frame):   #3
 								eut_name=eut_name,
 								eut_serial=eut_serial,
 								refer_file=refer_file,
+								calib_file=calib_file,
 								points=points_number,
 								persist = (self.queue_persist_in ,self.queue_persist_out)
 								)
@@ -314,6 +316,7 @@ class Frame(wx.Frame):   #3
 				eut_name=%s;\
 				eut_serial=%s;\
 				refer_file=%s;\
+				calib_file=%s;\
 				points=%s\n"\
 				%(signal.color_ok,
 				signal.color_bad,
@@ -321,6 +324,7 @@ class Frame(wx.Frame):   #3
 				signal.eut_name,
 				signal.eut_serial,
 				signal.refer_file,
+				signal.calib_file,
 				signal.points)
 			session_file.write(line.replace(" ","").replace("\t",""))
 		session_file.close()
@@ -352,6 +356,7 @@ class Frame(wx.Frame):   #3
 								id=-1,
 								size_=(-1,-1), 
 								refer_file="refer_table.cfg",
+								calib_file="",
 								points = 389,
 								persist=(self.queue_persist_in, 
 									self.queue_persist_out) 

@@ -216,22 +216,22 @@ class Thread_Source(threading.Thread):
 	def sample(self):
 		self.tcpCliSock.send("adc:cfg:channel:0\n")
 		time.sleep(0.01)
-		self.tcpCliSock.send("adc:sample:\n") // request sample
-		time.sleep(0.01)		// wait for data from source
-		self.GetData()   // data is in self.queue_out 
-		return self.queue_out.get() // fetch value from self.queue_out[pos,value),....]
+		self.tcpCliSock.send("adc:sample:\n") # request sample
+		time.sleep(0.01)		# wait for data from source
+		self.GetData()   # data is in self.queue_out 
+		return self.queue_out.get() # fetch value from self.queue_out[pos,value),....]
 
 	def calibrate_append(self,value):
 		real_value = float(value)
-		sample_value = self.sample()[1]  //  return (pos,value)
+		sample_value = self.sample()[1]  #  return (pos,value)
 		self.cailbrate_table.append((real_value,sample_value))
 		self.cailbrate_table.sort()
-		wx.PostEvent(self.window,MyEvent(60001)) //tell front to update
+		wx.PostEvent(self.window,MyEvent(60001)) #tell front to update
 
 	def calibrate_delete(self,index):
 		del self.cailbrate_table[int(index)]
 		self.cailbrate_table.sort()
-		wx.PostEvent(self.window,MyEvent(60001)) //tell front to update
+		wx.PostEvent(self.window,MyEvent(60001)) #tell front to update
 
 	def calibrate_save(self,filename):
 		self.cailbrate_table.sort()
@@ -248,7 +248,7 @@ class Thread_Source(threading.Thread):
 			sample_value = float(line[line.find('\t')+1:])
 			self.cailbrate_table.append((real_value,sample_value))
 		self.cailbrate_table.sort()
-		wx.PostEvent(self.window,MyEvent(60001)) //tell front to update
+		wx.PostEvent(self.window,MyEvent(60001)) #tell front to update
 		calib_file.close()
 
 	def calibrate(self,command):
@@ -258,7 +258,7 @@ class Thread_Source(threading.Thread):
 			self.calibrate_delete(command[len("delete:"):])
 		elif command.startswith("save:"):
 			self.calibrate_save(command[len("save:"):])
-		else command.startswith("load:"):
+		elif command.startswith("load:"):
 			self.calibrate_load(command[len("load:"):])
 
 
@@ -282,7 +282,7 @@ class Thread_Source(threading.Thread):
 			self.run_adc()
 		elif  command.startswith("get_status"): #excute 
 			self.queue_out.put(self.run_flag)
-		elif  command.startswith("calibrate:") && self.run_flag==False: #excute 
+		elif  command.startswith("calibrate:") and self.run_flag==False: #excute 
 			self.calibrate(command[len("calibrate:"):])
 		#print command + '\n' 
 		self.tcpCliSock.send(command + '\n') #
@@ -325,6 +325,7 @@ class Signal_Control(wx.Panel):   #3
 		     color_bad=wx.Color(250,0,0,200),
 		     url_name="127.0.0.1:20001/com6",
 		     refer_file = "",
+		     calib_file = "",
 		     eut_name="qw32edrt44s",
 		     eut_serial="10p8-082wj490",
 		     points=25,
@@ -342,6 +343,7 @@ class Signal_Control(wx.Panel):   #3
 		self.refer_table = {}
 		self.data_validator =  Data_Validator_Linear()
 		self.refer_file = refer_file
+		self.calib_file = calib_file
 		if refer_file:
 			self.SetupRefer(refer_file)
 		self.mincircle = 0
@@ -351,7 +353,6 @@ class Signal_Control(wx.Panel):   #3
 		#~ self.tip.SetTarget(self)
 		
 
-		self.topsizer = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
 
 		self.queue_cmd =  Queue(-1) # 创建一个无限长队列,用于输入命令
 		self.queue_data=  Queue(-1)# 创建一个无限长队列,用于输出结果
@@ -364,27 +365,42 @@ class Signal_Control(wx.Panel):   #3
 		self.cmd_line = ""
 		self.init_data()
 
+
+		self.topsizer = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
+
+		self.scroller = wx.SplitterWindow(self)
+
+		self.window_info  = wx.ScrolledWindow(self.scroller,-1)
+		self.debug_out   = wx.TextCtrl(self.window_info,-1,style=(wx.TE_MULTILINE|wx.HSCROLL))
+		self.sizer_info  = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
+		self.window_info.SetSizer(self.sizer_info)
+		#~ self.sizer_info.Add((10,10))
+		self.sizer_info.Add(self.debug_out,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
+		
+		self.window_signals  = wx.ScrolledWindow(self.scroller,-1)
+		self.panel_signals   = wx.Panel(self.window_signals,-1,size=(800,700))
+		self.sizer_signals  = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
+		self.window_signals.SetSizer(self.sizer_signals)
+		#~ self.sizer_info.Add((10,10))
+		self.sizer_signals.Add(self.panel_signals,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
+
+		self.window_info.Hide()
+		self.window_signals.Hide()
+		self.scroller.SplitVertically(self.window_signals,self.window_info,-100)
+		
 		self.text_name = wx.TextCtrl(self,-1,eut_name,style=(wx.TE_READONLY))
 		self.text_name.SetBackgroundColour( self.GetBackgroundColour())
 		self.text_name.SetForegroundColour("purple")
 		self.text_serial = wx.TextCtrl(self,-1,eut_serial,style=(wx.TE_READONLY))
 
-		self.sizer_info = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
+		self.sizer_info = wx.BoxSizer(wx.VERTICAL)
 		self.sizer_info.Add(self.text_name,1)
 		self.sizer_info.Add(self.text_serial,1)
-		self.topsizer.Add(self.sizer_info,1)
 
-		self.sizer_data = wx.BoxSizer(wx.HORIZONTAL)
-		self.topsizer.Add(self.sizer_data, 10)
-		#~ data_height = self.GetClientRect().height
 		
-			
+		self.topsizer.Add(self.scroller,1)
+		self.topsizer.Add(self.sizer_info,1)
 	
-		self.timer_acc= wx.Timer(self)
-		self.Bind(wx.EVT_TIMER,self.OnTimerAcc,self.timer_acc )
-		self.timer_acc.Start(1000)
-#~		self.timer = wx.Timer(self)
-#~		self.Bind(wx.EVT_TIMER,self.OnTimer,self.timer )
 
 
 		self.text_name.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_name,self.text_name)
@@ -650,7 +666,7 @@ class Signal_Control(wx.Panel):   #3
 								ok_color=self.color_ok,
 								bad_color=self.color_bad)
 			self.data_store.append(data_panel)
-			self.sizer_data.Add(data_panel ,1,wx.EXPAND|wx.RIGHT,0)
+			#self.sizer_data.Add(data_panel ,1,wx.EXPAND|wx.RIGHT,0)
 		self.Layout()
 		self.Refresh(True)
 
