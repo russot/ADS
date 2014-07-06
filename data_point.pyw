@@ -60,9 +60,8 @@ class Data_Validated(wx.Object):
 		return self.precision
 	
 
-class Data_Point(wx.Panel):
-	def __init__(self,parent=None,id=-1,size=wx.DefaultSize, data=[], max_value=100, ok_color="blue", bad_color="red"):
-		super(Data_Point, self).__init__(parent, id=id,size=size)
+class Data_Point(wx.Object):
+	def __init__(self, data=[],  ok_color="blue", bad_color="red"):
 		if data:
 			self.data = data
 		else:
@@ -70,39 +69,8 @@ class Data_Point(wx.Panel):
 			self.data.append(Data_Validated())
 		self.ok_color   = ok_color
 		self.bad_color = bad_color
-		self.max_value = max_value
-		self.Bind(wx.EVT_PAINT, self.OnPaint)
-		self.Bind(wx.EVT_SIZE, self.OnSize)
-		self.Bind(wx.EVT_LEFT_DOWN, self.OnRead)
 
 
-		#~ self.tip =btip.BalloonTip(message=u"pos:\t%d\nvalue:%5.2f"%(self.data[-1].GetPos(),self.data[-1].GetValue()), tipstyle= btip.BT_LEAVE )
-		#~ self.tip.SetStartDelay(500)
-		#~ self.tip.SetTarget(self)
-		#~ self.Bind(wx.EVT_RIGHT_DCLICK, self.OnSetup)
-		
-	#~ def OnSetup(self,event):
-		#~ event.Skip()
-	def OnRead(self,event):
-		curent_data = self.data[-1]
-		value= curent_data.GetValue()
-		if value != -100:
-			valid = curent_data.GetValid()
-			pos   = curent_data.GetPos()
-			value_refer= curent_data.GetValue_refer()
-			precision_refer= curent_data.GetPrecision_refer()
-			precision= curent_data.GetPrecision()
-			out = u"位置\t数值\t参考值\t参考精度\t实际精度\t结果\n"
-			out +=  "%.2f\t"   % pos
-			out +=  "%.2f\t" % value
-			out +=  "%.2f\t" % value_refer
-			out +=  "%.4f\t\t" % precision_refer
-			out +=  "%.4f\t\t"% precision
-			if valid == 1:
-				out += "Pass\n"
-			else:
-				out += "Fail\n"
-			print out
 	
 	def GetData(self):
 		return self.data
@@ -110,53 +78,15 @@ class Data_Point(wx.Panel):
 	def AppendData(self,data_validated):
 		self.data.append(data_validated)	
 
-	def SetMaxValue(self,max_value):
-		self.max_value   = max_value
-
-				
 	def SetOkColor(self,color):
 		self.ok_color   = color  
 		
 	def SetBadColor(self,color):
 		self.bad_color   = color
 	
-	def SetTip(self):
-		pass
-		#~ self.tip.SetBalloonMessage(u"pos:  %5.2f\nvalue:%5.2f"%(self.data[-1].GetPos(),self.data[-1].GetValue()) )
 
-	def OnPaint(self,event):
-		#~ self.SetTip()
-		self.DrawData()
-
-	def OnSize(self,event):
-		self.Refresh(True)
-		pass
-		#~ self.DrawData()
 	
 		
-	def DrawData(self):
-		clientRect = self.GetRect()
-		dc = wx.PaintDC(self)
-		dc.SetBrush(wx.Brush(self.GetBackgroundColour(),wx.SOLID) )
-		dc.SetPen(wx.Pen(self.GetBackgroundColour(),2,wx.SOLID))
-		dc.DrawRectangle(0, 0,clientRect.width, clientRect.height);
-		
-		current_data = self.data[-1] # 按最后一个数据进行画面刷新
-		current_value= current_data.GetValue()
-		current_precision= current_data.GetPrecision()
-		ratio = float(current_value)/ float(self.max_value)
-		height = float(clientRect.height) * ratio+10
-		if current_data.GetValid():
-			dc.SetPen(wx.Pen(self.ok_color,5,wx.SOLID) )
-			dc.DrawLine(0, height,clientRect.width,height);
-		elif current_value < 0:
-			dc.SetPen(wx.Pen(self.GetBackgroundColour(),5,wx.SOLID) )
-			dc.DrawRectangle(0, 0, clientRect.width,  height );
-		else:
-			dc.SetPen(wx.Pen(self.bad_color,5,wx.SOLID) )
-			dc.DrawLine(0, height,clientRect.width,height);
-		
-		#~ dc.DrawRectangle(0, 0, 10, self.data /self.max_value * clientRect.height );
 		
 ############################################################################################################################################
 class Signal_Control_Basic(wx.Panel):   
@@ -178,7 +108,6 @@ class Signal_Control_Basic(wx.Panel):
 		self.eut_serial = eut_serial #persist~~~~~~~~~~~~~~~~~~
 		self.points = points
 		self.MaxValue = 200 
-
 
 		
 
