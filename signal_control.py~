@@ -180,6 +180,7 @@ class Thread_Source(threading.Thread):
 		self.buffer_recv=[]
 		#~ sys.stdout = self
 		self.feed_flag = True
+		self.data_count = 0
 
 	def write(self,TE):
 		pass
@@ -282,7 +283,7 @@ class Thread_Source(threading.Thread):
 			while not self.queue_out.empty(): # 清除输出队列中的过期数据
 				self.queue_out.get()
 			#~ time.sleep(3)
-			self.run_adc()
+		#	self.run_adc()
 		elif  command.startswith("get_status"): #excute 
 			self.queue_out.put(self.run_flag)
 		elif  command.startswith("calibrate:") and self.run_flag==False: #excute 
@@ -305,8 +306,11 @@ class Thread_Source(threading.Thread):
 						data_x = int(data_str[i*8:i*8+4],16)
 						data_y = int(data_str[i*8+4:i*8+8],16)
 						self.queue_out.put((data_x,data_y))
-					event = MyEvent(60000) # id is 60000 or any number great than 20000 here
-					wx.PostEvent(self.window, event)
+						self.data_count += 1
+					if self.data_count > 200:
+						event = MyEvent(60000) # id is 60000 or any number great than 20000 here
+						wx.PostEvent(self.window, event)
+						self.data_count= 0
 				
 				self.buffer_recv = []
 				try:
@@ -350,6 +354,7 @@ class Signal_Control(wx.Panel):   #3
 		if refer_file:
 			self.SetupRefer(refer_file)
 		self.mincircle = 0
+		self.data_count = 0
 
 		#~ self.tip =btip.BalloonTip(message=u"双右击->>Setup Dialog\n双左击->>run/pause\n")
 		#~ self.tip.SetStartDelay(1000)
@@ -386,6 +391,7 @@ class Signal_Control(wx.Panel):   #3
 		self.signal_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_lane.SetSizer(self.signal_sizer)
 		self.signal   = Signal_Panel(parent=self.signal_lane,id=-1,size=(1100,800))
+		self.signal.SetMaxValue(4096)
 		self.signal_sizer.Add(self.signal,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		#创建信号栏/信息栏 分割窗, 并纳入到窗口管理器
@@ -455,8 +461,8 @@ class Signal_Control(wx.Panel):   #3
 		self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
 
 
-		self.populate_timer = wx.Timer(self)
-		self.Bind(wx.EVT_TIMER, self.OnPopulateTimer,self.populate_timer)
+	#	self.populate_timer = wx.Timer(self)
+	#	self.Bind(wx.EVT_TIMER, self.OnPopulateTimer,self.populate_timer)
 		self.toggle_clear = True
 
 		#指定 DEBUG 窗口
@@ -604,7 +610,7 @@ class Signal_Control(wx.Panel):   #3
 			self.acc_flag = False
 			print "move_x stopped..."
 			self.queue_cmd.put("stop:")
-	def OnSaave(self, event):
+	def OnSave(self, event):
 		"""KeyDown event is sent first"""
 		print "save data"
 		self.Data_Persist(self.signal.data_store)
@@ -638,12 +644,33 @@ class Signal_Control(wx.Panel):   #3
 
 
 	def OnNewData(self, event):
+		out = ''
+		pos = 0
+		value = 0
 		while not self.queue_data.empty():
 			raw_data = self.queue_data.get()
 			#print raw_data,'\n'
 			pos = raw_data[0]
 			value = raw_data[1]
-			print pos,value,'....\n'
+			out += '%04d\t%04d' % (pos,value)
+			data_v = Data_Validated(valid= True,
+					pos=pos,
+					value= value,
+					value_refer=0.0,
+					precision_refer=0.0,
+					precision=0.0,
+					)
+			self.data_count += 1
+			if self.data_count > 1200:
+				self.data_count = 0
+				self.signal.InitValue()
+				self.signal.ReDraw()
+				self.signal.Refresh(True)
+			if (self.data_count % 200) == 0:
+				self.signal.ReDraw()
+				self.signal.Refresh(True)
+			self.signal.SetValue(self.data_count,data_v)
+	
 #			self.data_buffer.append(Data_Real(pos,value))
 #			#self.data_buffer_size +=1
 #
@@ -791,7 +818,7 @@ class Signal_Control(wx.Panel):   #3
 		self.text_name.SetBackgroundColour("green")
 		self.text_name.Refresh(True)
 
-		self.populate_timer.Start(2000)
+#		self.populate_timer.Start(2000)
 
 	def Pause(self):
 		print "pause.....\n"
@@ -803,7 +830,7 @@ class Signal_Control(wx.Panel):   #3
 		self.text_name.Refresh(True)
 		self.init_data()
 
-		self.populate_timer.Stop()
+#		self.populate_timer.Stop()
 
 	def OnSetup(self,evt):
 		if self.started_flag == True:
@@ -937,7 +964,7 @@ if __name__=='__main__':
 					points = 290,
 					persist =(queue_in_, queue_out_)
 					)
-	populate_data(panel.signal)
+	#populate_data(panel.signal)
 	frm.Show()
 	app.SetTopWindow(frm)
 	

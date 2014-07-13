@@ -26,16 +26,10 @@ class Data_Validator(wx.Object):
 			refer_table={}
 		self.relation = relation
 		self.table_validate = {}
+		self.refer_table = refer_table
 		self.SetupTable(refer_table,self.relation)
-		#~ sys.stdout = wx.TextCtrl(self,-1, size=size, style=wx.TE_PROCESS_ENTER|wx.TE_MULTILINE|wx.HSCROLL)
-		#~ for x in data_store:
-			#~ try :
-				#~ #print "Pos:%d\t Value:%f"%(x.pos,x.data)
-				#~ print "Pos:%d\t Value:%5.2f \t"%(x.pos,x.data),refer_table[x.pos]
-			#~ except Exception:
-				#~ continue
+
 	def SetupTable(self,refer_table,relation):
-		
 		pass
 		
 
@@ -45,8 +39,8 @@ class Data_Validator_Linear(Data_Validator):
 		super(Data_Validator_Linear, self).__init__(parent, refer_table=refer_table,relation=LINEAR)
 		self.table_validate ={}
 		self.max_value = 0
-		if refer_table:
-			self.SetupTable(refer_table)
+		if self.refer_table:
+			self.SetupTable(self.refer_table)
 
 	def SetupTable(self,refer_table, append=False):
 		#~ print refer_table
@@ -57,7 +51,7 @@ class Data_Validator_Linear(Data_Validator):
 		
 		#~ print list_table
 		left = ()
-		for item in list_table:
+		for item in range(0,len(list_table)):
 			right = refer_table[item]
 			if not left:
 				left = refer_table[item]#next iteration
@@ -79,7 +73,22 @@ class Data_Validator_Linear(Data_Validator):
 
 	def ValidateData_v(self,data_real=Data_Real(0,0.0)):
 		return self.ValidateData( data_real.GetPos(),data_real.GetValue() )
+
+	def ValidateData_Step(self,position,value,step):
+		#~ if (not data[0]) or  (not data[1]):
+			#~ raise ValueError
+		refer_value = self.refer_table[step][1]
+		precision_refer = self.refer_table[step][2]
 		
+		precision_ = (value - refer_value) / refer_value
+		
+		if abs(precision_) < abs(precision_refer):
+			valid = True 
+		else:
+			valid = False
+		return  Data_Validated( valid , position, value ,  refer_value, precision_refer , precision_   )
+		
+	
 	def ValidateData(self,pos,value):
 		#~ if (not data[0]) or  (not data[1]):
 			#~ raise ValueError
@@ -105,6 +114,12 @@ class Data_Validator_Linear(Data_Validator):
 	def GetTable(self):
 		return self.table_validate
 	
+	def GetTable_Step(self):
+		return self.refer_table
+
+	def SetMaxValue(self,value):
+		self.max_value = float(value)
+
 	def GetMaxValue(self):
 		return self.max_value
 
@@ -116,7 +131,7 @@ if __name__=='__main__':
 	if  not ref_cfg.readline().startswith("#signal refer table"):
 		print "refer file format not right!\nThe first line should be \"#signal refer table\", and \"displacement,value,precision\" each following line"
 		quit  
-	refer_table={}
+	refer_table=[]
 	for line in ref_cfg.readlines():
 		#~ print line
 		line = line.replace(" ","").replace("\t","").strip('\n')# 
@@ -124,14 +139,16 @@ if __name__=='__main__':
 		key   =  string.atoi(element[0])
 		value = string.atof(element[1])
 		precision =  string.atof(element[2])
-		refer_table[key] =  (key,value,precision)
+		refer_table.append([key,value,precision])
+	print refer_table[13][1] 
 		#~ self.refer_table = self.refer_table.items(), key=lambda d: d[0])
 	#~ print refer_table.values()
 	DV_demo = Data_Validator_Linear(parent=None, refer_table=refer_table)
 	#~ print DV_demo.GetTable().values()
 	data_v = DV_demo.ValidateData_v(Data_Real(307,77))
 	print data_v.GetValid(),data_v.GetPrecision()
-	data_v = DV_demo.ValidateData(307,75)
+	data_v = DV_demo.ValidateData_Step(307,75,13)
 	print data_v.GetValid(),data_v.GetPrecision()
 
+	os.system("pause")
 

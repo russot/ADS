@@ -5,6 +5,7 @@
 
 from socket import *
 from time import ctime
+import sys
 import const
 import string
 import threading
@@ -81,20 +82,52 @@ class Serial_reader(threading.Thread):
 		#Serial_Writer(self.serial).start()
 		print "read thread start....\n",self.serial
 		while True:
-			self.get_data()
+		#	self.get_data_usb()
+			self.get_data_debug()
 
-	def get_data(self):
+	def get_data_usb(self):
 		out = ''
 		try:
 			for byte__ in self.serial.read(size=64):
 				if byte__  != 0:
 					out += chr(byte__)
-		
-		#	out =out.join(byte__)
 			self.data_queue_.put(out)
 
 		except:
 			pass
+
+	def get_data_debug(self):
+		out = '0x:'
+		pos = 0
+		base_ = 100
+		#now begin initialize signal
+		for x in range(1,1000):
+			out +="%04d%04d" % (pos,base_)
+			if x%7 == 0:
+				self.data_queue_.put(out)
+				out='0x:'
+				time.sleep(0.003)
+		#now begin populate signal
+		rand_value_all = 0 
+		value_ = 0
+		out = '0x:'
+		for x in range (1,1000):
+			base = 4*(int(x)/int(100)*100) + base_
+			if x%100 < 10: 
+				rand_value_once= random.random()* base / 99.91
+				value= rand_value_once + base 
+			else:
+				if x%100 ==10:
+					rand_value_all = random.random() * base /99.90
+					value_= rand_value_all + base 
+				value = value_
+			out +="%04x%04x" % (pos,value)
+			if x%7 == 0:
+				self.data_queue_.put(out+'\0')
+				out='0x:'
+				time.sleep(0.003)
+
+
 
 
 class Motor():
@@ -198,6 +231,7 @@ class Endpoint(threading.Thread):
 			while  self.run_flag and  (not self.queue_data.empty() ) :
 				count += 1
 				data = self.queue_data.get() # 从后台读数据源线程对象取数据	
+				print data+'\n'
 				try:
 					self.CliSock.send(data+'\n')
 				except:
@@ -277,11 +311,11 @@ class Endpoint(threading.Thread):
 	def OpenEndpoint(self,endpoint_name,baudrate):
 		try:
 			dev = usb.core.find(idVendor=0x0483, idProduct=0x5750)
-			print "usb 0483/5750 found"
 		
 		# was it found?
 			if dev is None:
 				raise ValueError('Device not found')
+			print "usb-device with pid/vid=0483/5750 found!!"
 		
 			# set the active configuration. With no arguments, the first
 			# configuration will be the active one
@@ -302,7 +336,9 @@ class Endpoint(threading.Thread):
 	
 		except: 
 			print "open ep_out error...,now quit"
-			return 
+		# below two lines for debug only
+		ep_out = sys.stdout
+		ep_in = sys.stdin
 		self.motor = Motor(serial_out=ep_out)	
 		self.reader = Serial_reader(serial_in=ep_in, data_queue=self.queue_data)
 		self.reader.setDaemon(True)

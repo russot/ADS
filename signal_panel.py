@@ -90,25 +90,28 @@ class Signal_Panel(wx.Panel):   #3
 		last_pos = len(self.data_store)-1
 		last_pos_y = 1
 		copy_count = 1
-		last_data= self.data_store[0]
-		for data_ in self.data_store[1:]:
-			x_pos += 1
-			if data_.GetValue() > 0:
-				if data_.GetValue() == last_data.GetValue() and x_pos!=last_pos:
-					copy_count += 1
-				else:
-					if last_data.GetValid() == True:
-						dc.SetPen(wx.Pen(self.ok_colour,2,style = wx.SOLID))
+		try:
+			last_data= self.data_store[0]
+			for data_ in self.data_store[1:]:
+				x_pos += 1
+				if data_.GetValue() > 0:
+					if data_.GetValue() == last_data.GetValue() and x_pos!=last_pos:
+						copy_count += 1
 					else:
-						dc.SetPen(wx.Pen(self.bad_colour,2,style = wx.SOLID))
-					y_pos=int((last_data.GetValue()/self.max_value)*clientRect.height) 
-					dc.DrawLine(x_pos-copy_count,y_pos,x_pos,y_pos )
-					if x_pos!=0:
-						dc.DrawLine(x_pos-copy_count,last_pos_y,x_pos-copy_count,y_pos )
-					copy_count = 1
-					last_pos_y =  y_pos
+						if last_data.GetValid() == True:
+							dc.SetPen(wx.Pen(self.ok_colour,2,style = wx.SOLID))
+						else:
+							dc.SetPen(wx.Pen(self.bad_colour,2,style = wx.SOLID))
+						y_pos=clientRect.height-int((last_data.GetValue()/self.max_value)*clientRect.height) 
+						dc.DrawLine(x_pos-copy_count,y_pos,x_pos,y_pos )
+						if x_pos!=0:
+							dc.DrawLine(x_pos-copy_count,last_pos_y,x_pos-copy_count,y_pos )
+						copy_count = 1
+						last_pos_y =  y_pos
 				last_data = data_
-
+		except:
+			pass
+	
 
 	def SetMaxValue(self,value):
 		self.max_value = float(value)
