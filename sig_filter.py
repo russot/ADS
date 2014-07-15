@@ -14,7 +14,7 @@ from Queue import Queue
 import math
 from data_point import Data_Point,Data_Real,Data_Validated
 from data_validator import Data_Validator_Linear
-
+from signal_control import Thread_Source
 import wx.lib.agw.balloontip as btip
 import struct 
 from thread_sqlite import Thread_Sqlite
@@ -32,12 +32,13 @@ MyEvent, EVT_MY_EVENT = wx.lib.newevent.NewCommandEvent()
 
 ############################################################################################################################################
 class Filter_Grouping(threading.Thread):
-	def __init__(self,url,queue_cmd_in,queue_data_in,queue_data_out):
+	def __init__(self,queue_cmd_in,queue_cmd_out,queue_data_in,queue_data_out,validator):
 		threading.Thread.__init__(self)
-		self.queue_cmd_in = queue_cmd_in
-		self.queue_cmd_out = queue_cmd_out
-		self.queue_data_in = queue_data_in
+		self.queue_cmd_in   = queue_cmd_in
+		self.queue_cmd_out  = queue_cmd_out
+		self.queue_data_in  = queue_data_in
 		self.queue_data_out = queue_data_out
+		self.validator      = validator 
 		self.buffer_group=[]
 		#~ sys.stdout = self
 		self.data_count = 0
@@ -56,6 +57,8 @@ class Filter_Grouping(threading.Thread):
 	def write(self,TE):
 		pass
 
+	def set_validator(self,validator):
+		self.validator = validator 
 
 	def run(self):#运行一个线程
 		while True:
@@ -113,15 +116,21 @@ class Filter_Grouping(threading.Thread):
 			pass
 
 	def update_dozer(self):
-		if (self.buffer_group[-1]["length"] > self.sleep_count) and (self.dozing_flag == False):
-			self.trigger_flag = False
-			self.dozing_flag = True
-			self.doze_count +=1
-
+		try:
+			if (self.buffer_group[-1]["length"] > self.sleep_count) and (self.dozing_flag == False):
+				self.trigger_flag = False
+				self.dozing_flag = True
+				self.doze_count +=1
+		except:
+			pass
+	
 	def update_loop(self):
-		if self.doze_count ==2 and self.loop_flag == False :
-			self.doze_count =0
-			self.loop_flag = True
+		try:
+			if self.doze_count ==2 and self.loop_flag == False :
+				self.doze_count =0
+				self.loop_flag = True
+		except:
+			pass
 
 	def validate(self):
 		if self.step_flag == True:
@@ -142,13 +151,46 @@ class Filter_Grouping(threading.Thread):
 		self.update_loop()
 		self.validate()
 				
-
+def create_validator(refer_file_name):
+	ref_cfg = open(refer_file_name,'r')
+	if  not ref_cfg.readline().startswith("#signal refer table"):
+		print "refer file format not right!\nThe first line should be \"#signal refer table\", and \"displacement,value,precision\" each following line"
+		quit  
+	refer_table=[]
+	for line in ref_cfg.readlines():
+		#~ print line
+		line = line.replace(" ","").replace("\t","").strip('\n')# 
+		element = line.split(',')
+		key   =  string.atoi(element[0])
+		value = string.atof(element[1])
+		precision =  string.atof(element[2])
+		refer_table.append([key,value,precision])
+	return Data_Validator_Linear(parent=None, refer_table=refer_table)
 
 
 ############################################################################################################################################
 if __name__=='__main__':
-	queue_in_ = Queue(-1)
-	queue_out_= Queue(-1)
-	
-	
+	queue_in = Queue(-1)
+	queue_in_1 = Queue(-1)
+	queue_data= Queue(-1)
+	queue_data_out= Queue(-1)
+	source = Thread_Source(window=None,
+			url="127.0.0.1:20001/com6",
+			queue_in=queue_in,
+			queue_out=queue_data)
 
+	validator = create_validator("refer_table.cfg")	
+	filtor = Filter_Grouping(queue_cmd_in=queue_in_1,
+				queue_cmd_out=None,
+				queue_data_in=queue_data,
+				queue_data_out=queue_data_out,
+				validator=validator)
+	source.start()
+	filtor.start()
+	queue_in.put("run:\n")
+	while True:
+		try:
+			data = queue_data_out.get()
+			print data["count"],'\t',data["data_v"].GetValue()
+		except:
+			pass

@@ -191,6 +191,8 @@ class Thread_Source(threading.Thread):
 
 	def run(self):#运行一个线程
 		threading.Timer(5,self.FeedDog).start()
+		print self.endpoint.GetIP()
+		print self.endpoint.GetPort()
 		self.tcpCliSock.connect( ( self.endpoint.GetIP(), self.endpoint.GetPort() ) )
 		self.tcpCliSock.setblocking(0)
 		while True:

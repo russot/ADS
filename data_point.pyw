@@ -157,8 +157,7 @@ class Signal_Control_Basic(wx.Panel):
 		data_height = self.GetClientRect().height
 		for index in range(0,points):
 			#~ print "point's max value:%5.2f"%max_value
-			data_panel = Data_Point(parent=self,
-						id =-1,
+			data_panel = Data_Point(parent=self, id =-1,
 						size=(5,data_height), 
 						data=[],
 						max_value=max_value,

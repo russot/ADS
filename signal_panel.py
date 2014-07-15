@@ -33,7 +33,7 @@ MyEvent, EVT_MY_EVENT = wx.lib.newevent.NewCommandEvent()
 
 
 ############################################################################################################################################
-class Signal_Panel(wx.Panel):   #3
+class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 	def __init__(self,  parent=None,
 		     size=(-1,-1),
 		     id=-1,
@@ -42,6 +42,8 @@ class Signal_Panel(wx.Panel):   #3
 		     ):
 		super(Signal_Panel, self).__init__(parent, id,size=size)
 		#panel 创建
+		self.SetupScrolling(scroll_x=True, scroll_y=True, rate_x=20, rate_y=20)
+		self.SetupScrolling() 
 		self.parent__ = parent
 		self.ok_colour = ok_colour  #persist~~~~~~~~~~~~~~~~~~
 		self.bad_colour = bad_colour #persist~~~~~~~~~~~~~~~~~~ 
