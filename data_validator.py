@@ -30,6 +30,7 @@ class Data_Validator(wx.Object):
 		self.SetupTable(refer_table,self.relation)
 
 	def SetupTable(self,refer_table,relation):
+		self.refer_table = refer_table
 		pass
 		
 
@@ -43,6 +44,7 @@ class Data_Validator_Linear(Data_Validator):
 			self.SetupTable(self.refer_table)
 
 	def SetupTable(self,refer_table, append=False):
+		self.refer_table = refer_table
 		#~ print refer_table
 		if not append:
 			self.table_validate = {}

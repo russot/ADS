@@ -14,6 +14,8 @@ import threading
 from Queue import Queue
 import sqlite3 as sqlite
 import config_db
+from time import sleep
+
 
 from thread_sqlite import Thread_Sqlite
 
@@ -22,25 +24,23 @@ class Frame(wx.Frame):   #3
 	def __init__(self,  parent=None, id=-1,size=(1024,768),
 		pos=wx.DefaultPosition,
 		title='Hello,wxPython!'):
-		super(Frame, self).__init__(parent, id, title,size=size)
+		super(Frame, self).__init__(parent=parent, id=id, title=title,size=size)
 		self.signals = []
 		self.spaces = []
 		self.signals_count = 0
 		self.signals_status = "stopped"
-		
+		print "begin create splitter window"
 
 		
 
 
-		self.scroller = wx.SplitterWindow(self)
-		self.scroller.SetMinimumPaneSize(1)		
-		self.leftsizer = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
 		
 
 
 		self.btn_add = wx.Button(self,-1,"add")
 		self.btn_del = wx.Button(self,-1,"del")
 		self.btn_run = wx.Button(self,-1,"start")
+		self.btn_run.Show(False) 
 		self.step_add = wx.SpinCtrl(self, -1,"5", wx.DefaultPosition, (50,-1), wx.SP_ARROW_KEYS,0, 20, 1)
 		self.sizer_toolbar = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
 		#self.sizer_toolbar.Add(self.btn_run)  # run 放在第一位
@@ -55,40 +55,26 @@ class Frame(wx.Frame):   #3
 
 
 
-		self.panel_signals = wx.ScrolledWindow(self.scroller,-1)
+		self.panel_signals = wx.ScrolledWindow(self,-1)
 		self.panel_signals.SetScrollbars(1,1,200,200)
 		#~ self.panel_signals = scrolledpanel.ScrolledPanel(self.scroller,-1,size=(200,500),style=wx.TAB_TRAVERSAL|wx.BORDER_SUNKEN)
 		self.sizer_signals = wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
 		self.panel_signals.SetSizer(self.sizer_signals)
-#		self.AddSignals(2)
 
 	   
 
-		self.panel_info  = wx.ScrolledWindow(self.scroller,-1)
-		self.debug_out   = wx.TextCtrl(self.panel_info,-1,style=(wx.TE_MULTILINE|wx.HSCROLL))
-		self.sizer_info  = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
-		self.panel_info.SetSizer(self.sizer_info)
-		#~ self.sizer_info.Add((10,10))
-		self.sizer_info.Add(self.debug_out,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 		
 
-		self.panel_signals.Hide()
-		self.panel_info.Hide()
-		#~ self.scroller.Initialize(self.panel_signals)
-		self.scroller.SplitVertically(self.panel_signals,self.panel_info,-300)
 
 		
 		self.topsizer =wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
 #		self.topsizer.Add(self.sizer_toolbar)
-		self.topsizer.Add(self.scroller)
+		self.topsizer.Add(self.sizer_signals)
 
 		self.SetSizer(self.topsizer)
 		self.CreateMenu()
+		print " create menu ok"
 
-		sys.stdout = self.debug_out
-		sys.stderr = self.debug_out
-		self.Bind(wx.EVT_SIZE,self.OnResize)
-		self.debug_out.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
 		#创建 持久化线程,通过两个队列管道进行数据交换
 		self.queue_persist_in = Queue(-1)
@@ -98,7 +84,10 @@ class Frame(wx.Frame):   #3
 		self.persist.setDaemon(True)
 		self.persist.start()
 		self.SetEditable(False)
+		print "add signal"
+
 		self.AddSignals(1)
+		print "add signal OK"
 		
 		self.Relayout()
 
@@ -121,13 +110,6 @@ class Frame(wx.Frame):   #3
 		
 		
 	def Relayout(self):
-
-		self.scroller.SetSize((self.GetSize().x, self.GetSize().y-100 ))
-		self.scroller.SplitVertically(self.panel_signals,self.panel_info,-100)
-		self.panel_signals.Layout()
-
-
-
 		self.PushStatusText("total %d signals "%(self.signals_count))
 		self.panel_signals.Refresh(True)
 		self.Refresh(True)
@@ -142,7 +124,7 @@ class Frame(wx.Frame):   #3
 		self.menu1.AppendSeparator()
 		self.menu_import = self.menu1.Append(wx.NewId(), "&import...", "import data")
 		self.menu_export = self.menu1.Append(wx.NewId(), "&export...", "export data")
-		self.menuBar.Append(self.menu1, "&File")                
+		self.menuBar.Append(self.menu1, u"&File文件")                
 		 # 创建Edit菜单栏
 		self.menu2 = wx.Menu()
 		self.menu2.Append(wx.NewId(), "&Copy", "Copy in status bar")
@@ -150,11 +132,15 @@ class Frame(wx.Frame):   #3
 		self.menu2.Append(wx.NewId(), "&Paste", "")
 		self.menu2.AppendSeparator()
 		self.menu2.Append(wx.NewId(), "&Options...", "Display Options")
-		self.menuBar.Append(self.menu2, "&Edit")
+		self.menuBar.Append(self.menu2, u"&Set设置")
+		
+		DBmenu = wx.Menu()
+		DBmenu.Append(wx.ID_ABOUT, u"&Query查询")
+		self.menuBar.Append(DBmenu, u"&DataBase数据库")
 		
 		helpmenu = wx.Menu()
 		helpmenu.Append(wx.ID_ABOUT, "About")
-		self.menuBar.Append(helpmenu, "Help")
+		self.menuBar.Append(helpmenu, u"&Help帮助")
 		
 		self.SetMenuBar(self.menuBar)
 		self.Bind(wx.EVT_MENU, self.OnSaveSession, self.menu_save)
@@ -260,16 +246,16 @@ class Frame(wx.Frame):   #3
 					str_ = pair[1].strip('(').strip(')')
 					str_value = str_.split(',')
 					color_ok = wx.Colour(string.atoi(str_value[0]),
-                                                             string.atoi(str_value[1]),
-                                                             string.atoi(str_value[2]),
-                                                             string.atoi(str_value[3]))
+							     string.atoi(str_value[1]),
+							     string.atoi(str_value[2]),
+							     string.atoi(str_value[3]))
 				elif pair[0] == "color_bad":
 					str_ = pair[1].strip('(').strip(')')
 					str_value = str_.split(',')
 					color_bad = wx.Colour(string.atoi(str_value[0]),
-                                                             string.atoi(str_value[1]),
-                                                             string.atoi(str_value[2]),
-                                                             string.atoi(str_value[3]))
+							     string.atoi(str_value[1]),
+							     string.atoi(str_value[2]),
+							     string.atoi(str_value[3]))
 				elif pair[0] == "url_name":
 					url_name = pair[1].strip('"')
 				elif pair[0] == "refer_file":
@@ -342,25 +328,24 @@ class Frame(wx.Frame):   #3
 	def AddSignalOnce(self,signal):
 		self.signals_count += 1
 		self.sizer_signals.Add(signal,2,wx.EXPAND|wx.TOP|wx.BOTTOM,5)
-		signal.SetupPoints_()
-		#self.sizer_signals.Add(signal)
-		#加入数组,进行管理
+		
 		self.signals.append(signal)
 
-		#~ self.spaces.append(space)
-
+		
 	  
-	def AddSignals(self,signals_num=2):
+	def AddSignals(self,signals_num=1):
 		while signals_num != 0:
-			signal_ctrl = Signal_Control(parent=self.panel_signals,
-								id=-1,
-								size_=(-1,-1), 
-								refer_file="refer_table.cfg",
-								calib_file="",
-								points = 389,
-								persist=(self.queue_persist_in, 
-									self.queue_persist_out) 
-								)
+			signal_ctrl = Signal_Control(parent=self,
+					size = (1400,800),
+					url_name="127.0.0.1:20001/com6",
+					eut_name="Eawdfr2s3WEE",
+					eut_serial="10p8-082wj490",
+					refer_file="./refer_table.cfg",
+					calib_file="",
+					points = 290,
+					persist =(self.queue_persist_in, self.queue_persist_out)
+					)
+			signal_ctrl.populate_data()
 			self.AddSignalOnce(signal_ctrl)
 			signals_num -= 1
 		#扩展窗口以显示全貌
@@ -391,10 +376,11 @@ class Frame(wx.Frame):   #3
 			
 
 
+####################################################################################################
 if __name__=='__main__':
-	app = wx.App(clearSigInt=True)
+	app = wx.App()
 	frm = Frame(None, -1)
-	#~ frm.SetSize((1000,700))
+	frm.SetSize((1400,800))
 	frm.Show()
 	app.SetTopWindow(frm)
 	app.MainLoop()

@@ -869,14 +869,14 @@ class Signal_Control(wx.Panel):   #3
 			\nThe first line should be \"#signal refer table\", and \"displacement,value,error\" each following line"
 			return 
 			
-		refer_table = {}
+		refer_table = []
 		for line in ref_cfg.readlines():
 			line = line.replace(" ","").replace("\t","")# 
 			element = line.split(',')
 			key   = string.atoi(element[0])
 			value = string.atof(element[1])
-			error = string.atof(element[2])
-			refer_table[key] = (key,value,error)
+			precision = string.atof(element[2])
+			refer_table.append ([key,value,precision])
 		self.data_validator.SetupTable(refer_table=refer_table)
 		#~ for x in self.refer_table.values():
 			#~ print x.GetValue(),'\n'
