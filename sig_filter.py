@@ -51,7 +51,7 @@ class Filter_Grouping(threading.Thread):
 		self.dozing_flag =  False
 		self.doze_count = 0 
 		self.validate_flag = False
-		self.min_count = 100
+		self.step_count = 50
 		self.cur_refer = 0
 
 	def write(self,TE):
@@ -95,17 +95,23 @@ class Filter_Grouping(threading.Thread):
 			self.data_count += 1
 			try:
 				data_last=self.buffer_group[-1]["value"]
-				if abs( float(data_last-data_new)/float(data_last) ) > self.step_value:
-					if self.buffer_group[-1]["length"] > self.min_count: 
+				if abs( float(data_last[-1]-data_new[-1])/float(data_last[-1]) ) > self.step_value:
+					if self.buffer_group[-1]["length"] > self.step_count: 
 						self.step_flag = True
-						self.cur_refer += 1
+						print "cur_refer %d \n" % (sel.cur_refer)
+						if (data_last[-1] < data_new[-1]) :
+							self.cur_refer += 1
+						else:
+							self.cur_refer -= 1
 					self.buffer_group.append( {"length":1,"value":data_new} )
 				else:
 					self.buffer_group[-1]["length"] += 1
 					self.step_flag = False
 			except:
 				self.buffer_group.append( {"length":1,"value":data_new} )
+				data_last=self.buffer_group[-1]["value"]
 				pass
+
 
 	def update_trigger(self):
 		try:
@@ -134,10 +140,11 @@ class Filter_Grouping(threading.Thread):
 
 	def validate(self):
 		if self.step_flag == True:
+			print self.buffer_group[-2]['value']
 			data = self.buffer_group[-2]
 			data_value = data["value"] 
-			x_value= data_value["x"]
-			y_value = data_value["y"]
+			x_value= data_value[0]
+			y_value = data_value[1]
 			data_v  = self.validator.ValidateData_Step(
 					position=x_value,
 					value=y_value,
@@ -187,10 +194,14 @@ if __name__=='__main__':
 				validator=validator)
 	source.start()
 	filtor.start()
+
+	open_cmd = "open:%s:%s"%("com5",'115200')
+	queue_in.put(open_cmd)
+	time.sleep(1)
 	queue_in.put("run:\n")
 	while True:
 		try:
 			data = queue_data_out.get()
-			print data["count"],'\t',data["data_v"].GetValue()
+			#print data["count"],'\t',data["data_v"].GetValue(),'\t',data["data_v"].GetValid()
 		except:
 			pass

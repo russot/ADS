@@ -309,8 +309,8 @@ class Thread_Source(threading.Thread):
 						data_y = int(data_str[i*8+4:i*8+8],16)
 						self.queue_out.put((data_x,data_y))
 						self.data_count += 1
-					if self.data_count > 200:
-						event = MyEvent(60000) # id is 60000 or any number great than 20000 here
+					if self.data_count > 200 and self.window!=None:
+						event = MyEvent(60000) # id is 60000 or any numbergreat than 20000 here
 						wx.PostEvent(self.window, event)
 						self.data_count= 0
 				
