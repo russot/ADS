@@ -43,7 +43,7 @@ class Filter_Grouping(threading.Thread):
 		#~ sys.stdout = self
 		self.data_count = 0
 		self.step_value = 0.05
-		self.sleep_count = 800
+		self.sleep_count = 500
 		self.run_flag =  False
 		self.step_flag =  False
 		self.loop_flag =  False
@@ -51,7 +51,7 @@ class Filter_Grouping(threading.Thread):
 		self.dozing_flag =  False
 		self.doze_count = 0 
 		self.validate_flag = False
-		self.step_count = 50
+		self.step_count = int(50)
 		self.cur_refer = 0
 
 	def write(self,TE):
@@ -91,33 +91,34 @@ class Filter_Grouping(threading.Thread):
 
 	def grouping_data(self):
 		while not self.queue_data_in.empty():
-			data_new = self.queue_data_in.get()
-			self.data_count += 1
 			try:
+				data_new = self.queue_data_in.get()
 				data_last=self.buffer_group[-1]["value"]
-				if abs( float(data_last[-1]-data_new[-1])/float(data_last[-1]) ) > self.step_value:
+				precision =  abs( float(data_last[-1]-data_new[-1])/float(data_last[-1]) ) 
+				if  precision > self.step_value:
 					if self.buffer_group[-1]["length"] > self.step_count: 
 						self.step_flag = True
-						print "cur_refer %d \n" % (sel.cur_refer)
-						if (data_last[-1] < data_new[-1]) :
+						print self.buffer_group[-1]
+						diff = data_last[-1] - data_new[-1]
+						if  diff<0 and self.trigger_flag==True:
 							self.cur_refer += 1
-						else:
+						elif diff>0 and (self.trigger_flag == True):
 							self.cur_refer -= 1
-					self.buffer_group.append( {"length":1,"value":data_new} )
+						print "cur_refer",self.cur_refer
+					self.buffer_group.append( {"length":int(1),"value":data_new} )
 				else:
 					self.buffer_group[-1]["length"] += 1
-					self.step_flag = False
 			except:
-				self.buffer_group.append( {"length":1,"value":data_new} )
-				data_last=self.buffer_group[-1]["value"]
-				pass
+				self.buffer_group.append( {"length":int(1),"value":data_new} )
 
 
 	def update_trigger(self):
 		try:
-			if (self.buffer_group[-2]["length"] > self.sleep_count) and (self.trigger_flag == False):
-				self.trigger_flag = True
-				self.dozing_flag = False
+			if self.buffer_group[-2]["length"] > self.sleep_count:
+				if self.trigger_flag == False:
+					print "triggered ..........\n"
+					self.trigger_flag = True
+					self.dozing_flag = False
 		except:
 			pass
 
@@ -127,20 +128,21 @@ class Filter_Grouping(threading.Thread):
 				self.trigger_flag = False
 				self.dozing_flag = True
 				self.doze_count +=1
+				print "dozed ..........\n"
 		except:
 			pass
 	
 	def update_loop(self):
 		try:
-			if self.doze_count ==2 and self.loop_flag == False :
+			if self.doze_count ==2 :
 				self.doze_count =0
-				self.loop_flag = True
+				print "cycled once ..........\n"
 		except:
 			pass
 
 	def validate(self):
 		if self.step_flag == True:
-			print self.buffer_group[-2]['value']
+			self.step_flag = False
 			data = self.buffer_group[-2]
 			data_value = data["value"] 
 			x_value= data_value[0]
@@ -149,7 +151,9 @@ class Filter_Grouping(threading.Thread):
 					position=x_value,
 					value=y_value,
 					step=self.cur_refer-1)
-			self.queue_data_out.put( {"count":data["length"],"data_v":data_v} )
+
+			if self.trigger_flag == True:
+				self.queue_data_out.put( {"count":data["length"],"data_v":data_v} )
 
 	def filter_data(self):
 		self.grouping_data()
@@ -158,6 +162,7 @@ class Filter_Grouping(threading.Thread):
 		self.update_loop()
 		self.validate()
 				
+####################################################################################################
 def create_validator(refer_file_name):
 	ref_cfg = open(refer_file_name,'r')
 	if  not ref_cfg.readline().startswith("#signal refer table"):
@@ -177,10 +182,10 @@ def create_validator(refer_file_name):
 
 ############################################################################################################################################
 if __name__=='__main__':
-	queue_in = Queue(-1)
-	queue_in_1 = Queue(-1)
-	queue_data= Queue(-1)
-	queue_data_out= Queue(-1)
+	queue_in = Queue(-1000)
+	queue_in_1 = Queue(-9999)
+	queue_data= Queue(9999)
+	queue_data_out= Queue(-9999)
 	source = Thread_Source(window=None,
 			url="127.0.0.1:20001/com6",
 			queue_in=queue_in,
@@ -202,6 +207,5 @@ if __name__=='__main__':
 	while True:
 		try:
 			data = queue_data_out.get()
-			#print data["count"],'\t',data["data_v"].GetValue(),'\t',data["data_v"].GetValid()
 		except:
 			pass

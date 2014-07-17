@@ -104,9 +104,9 @@ class Serial_reader(threading.Thread):
 		for x in range(1,1000):
 			out +="%04d%04d" % (pos,base_)
 			if x%7 == 0:
-				self.data_queue_.put(out)
+				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.003)
+				time.sleep(0.03)
 		#now begin populate signal
 		rand_value_all = 0 
 		value_ = 0
@@ -125,9 +125,29 @@ class Serial_reader(threading.Thread):
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.003)
+				time.sleep(0.03)
+		for x in range(1,1000):
+			out +="%04d%04d" % (pos,base_+4000)
+			if x%7 == 0:
+				self.data_queue_.put(out+'\0')
+				out='0x:'
+				time.sleep(0.03)
 
-
+		for x in range (1,1000):
+			base = 4*(int(x)/int(100)*100) + base_
+			if x%100 < 10: 
+				rand_value_once= random.random()* base / 99.91
+				value= rand_value_once + base 
+			else:
+				if x%100 ==10:
+					rand_value_all = random.random() * base /99.90
+					value_= rand_value_all + base 
+				value = value_
+			out +="%04x%04x" % (pos,4100-value)
+			if x%7 == 0:
+				self.data_queue_.put(out+'\0')
+				out='0x:'
+				time.sleep(0.03)
 
 
 class Motor():
@@ -199,7 +219,7 @@ class Endpoint(threading.Thread):
 		self.run_flag  = False
 		self.quit_flag = False
 		self.queue_cmd_in = Queue(-1)
-		self.queue_data  = Queue(-1)
+		self.queue_data  = Queue(99999991)
 		self.buffer_cmd = []
 		self.life = 3
 	       
