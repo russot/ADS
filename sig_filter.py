@@ -42,17 +42,17 @@ class Filter_Grouping(threading.Thread):
 		self.buffer_group=[]
 		#~ sys.stdout = self
 		self.data_count = 0
-		self.step_value = 0.05
+		self.new_value = 0.01
 		self.sleep_count = 500
 		self.run_flag =  False
-		self.step_flag =  False
+		self.running_flag= False
 		self.loop_flag =  False
+		self.new_flag =  False
 		self.trigger_flag =  False
 		self.dozing_flag =  False
-		self.doze_count = 0 
-		self.validate_flag = False
 		self.step_count = int(50)
 		self.cur_refer = 0
+		self.last_refer = 0
 
 	def write(self,TE):
 		pass
@@ -95,71 +95,76 @@ class Filter_Grouping(threading.Thread):
 				data_new = self.queue_data_in.get()
 				data_last=self.buffer_group[-1]["value"]
 				precision =  abs( float(data_last[-1]-data_new[-1])/float(data_last[-1]) ) 
-				if  precision > self.step_value:
-					if self.buffer_group[-1]["length"] > self.step_count: 
-						self.step_flag = True
-						print self.buffer_group[-1]
+				if  precision > self.new_value:
+					if self.buffer_group[-1]["length"] > self.step_count: # stepped once 
+						print self.buffer_group[-1],"grouping.........cur_refer",self.cur_refer
 						diff = data_last[-1] - data_new[-1]
-						if  diff<0 and self.trigger_flag==True:
+						if  (diff<0) and (self.running_flag==True):
+							self.last_refer = self.cur_refer 
 							self.cur_refer += 1
-						elif diff>0 and (self.trigger_flag == True):
+						if (diff>0) and (self.running_flag==True):
+							self.last_refer = self.cur_refer 
 							self.cur_refer -= 1
-						print "cur_refer",self.cur_refer
+					self.new_flag =  True
 					self.buffer_group.append( {"length":int(1),"value":data_new} )
 				else:
 					self.buffer_group[-1]["length"] += 1
 			except:
+				self.new_flag =  True
 				self.buffer_group.append( {"length":int(1),"value":data_new} )
 
 
 	def update_trigger(self):
 		try:
-			if self.buffer_group[-2]["length"] > self.sleep_count:
-				if self.trigger_flag == False:
+			if (self.buffer_group[-2]["length"] > self.sleep_count) and (self.trigger_flag == False):
+				cur_value = self.buffer_group[-1]["value"][-1]
+				last_value = self.buffer_group[-2]["value"][-1]
+				if (cur_value > last_value) and (self.running_flag == False):
+					print "started ..........\n"
+					self.running_flag =  True
+					self.last_refer = 0
+					self.cur_refer = 1
+				if self.running_flag == True:
 					print "triggered ..........\n"
 					self.trigger_flag = True
-					self.dozing_flag = False
 		except:
 			pass
 
 	def update_dozer(self):
 		try:
-			if (self.buffer_group[-1]["length"] > self.sleep_count) and (self.dozing_flag == False):
+			if (self.buffer_group[-1]["length"] > self.sleep_count) and (self.trigger_flag == True):
+				print "dozing ..........\n"
 				self.trigger_flag = False
-				self.dozing_flag = True
-				self.doze_count +=1
-				print "dozed ..........\n"
+				cur_value = self.buffer_group[-1]["value"][-1]
+				last_value = self.buffer_group[-2]["value"][-1]
+				if (cur_value < last_value) and (self.running_flag==True):
+					print "stopped and cycled once ..........\n"
+					del self.buffer_group
+					self.buffer_group=[]
+					self.running_flag = False
 		except:
 			pass
 	
-	def update_loop(self):
-		try:
-			if self.doze_count ==2 :
-				self.doze_count =0
-				print "cycled once ..........\n"
-		except:
-			pass
 
 	def validate(self):
-		if self.step_flag == True:
-			self.step_flag = False
+		if (self.new_flag == True) and (self.running_flag == True):
+			self.new_flag = False
 			data = self.buffer_group[-2]
+			print "validating.............................",self.last_refer, data
 			data_value = data["value"] 
 			x_value= data_value[0]
 			y_value = data_value[1]
 			data_v  = self.validator.ValidateData_Step(
 					position=x_value,
 					value=y_value,
-					step=self.cur_refer-1)
+					step=self.last_refer)
 
-			if self.trigger_flag == True:
-				self.queue_data_out.put( {"count":data["length"],"data_v":data_v} )
+			self.queue_data_out.put( {"count":data["length"],"data_v":data_v} )
 
 	def filter_data(self):
 		self.grouping_data()
 		self.update_trigger()
 		self.update_dozer()
-		self.update_loop()
 		self.validate()
 				
 ####################################################################################################
@@ -182,10 +187,10 @@ def create_validator(refer_file_name):
 
 ############################################################################################################################################
 if __name__=='__main__':
-	queue_in = Queue(-1000)
-	queue_in_1 = Queue(-9999)
-	queue_data= Queue(9999)
-	queue_data_out= Queue(-9999)
+	queue_in = Queue(0)
+	queue_in_1 = Queue(0)
+	queue_data= Queue(0)
+	queue_data_out= Queue(0)
 	source = Thread_Source(window=None,
 			url="127.0.0.1:20001/com6",
 			queue_in=queue_in,

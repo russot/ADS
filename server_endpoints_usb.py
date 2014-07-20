@@ -102,7 +102,7 @@ class Serial_reader(threading.Thread):
 		base_ = 100
 		#now begin initialize signal
 		for x in range(1,1000):
-			out +="%04d%04d" % (pos,base_)
+			out +="%04x%04x" % (pos,base_)
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
@@ -127,7 +127,7 @@ class Serial_reader(threading.Thread):
 				out='0x:'
 				time.sleep(0.03)
 		for x in range(1,1000):
-			out +="%04d%04d" % (pos,base_+4000)
+			out +="%04x%04x" % (pos,base_+4000)
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
@@ -218,8 +218,8 @@ class Endpoint(threading.Thread):
 		self.CliSock = CliSock
 		self.run_flag  = False
 		self.quit_flag = False
-		self.queue_cmd_in = Queue(-1)
-		self.queue_data  = Queue(99999991)
+		self.queue_cmd_in = Queue(0)
+		self.queue_data  = Queue(0)
 		self.buffer_cmd = []
 		self.life = 3
 	       
@@ -393,7 +393,7 @@ class Client_Endpoints(threading.Thread):
 		self.CliSock.setblocking(0)
 		self.timer = threading.Timer(1,self.FeedDog).start()
 		self.buffer_cmd=[]
-		self.queue_ep = Queue(-1)
+		self.queue_ep = Queue(0)
 
 	def FeedDog(self):
 		self.CliSock.send("feed:dog\n")
