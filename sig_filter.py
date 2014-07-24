@@ -42,8 +42,8 @@ class Filter_Grouping(threading.Thread):
 		self.buffer_group=[]
 		#~ sys.stdout = self
 		self.data_count = 0
-		self.new_value = 0.01
-		self.sleep_count = 500
+		self.new_value = 0.018
+		self.sleep_count = 300
 		self.run_flag =  False
 		self.running_flag= False
 		self.loop_flag =  False
@@ -92,7 +92,12 @@ class Filter_Grouping(threading.Thread):
 	def grouping_data(self):
 		while not self.queue_data_in.empty():
 			try:
-				data_new = self.queue_data_in.get()
+				pos_,value_ = self.queue_data_in.get()
+				if value_ >= 32768:
+					value = (float(value_)-32768)/16
+				else:
+					value = float(value_)
+				data_new = (float(pos_),value)
 				data_last=self.buffer_group[-1]["value"]
 				precision =  abs( float(data_last[-1]-data_new[-1])/float(data_last[-1]) ) 
 				if  precision > self.new_value:
@@ -150,7 +155,7 @@ class Filter_Grouping(threading.Thread):
 		if (self.new_flag == True) and (self.running_flag == True):
 			self.new_flag = False
 			data = self.buffer_group[-2]
-			print "validating.............................",self.last_refer, data
+			#print "validating...............",self.last_refer, data
 			data_value = data["value"] 
 			x_value= data_value[0]
 			y_value = data_value[1]
@@ -189,7 +194,7 @@ def create_validator(refer_file_name):
 if __name__=='__main__':
 	queue_in = Queue(0)
 	queue_in_1 = Queue(0)
-	queue_data= Queue(0)
+	queue_data= Queue(-10000)
 	queue_data_out= Queue(0)
 	source = Thread_Source(window=None,
 			url="127.0.0.1:20001/com6",

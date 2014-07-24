@@ -101,12 +101,12 @@ class Serial_reader(threading.Thread):
 		pos = 0
 		base_ = 100
 		#now begin initialize signal
-		for x in range(1,1000):
-			out +="%04x%04x" % (pos,base_)
+		for x in range(1,2000):
+			out +="%04x%04x" % (pos,base_*16+32768)
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.03)
+				time.sleep(0.003)
 		#now begin populate signal
 		rand_value_all = 0 
 		value_ = 0
@@ -121,33 +121,38 @@ class Serial_reader(threading.Thread):
 					rand_value_all = random.random() * base /99.90
 					value_= rand_value_all + base 
 				value = value_
+			if value < 256:
+				value = value*16+32768
 			out +="%04x%04x" % (pos,value)
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.03)
+			time.sleep(0.003)
+
 		for x in range(1,1000):
 			out +="%04x%04x" % (pos,base_+4000)
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.03)
-
+				time.sleep(0.003)
 		for x in range (1,1000):
 			base = 4*(int(x)/int(100)*100) + base_
 			if x%100 < 10: 
 				rand_value_once= random.random()* base / 99.91
-				value= rand_value_once + base 
+				value= 4000-rand_value_once - base 
 			else:
 				if x%100 ==10:
 					rand_value_all = random.random() * base /99.90
-					value_= rand_value_all + base 
+					value_= 4000-rand_value_all - base 
 				value = value_
-			out +="%04x%04x" % (pos,4100-value)
+			if value < 256:
+				value = value*16+32768
+			out +="%04x%04x" % (pos,value)
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.03)
+				time.sleep(0.003)
+
 
 
 class Motor():
@@ -218,8 +223,8 @@ class Endpoint(threading.Thread):
 		self.CliSock = CliSock
 		self.run_flag  = False
 		self.quit_flag = False
-		self.queue_cmd_in = Queue(0)
-		self.queue_data  = Queue(0)
+		self.queue_cmd_in = Queue(99999990)
+		self.queue_data  = Queue(-10)
 		self.buffer_cmd = []
 		self.life = 3
 	       
@@ -393,7 +398,7 @@ class Client_Endpoints(threading.Thread):
 		self.CliSock.setblocking(0)
 		self.timer = threading.Timer(1,self.FeedDog).start()
 		self.buffer_cmd=[]
-		self.queue_ep = Queue(0)
+		self.queue_ep = Queue(99999990)
 
 	def FeedDog(self):
 		self.CliSock.send("feed:dog\n")
