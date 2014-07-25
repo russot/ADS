@@ -42,7 +42,7 @@ class Filter_Grouping(threading.Thread):
 		self.buffer_group=[]
 		#~ sys.stdout = self
 		self.data_count = 0
-		self.new_value = 0.018
+		self.new_value = 0.028
 		self.sleep_count = 300
 		self.run_flag =  False
 		self.running_flag= False
@@ -53,6 +53,7 @@ class Filter_Grouping(threading.Thread):
 		self.step_count = int(50)
 		self.cur_refer = 0
 		self.last_refer = 0
+		self.last_time = time.time()
 
 	def write(self,TE):
 		pass
@@ -125,12 +126,14 @@ class Filter_Grouping(threading.Thread):
 				cur_value = self.buffer_group[-1]["value"][-1]
 				last_value = self.buffer_group[-2]["value"][-1]
 				if (cur_value > last_value) and (self.running_flag == False):
-					print "started ..........\n"
+					#print "started ..........\n"
 					self.running_flag =  True
 					self.last_refer = 0
 					self.cur_refer = 1
+					for i in range(0,len(self.buffer_group[0:-2])):
+						del self.buffer_group[i]
 				if self.running_flag == True:
-					print "triggered ..........\n"
+					#print "triggered ..........\n"
 					self.trigger_flag = True
 		except:
 			pass
@@ -138,14 +141,17 @@ class Filter_Grouping(threading.Thread):
 	def update_dozer(self):
 		try:
 			if (self.buffer_group[-1]["length"] > self.sleep_count) and (self.trigger_flag == True):
-				print "dozing ..........\n"
+				#print "dozing ..........\n"
 				self.trigger_flag = False
 				cur_value = self.buffer_group[-1]["value"][-1]
 				last_value = self.buffer_group[-2]["value"][-1]
 				if (cur_value < last_value) and (self.running_flag==True):
-					print "stopped and cycled once ..........\n"
-					del self.buffer_group
-					self.buffer_group=[]
+					self.data_count += 1
+					now = time.time()
+					if now - self.last_time  > 4.0:
+						print "missed ........ @", self.data_count
+					print "stopped and cycled once ..........", now - self.last_time
+					self.last_time = now
 					self.running_flag = False
 		except:
 			pass
@@ -155,7 +161,7 @@ class Filter_Grouping(threading.Thread):
 		if (self.new_flag == True) and (self.running_flag == True):
 			self.new_flag = False
 			data = self.buffer_group[-2]
-			#print "validating...............",self.last_refer, data
+			print "validating...............",self.last_refer, data
 			data_value = data["value"] 
 			x_value= data_value[0]
 			y_value = data_value[1]
@@ -194,7 +200,7 @@ def create_validator(refer_file_name):
 if __name__=='__main__':
 	queue_in = Queue(0)
 	queue_in_1 = Queue(0)
-	queue_data= Queue(-10000)
+	queue_data= Queue(0)
 	queue_data_out= Queue(0)
 	source = Thread_Source(window=None,
 			url="127.0.0.1:20001/com6",
@@ -208,14 +214,14 @@ if __name__=='__main__':
 				queue_data_out=queue_data_out,
 				validator=validator)
 	source.start()
-	filtor.start()
+	#filtor.start()
 
 	open_cmd = "open:%s:%s"%("com5",'115200')
 	queue_in.put(open_cmd)
 	time.sleep(1)
 	queue_in.put("run:\n")
 	while True:
-		try:
+		#filtor.deal_cmd()
+		filtor.filter_data()
+		while not queue_data_out.empty():
 			data = queue_data_out.get()
-		except:
-			pass

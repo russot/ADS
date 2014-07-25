@@ -106,7 +106,7 @@ class Serial_reader(threading.Thread):
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.003)
+				time.sleep(0.001)
 		#now begin populate signal
 		rand_value_all = 0 
 		value_ = 0
@@ -127,14 +127,14 @@ class Serial_reader(threading.Thread):
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-			time.sleep(0.003)
+			time.sleep(0.001)
 
 		for x in range(1,1000):
 			out +="%04x%04x" % (pos,base_+4000)
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.003)
+				time.sleep(0.001)
 		for x in range (1,1000):
 			base = 4*(int(x)/int(100)*100) + base_
 			if x%100 < 10: 
@@ -151,7 +151,7 @@ class Serial_reader(threading.Thread):
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.003)
+				time.sleep(0.001)
 
 
 
@@ -223,8 +223,8 @@ class Endpoint(threading.Thread):
 		self.CliSock = CliSock
 		self.run_flag  = False
 		self.quit_flag = False
-		self.queue_cmd_in = Queue(99999990)
-		self.queue_data  = Queue(-10)
+		self.queue_cmd_in = Queue(0)
+		self.queue_data  = Queue(0)
 		self.buffer_cmd = []
 		self.life = 3
 	       
@@ -256,13 +256,13 @@ class Endpoint(threading.Thread):
 			while  self.run_flag and  (not self.queue_data.empty() ) :
 				count += 1
 				data = self.queue_data.get() # 从后台读数据源线程对象取数据	
-				print data+'\n'
+			#	print data+'\n'
 				try:
 					self.CliSock.send(data+'\n')
 				except:
 					break
 				#~ print count,':___',data,'\n'
-			time.sleep(0.001)
+			time.sleep(0.003)
 
 	def get_cmd(self):
 		try:
@@ -398,7 +398,7 @@ class Client_Endpoints(threading.Thread):
 		self.CliSock.setblocking(0)
 		self.timer = threading.Timer(1,self.FeedDog).start()
 		self.buffer_cmd=[]
-		self.queue_ep = Queue(99999990)
+		self.queue_ep = Queue(0)
 
 	def FeedDog(self):
 		self.CliSock.send("feed:dog\n")
