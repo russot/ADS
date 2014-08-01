@@ -19,7 +19,13 @@ class ScrollbarFrame(wx.Frame):
         self.scroll.Scroll(1,1)
 
 if __name__ == '__main__':
-    app=wx.PySimpleApp()
-    frame=ScrollbarFrame()
-    frame.Show()
-    app.MainLoop()
+    res = []
+    res2 = []
+    for r1 in (1.0,2.2,3.3,6.6,12.0,20.0):
+        for r2 in (3.6,13.0,25.0,57.0,61.0,78.0,87.8,98.0):
+            res.append((r1+r2)/r1)
+    res2 = res.sort()
+    print res2
+    for i in res:
+        print i
+

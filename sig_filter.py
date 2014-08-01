@@ -28,10 +28,19 @@ from signal_panel import Signal_Panel
 MyEvent, EVT_MY_EVENT = wx.lib.newevent.NewCommandEvent()
 
 
+class Calibrator(wx.Object):
+	def __init__(self,calibrator_file=""):
+		if calibrator_file:
+			self.create_table(calibrator_file)
 
+	def create_table(self,file_name):
+		if not file_name:
+			return 
+		calibrator_file = open(file_name,'r')
+		head = calibrator_file.readline()
 
 ############################################################################################################################################
-class Filter_Grouping(threading.Thread):
+class Grouping_Filter(threading.Thread):
 	def __init__(self,queue_cmd_in,queue_cmd_out,queue_data_in,queue_data_out,validator):
 		threading.Thread.__init__(self)
 		self.queue_cmd_in   = queue_cmd_in
@@ -41,7 +50,7 @@ class Filter_Grouping(threading.Thread):
 		self.validator      = validator 
 		self.buffer_group=[]
 		#~ sys.stdout = self
-		self.data_count = 0
+		self.count = 0
 		self.new_value = 0.018
 		self.sleep_count = 300
 		self.run_flag =  False
@@ -53,12 +62,16 @@ class Filter_Grouping(threading.Thread):
 		self.step_count = int(50)
 		self.cur_refer = 0
 		self.last_refer = 0
+		self.time_now = time.time()
 
 	def write(self,TE):
 		pass
 
 	def set_validator(self,validator):
 		self.validator = validator 
+
+	def set_calibrator(self,validator):
+		self.calibrator= calibrator
 
 	def run(self):#运行一个线程
 		while True:
@@ -102,7 +115,7 @@ class Filter_Grouping(threading.Thread):
 				precision =  abs( float(data_last[-1]-data_new[-1])/float(data_last[-1]) ) 
 				if  precision > self.new_value:
 					if self.buffer_group[-1]["length"] > self.step_count: # stepped once 
-						print self.buffer_group[-1],"grouping.........cur_refer",self.cur_refer
+						#print self.buffer_group[-1],"grouping.........cur_refer",self.cur_refer
 						diff = data_last[-1] - data_new[-1]
 						if  (diff<0) and (self.running_flag==True):
 							self.last_refer = self.cur_refer 
@@ -125,12 +138,12 @@ class Filter_Grouping(threading.Thread):
 				cur_value = self.buffer_group[-1]["value"][-1]
 				last_value = self.buffer_group[-2]["value"][-1]
 				if (cur_value > last_value) and (self.running_flag == False):
-					print "started ..........\n"
+					#print "started ..........\n"
 					self.running_flag =  True
 					self.last_refer = 0
 					self.cur_refer = 1
 				if self.running_flag == True:
-					print "triggered ..........\n"
+					#print "triggered ..........\n"
 					self.trigger_flag = True
 		except:
 			pass
@@ -138,12 +151,17 @@ class Filter_Grouping(threading.Thread):
 	def update_dozer(self):
 		try:
 			if (self.buffer_group[-1]["length"] > self.sleep_count) and (self.trigger_flag == True):
-				print "dozing ..........\n"
+				#print "dozing ..........\n"
 				self.trigger_flag = False
 				cur_value = self.buffer_group[-1]["value"][-1]
 				last_value = self.buffer_group[-2]["value"][-1]
 				if (cur_value < last_value) and (self.running_flag==True):
-					print "stopped and cycled once ..........\n"
+					#print "stopped and cycled once ..........\n"
+					time_last= self.time_now 
+					self.time_now = time.time()
+					self.count += 1 
+					if self.time_now-time_last > 4.0:
+						print self.time_now-time_last, "count...", self.count
 					del self.buffer_group
 					self.buffer_group=[]
 					self.running_flag = False
@@ -202,20 +220,20 @@ if __name__=='__main__':
 			queue_out=queue_data)
 
 	validator = create_validator("refer_table.cfg")	
-	filtor = Filter_Grouping(queue_cmd_in=queue_in_1,
+	filtor = Grouping_Filter(queue_cmd_in=queue_in_1,
 				queue_cmd_out=None,
 				queue_data_in=queue_data,
 				queue_data_out=queue_data_out,
 				validator=validator)
 	source.start()
-	filtor.start()
+#	filtor.start()
 
 	open_cmd = "open:%s:%s"%("com5",'115200')
 	queue_in.put(open_cmd)
 	time.sleep(1)
 	queue_in.put("run:\n")
 	while True:
-		try:
+		filtor.filter_data()
+		while not queue_data_out.empty():
 			data = queue_data_out.get()
-		except:
-			pass
+			#print "filtered out.............",data

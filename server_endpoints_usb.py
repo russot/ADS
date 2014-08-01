@@ -106,7 +106,7 @@ class Serial_reader(threading.Thread):
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.003)
+				time.sleep(0.001)
 		#now begin populate signal
 		rand_value_all = 0 
 		value_ = 0
@@ -127,14 +127,14 @@ class Serial_reader(threading.Thread):
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-			time.sleep(0.003)
+			time.sleep(0.001)
 
 		for x in range(1,1000):
 			out +="%04x%04x" % (pos,base_+4000)
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.003)
+				time.sleep(0.001)
 		for x in range (1,1000):
 			base = 4*(int(x)/int(100)*100) + base_
 			if x%100 < 10: 
@@ -151,7 +151,7 @@ class Serial_reader(threading.Thread):
 			if x%7 == 0:
 				self.data_queue_.put(out+'\0')
 				out='0x:'
-				time.sleep(0.003)
+				time.sleep(0.001)
 
 
 

@@ -29,6 +29,18 @@ import data_point
 MyEvent, EVT_MY_EVENT = wx.lib.newevent.NewCommandEvent()
 
 
+class Refer_Entry():
+	def __init__(self,Xvalue,Yvalue,precision):
+		self.Xvalue = Xvalue
+		self.Yvalue = Yvalue
+		self.precision= precision
+
+	def GetReferValue(self):
+		return self.Yvalue
+
+	def SetReferValue(self,value):
+		self.Yvalue= value
+
 
 
 
@@ -49,16 +61,23 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.bad_colour = bad_colour #persist~~~~~~~~~~~~~~~~~~ 
 		self.data_store = []
 		self.SetBackgroundColour("Black")
+		self.refer_table = None
 
 		self.Bind(wx.EVT_PAINT, self.OnPaint)
 		self.Bind(wx.EVT_LEFT_DCLICK, self.OnShowCurrent)
 		
+	def SetRefer(self,refer_table):
+		self.refer_table = refer_table
+		self.refer_table.sort(key=lambda x:x.GetReferValue()) 
 
 	def SetOKColour(self,colour):
 		self.ok_colour = colour
 
 	def SetBadColour(self,colour):
 		self.bad_colour= colour
+
+	def SetReferColour(self,colour):
+		self.refer_colour= colour
 
 	def OnPaint(self,evt):
 		#print "redaw"
@@ -71,7 +90,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		dc.SetBackground(wx.Brush(self.GetBackgroundColour()))
 		dc.Clear()
 		#self.DrawBackground(dc,clientRect)
-		self.DrawGrig(dc,clientRect)
+		self.DrawGrid(dc,clientRect)
 		self.DrawData(dc,clientRect)
 
 	def DrawBackground(self,dc,clientRect):
@@ -79,12 +98,26 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		dc.SetBrush(wx.Brush(self.GetBackgroundColour(),wx.SOLID) )
 		dc.DrawRectangle(0, 0,clientRect.width, clientRect.height)
 		
-	def DrawGrig(self,dc,clientRect):
+	def DrawGrid(self,dc,clientRect):
 		#dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.SHORT_DASH))
-		dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.DOT))
-		for x in range(1,16):
-			y = clientRect.height*x/16
+		if  self.refer_table == None:
+			return
+		dc.SetPen(wx.Pen(self.refer_colour,1,style = wx.DOT))
+		dc.SetTextForeground(self.refer_colour)
+		count = 0
+		refer_num = len(self.refer_table)
+		if refer_num < 40:
+			sparse = 2
+		else:
+			sparse = refer_num / 20
+		for x in self.refer_table:
+			count +=1
+		
+			if refer_num > 20 and count%sparse!=0:
+				continue
+			y = clientRect.height - clientRect.height*x.GetReferValue()/self.refer_table[-1].GetReferValue() 
 			dc.DrawLine(0,y,clientRect.width,y)
+			dc.DrawText("%.2f"%(float(x.GetReferValue())),0,y-15)
 
 	def DrawData(self,dc,clientRect):
 		#dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.SHORT_DASH))
@@ -176,17 +209,26 @@ def populate_data(data_panel):
 				)
 		data_panel.AppendValue(data_v)
 	data_panel.SetMaxValue(1400)
+	
+def pupulate_refer_table():
+	refer_table = []
+	for x in range(8,203):
+		refer_table.append(Refer_Entry(x,205-x+0.2,0.001))
+	return refer_table
 
+	
 if __name__=='__main__':
 	app = wx.App()
 	frm = wx.Frame(None)
-	frm.SetSize((1400,900))
+	frm.SetSize((1400,600))
 
-	panel = Signal_Panel(parent=frm,id=-1,size=(1400,900))
+	panel = Signal_Panel(parent=frm,id=-1,size=(1400,600))
+	panel.SetRefer(pupulate_refer_table())
+	panel.SetReferColour(wx.Colour(0,250,250,200))
+	panel.SetBackgroundColour(wx.Colour(150,50,90,200))
+	panel.SetBadColour(wx.Colour(200,0,200))
 	populate_data(panel)
 	frm.Show()
 	app.SetTopWindow(frm)
 	app.MainLoop()
-	time.sleep(3)
-	panel.SetBackgroundColour("Purple")
 
