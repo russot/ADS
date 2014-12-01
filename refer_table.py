@@ -14,6 +14,7 @@ from socket import *
 import const
 from Queue import Queue
 import math
+import csv
 from data_point import Data_Point,Data_Real,Data_Validated
 from data_validator import Data_Validator_Linear
 import wx.lib.buttons as buttons 
@@ -113,17 +114,31 @@ class Refer_Entry():
 		self.Yoffset= float(value)
 
 class Thermo_Sensor():
-	def __init(self,table=None):
+	def __init(self,table=None,PN=None):
+		self.field = {}
+		self.field["PN"]= PN 
+		self.field["model"]= ""
+		self.field["value"]= 0
+		self.field["unit"]= "ohm"
+		self.field["precision"]=0.01
+		self.field["X_unit"] = "C"
+		self.field["Y_unit"] = "ohm"
 		self.table=[]
 		if table:
 			self.SetTable(table)
+
+	def SetName(self,name):
+		self.name = name
+
+	def GetName(self,name):
+		return self.name
 
 	def SetTable(self,table):
 		for x in table:
 			#!!!!~~~~table item is as of [T,R]~~~!!!!!!!
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!
 			self.table.append(Refer_Entry(Xvalue=x[1],Yvalue=x[0]))
-		self.table.sort((key=lambda x:x.GetYvalue())
+		self.table.sort(key=lambda x:x.GetYvalue())
 
 	def GetT(self,Rvalue):
 		x0 = self.table[0]
@@ -131,16 +146,21 @@ class Thermo_Sensor():
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!
 			r0 = x0.GetXvalue()
 			r1 = x1.GetXvalue()
-			if Rvalue >= r0 and Rvalue <= r1:
-				t0 =  x0.GetYvalue()
-				t1 =  x1.GetYvalue()
-				delta_R = r1 - r0
-				delta_T = t1 - t0
-				k = delta_T/delta_R
-				delta_r =  Rvalue - r0
-				tx= t0 + k*delta_r
-				break
-			x0 = x1
+			delta0 = abs(Rvalue-r0)
+			delta1 = abs(Rvalue-r1)
+			#judge being within by comparing delta_sum 
+			if (delta0+delta1) > abs(r1-r0):
+				x0 = x1
+				continue
+			#found and compute linearly
+			t0 =  x0.GetYvalue()
+			t1 =  x1.GetYvalue()
+			delta_R = r1 - r0
+			delta_T = t1 - t0
+			k = delta_T/delta_R
+			delta_r =  Rvalue - r0
+			tx= t0 + k*delta_r
+			break
 
 		return tx
 			
@@ -150,49 +170,75 @@ class Thermo_Sensor():
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!
 			t0 = x0.GetYvalue()
 			t1 = x1.GetYvalue()
-			if Tvalue >= t0 and Tvalue <= t1:
-				r0 =  x0.GetXvalue()
-				r1 =  x1.GetXvalue()
-				delta_R = r1 - r0
-				delta_T = t1 - t0
-				k = delta_R/delta_T
-				delta_t =  Tvalue - t0
-				rx= t0 + k*delta_t
-				break
-			x0 = x1
+			delta0 = abs(Tvalue-t0)
+			delta1 = abs(Tvalue-t1)
+			#judge being within by comparing delta_sum 
+			if (delta0+delta1) > abs(t1-t0):
+				x0 = x1
+				continue
+			#found and compute linearly
+			r0 =  x0.GetXvalue()
+			r1 =  x1.GetXvalue()
+			delta_R = r1 - r0
+			delta_T = t1 - t0
+			k = delta_R/delta_T
+			delta_t =  Tvalue - t0
+			rx= t0 + k*delta_t
+			break
 		return rx
 			
 	
 
 
 class Eut():
-	def __init__(self,model=None,PN=None,SN=None,Refer_Table=[[],[]],NTC=None):
-		self.model=model
-		self.PN = PN
-		self.SN = SN
-		self.Refer_Table = Refer_Table
-		self.NTC = NTC
+	def __init__(self,model=None,PN=None,SN=None,Refer_Table=[[],[]],thermo_PN=None):
+		self.field={}
+		self.field["model"]=model
+		self.field["PN"] = PN
+		self.field["SN"] = SN
+		self.field["thermo_PN"] = thermo_PN
+		self.field["Refer_Table"] = Refer_Table
+		self.field["signal_num"] = 2
+		self.field["X_unit"] = "mm"
+		self.field["Y1_unit"] = "ohm"
+		self.field["Y2_unit"] = "ohm"
 
+
+	def SetField(self,line):
+		if line[0].startswith("#"):
+			return
+		field_name = line[0] 
+		if self.field.has_key(field_name):
+			self.field[field_name] = line[1]
+
+	def Import(self,csv_reader):
+		for line in csv_reader[:10]:
+			self.SetField(line)
+		for line in csv_reader[10:]:
+			self.SetRefer(line)
+
+	
 	def SetReferTable(self,Refer_Table):
-		self.Refer_Table = Refer_Table
-		for table in self.Refer_Table:
+		self.field["Refer_Table"] = Refer_Table
+		for table in self.field["Refer_Table"]:
 			table.sort(key=lambda x:x.GetYvalue())
 
 	def GetReferTable(self):
-		return self.Refer_Table
+		return self.field["Refer_Table"] 
 
-	def SetNTC(self,NTC):
-		self.NTC= NTC
+	def SetThermoSensor(self,thermo_sensor):
+		self.thermo_sensor= thermo_sensor
 
-	def GetNTC(self):
-		return self.NTC
+	def GetThermoSensor(self):
+		return self.thermo_sensor
 
 
 	def AppendReferTable(self,table_num,refer_entry):
-		if not isinstance(Refer_Entry,refer_entry)
+		if not isinstance(Refer_Entry,refer_entry):
 			return -1
 		try:
 			self.Refer_Table[table_num].append(refer_entry)
+			# use Yvalue as index, and table is sorted by Yvalue
 			self.Refer_Table[table_num].sort(key=lambda x:x.GetYvalue())
 			return 1
 		except:
@@ -214,15 +260,17 @@ class Eut():
 				x1 = p1.GetXvalue()
 				delta0 = abs(Xvalue - x0)
 				delta1 = abs(Xvalue - x1)
+				#judge being within by comparing delta_sum 
 				if (delta0 + delta1) > abs(x1 - x0):
 					p0 = p1
 					continue
+				#use nearby Yvalue
 				if abs(delta0) < abs(delta1): 
 					yi =  p0.GetYvalue()
 				else:
 					yi =  p1.GetYvalue()
 				break
-		else:# use Yvalue as index
+		else:# use Yvalue as index, and table is sorted by Yvalue
 			if Yvalue <= self.Refer_Table[table_num][0].GetYvalue():#outof range
 					yi =  self.Refer_Table[table_num][0].GetYvalue()
 					self.Refer_Table[table_num][0].SetValidStatus(True)
@@ -239,9 +287,11 @@ class Eut():
 					y1 = p1.GetYvalue()
 					delta0 = Yvalue - y0
 					delta1 = Yvalue - y1
+					#judge being within by comparing delta_sum 
 					if (delta0 + delta1) > abs(y1 - y0):
 						p0 = p1
 						continue
+					#use nearby Yvalue
 					if abs(delta0) < abs(delta1): 
 						yi =  p0.GetYvalue()
 						p0.SetValidStatus(True)
@@ -250,7 +300,7 @@ class Eut():
 						p1.SetValidStatus(True)
 					break
 
-		return yi
+		return yi # if not found, return None object
 
 
 
@@ -446,8 +496,8 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 			row,col=cell[_RC_VALUE]
 			index = cell[_MAP]
 			#print row,col,index
-			print index
-			print self.eut[index] 
+			#print index
+			#print self.eut[index] 
 			self.SetCellValue( row, col, str(self.eut[index]) )
 		row,col_= self.named_cells[_REF_POS][_RC_VALUE]
 		for ref_points in self.eut[_REF_PTS]:
@@ -594,10 +644,13 @@ class Refer_Editor(wx.Frame):
 #		sizer_time.Add(self.filter_time, 0, wx.ALL, 0)
 
 		self.sizer_btn_1  = wx.BoxSizer(wx.HORIZONTAL) 
-		self.btn_new = wx.Button(self,-1,u"新建")
-		self.btn_save = wx.Button(self,-1,u"保存")
-		self.btn_select = wx.Button(self,-1,u"选择")
-		self.btn_edit = buttons.GenToggleButton(self,-1,u"编辑")
+		self.btn_import = wx.Button(self,-1,u"import/导入...")
+		self.btn_new = wx.Button(self,-1,u"new/新建")
+		self.btn_save = wx.Button(self,-1,u"save/保存")
+		self.btn_select = wx.Button(self,-1,u"select/选择")
+		self.btn_edit = buttons.GenToggleButton(self,-1,u"edit/编辑")
+		self.sizer_btn_1.Add(self.btn_import)
+		self.sizer_btn_1.Add((10,10),1)
 		self.sizer_btn_1.Add(self.btn_new)
 		self.sizer_btn_1.Add((10,10),1)
 		self.sizer_btn_1.Add(self.btn_save)
@@ -624,10 +677,11 @@ class Refer_Editor(wx.Frame):
 		self.sizer_filter.Add(self.sizer_btn)
 		self.btn_filter.Bind(wx.EVT_BUTTON, self.OnFilter,self.btn_filter)
 		self.btn_selectDB.Bind(wx.EVT_BUTTON, self.OnSelectDb,self.btn_selectDB)
-		self.btn_new.Bind(wx.EVT_BUTTON, self.OnNew,self.btn_new)
-		self.btn_save.Bind(wx.EVT_BUTTON, self.OnSave,self.btn_save)
-		self.btn_select.Bind(wx.EVT_BUTTON, self.OnSelect,self.btn_select)
-		self.btn_edit.Bind(wx.EVT_BUTTON, self.OnToggleEdit,self.btn_edit)
+		self.btn_import.Bind(wx.EVT_BUTTON, self.OnImport)
+		self.btn_new.Bind(wx.EVT_BUTTON, self.OnNew)
+		self.btn_save.Bind(wx.EVT_BUTTON, self.OnSave)
+		self.btn_select.Bind(wx.EVT_BUTTON, self.OnSelect)
+		self.btn_edit.Bind(wx.EVT_BUTTON, self.OnToggleEdit)
 
 		self.splitter = wx.SplitterWindow(self)
 		self.splitter.SetMinimumPaneSize(1)
@@ -716,6 +770,26 @@ class Refer_Editor(wx.Frame):
 				queue_out=self.persist[_DATA]) 
 		#sql.setDaemon(True)
 		sql.start()
+
+	def OnImport(self, event):
+		dlg = wx.FileDialog(None,u"选择csv文件",wildcard="*.csv")
+		if dlg.ShowModal() != wx.ID_OK:
+			return
+		eut_name = dlg.GetPath()
+		if not eut_name:
+			return 
+		reader =file(eut_name,"r")
+		type_ = reader.readline().split(",")
+		print "type",type_
+		if type_[1].startswith("NTC"):
+			new_sensor = Thermo_Sensor()
+		elif type_[1].startswith("Sensor"):
+			new_sensor = Eut()
+		else:
+			wx.MessageDialog(None,u"type值错误，必须是NTC或Sensor","警告",wx.YES_DEFAULT).ShowModal()
+			return 
+		
+		new_sensor.Import(reader)
 
 	def OnNew(self, event):
 		"""KeyDown event is sent first"""
