@@ -1,3 +1,11 @@
 #config_db.py
-Connection_db="sqlite3_all.db"
+data_db ="sqlite3_all.db"
 data_table_name = "data"
+eut_db ="sqlite3_eut.db"
+eut_table_name = "eut"
+
+
+
+
+			
+

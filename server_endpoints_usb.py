@@ -13,145 +13,182 @@ import time
 import random
 import re
 from Queue import Queue
-import serial
+#import serial
 import struct 
-import usb.core
-import usb.util
+#import usb.core
+#import usb.util
 
-PORT=20001
+PORT=8088
+IP_ADDRESS = '127.0.0.1'
 
-
-
-class Serial_Writer(threading.Thread):
-	def __init__(self,serial):
-		threading.Thread.__init__(self)
-		self.serial = serial
-		self.data=[ (45,	0.01,	0.04),
-				(55,	5.6,	0.04),
-				(76,	11.2,	0.04),
-				(97,	16.8,	0.01),
-				(118,	22.4,	0.01),
-				(139,	28,	0.01),
-				(160,	33.6,	0.01),
-				(181,	39.2,	0.01),
-				(202,	44.8,	0.01),
-				(223,	50.4,	0.01),
-				(244,	56.6,	0.01),
-				(265,	62.8,	0.01),
-				(286,	69,	0.01),
-				(307,	75.2,	0.01),
-				(328,	81.4,	0.01),
-				(349,	89.6,	0.01),
-				(370,	100.6,	0.01),
-				(391,	115.6,	0.01),
-				(412,	130.6,	0.01),
-				(433,	150.6,	0.01),
-				(454,	170.6,	0.01),]
-		self.direction = "up"
-		self.index = -1
-
-	def run(self):
-		print "write start..\n", self.serial
-		while True:
-			if self.direction == "up":
-				self.index +=  1
-				if self.index == 20:
-					self.direction = "down"
-			else:
-				self.index -=  1
-				if self.index == 0 :
-					self.direction = "up"
-
-			self.serial.write('0x:')
-			tmp1 = struct.pack("2f",self.data[self.index][0],self.data[self.index][1])
-			i1,i2 = struct.unpack("2I",tmp1)
-			self.serial.write("%x%x"%(i1,i2))
-			self.serial.write('\n')
-
-			
-			time.sleep(0.001)
 			
 			
 class Serial_reader(threading.Thread):
 	def __init__(self,serial_in,data_queue):
 		threading.Thread.__init__(self)
-		self.data_queue_ = data_queue
+		self.queue_out= data_queue
 		self.serial = serial_in
 		
 	def run(self):
 		#Serial_Writer(self.serial).start()
 		print "read thread start....\n",self.serial
 		while True:
-		#	self.get_data_usb()
-			self.get_data_debug()
+		#	self.get_usb_data()
+			self.get_debug_data()
+			time.sleep(0.001)
 
-	def get_data_usb(self):
+	def get_usb_data(self):
 		out = ''
 		try:
 			for byte__ in self.serial.read(size=64):
 				if byte__  != 0:
 					out += chr(byte__)
-			self.data_queue_.put(out)
+			self.queue_out.put(out)
 
 		except:
 			pass
 
-	def get_data_debug(self):
-		out = '0x:'
-		pos = 0
-		base_ = 100
-		#now begin initialize signal
-		for x in range(1,2000):
-			out +="%04x%04x" % (pos,base_*16+32768)
-			if x%7 == 0:
-				self.data_queue_.put(out+'\0')
-				out='0x:'
-				time.sleep(0.001)
-		#now begin populate signal
+	def get_debug_data(self):
 		rand_value_all = 0 
 		value_ = 0
-		out = '0x:'
-		for x in range (1,1000):
-			base = 4*(int(x)/int(100)*100) + base_
-			if x%100 < 10: 
-				rand_value_once= random.random()* base / 99.91
-				value= rand_value_once + base 
+		#step up
+		out='0x:'
+		count = 0
+		for valueX in range (1,1200):
+			base = (int(valueX)/int(100)*100) + 50
+			if valueX%100 < 10: 
+				rand_value_once= random.random()* base / 99.99
+				valueY= rand_value_once + base 
 			else:
-				if x%100 ==10:
+				if valueX%100 ==10:
 					rand_value_all = random.random() * base /99.90
 					value_= rand_value_all + base 
-				value = value_
-			if value < 256:
-				value = value*16+32768
-			out +="%04x%04x" % (pos,value)
-			if x%7 == 0:
-				self.data_queue_.put(out+'\0')
-				out='0x:'
-			time.sleep(0.001)
-
-		for x in range(1,1000):
-			out +="%04x%04x" % (pos,base_+4000)
-			if x%7 == 0:
-				self.data_queue_.put(out+'\0')
+				valueY = value_
+			out += '%04x%04x'%(valueX,valueY)
+			count +=1
+			if count%7 ==0:
+				self.queue_out.put(out)
 				out='0x:'
 				time.sleep(0.001)
-		for x in range (1,1000):
-			base = 4*(int(x)/int(100)*100) + base_
-			if x%100 < 10: 
-				rand_value_once= random.random()* base / 99.91
-				value= 4000-rand_value_once - base 
+		#remain high for sometime
+		for valueX in range (1,1200):
+			out += '%04x%04x'%(1200,4095)
+			count +=1
+			if count%7 ==0:
+				self.queue_out.put(out)
+				out='0x:'
+				time.sleep(0.001)
+		#step down
+		for valueX in range (1,1200):
+			base = (int(valueX)/int(100)*100) + 50
+			if valueX%100 < 10: 
+				rand_value_once= random.random()* base / 99.99
+				valueY= 1200-(rand_value_once + base)
 			else:
-				if x%100 ==10:
+				if valueX%100 ==10:
 					rand_value_all = random.random() * base /99.90
-					value_= 4000-rand_value_all - base 
-				value = value_
-			if value < 256:
-				value = value*16+32768
-			out +="%04x%04x" % (pos,value)
-			if x%7 == 0:
-				self.data_queue_.put(out+'\0')
+					value_= rand_value_all + base 
+				valueY = 1200-value_
+			out += '%04x%04x'%(valueX,valueY)
+			count +=1
+			if count%7 ==0:
+				self.queue_out.put(out)
 				out='0x:'
 				time.sleep(0.001)
+		#remain low for sometime
+		for valueX in range (1,1200):
+			out += '%04x%04x'%(0,0.001)
+			count +=1
+			if count%7 ==0:
+				self.queue_out.put(out)
+				out='0x:'
+				time.sleep(0.001)
+		#pull out eut and remain high
+		for valueX in range (1,100):
+			rand_value_once= random.random()* 1299
+			out += '%04x%04x'%(0,rand_value_once)
+			count +=1
+			if count%7 ==0:
+				self.queue_out.put(out)
+				out='0x:'
+				time.sleep(0.001)
+		for valueX in range (1,1200):
+			out += '%04x%04x'%(0,4095)
+			count +=1
+			if count%7 ==0:
+				self.queue_out.put(out)
+				out='0x:'
+				time.sleep(0.001)
+		#pull in eut and remain low
+		for valueX in range (1,100):
+			rand_value_once= random.random()* 1299
+			out += '%04x%04x'%(0,rand_value_once)
+			count +=1
+			if count%7 ==0:
+				self.queue_out.put(out)
+				out='0x:'
+				time.sleep(0.001)
+		for valueX in range (1,1200):
+			out += '%04x%04x'%(0,0.001)
+			count +=1
+			if count%7 ==0:
+				self.queue_out.put(out)
+				out='0x:'
+				time.sleep(0.001)
+#		pos = 0
+#		base_ = 100
+#		#now begin initialize signal
+#		for x in range(1,2000):
+#			out +="%04x%04x" % (pos,base_*16+32768)
+#			if x%7 == 0:
+#				self.data_queue_.put(out+'\0')
+#				out='0x:'
+#				time.sleep(0.001)
+#		#now begin populate signal
+#		rand_value_all = 0 
+#		value_ = 0
+#		out = '0x:'
+#		for x in range (1,1000):
+#			base = 4*(int(x)/int(100)*100) + base_
+#			if x%100 < 10: 
+#				rand_value_once= random.random()* base / 99.91
+#				value= rand_value_once + base 
+#			else:
+#				if x%100 ==10:
+#					rand_value_all = random.random() * base /99.90
+#					value_= rand_value_all + base 
+#				value = value_
+#			if value < 256:
+#				value = value*16+32768
+#			out +="%04x%04x" % (pos,value)
+#			if x%7 == 0:
+#				self.data_queue_.put(out+'\0')
+#				out='0x:'
+#			time.sleep(0.001)
+#
+#		for x in range(1,1000):
+#			out +="%04x%04x" % (pos,base_+4000)
+#			if x%7 == 0:
+#				self.data_queue_.put(out+'\0')
+#				out='0x:'
+#				time.sleep(0.001)
+#		for x in range (1,1000):
+#			base = 4*(int(x)/int(100)*100) + base_
+#			if x%100 < 10: 
+#				rand_value_once= random.random()* base / 99.91
+#				value= 4000-rand_value_once - base 
+#			else:
+#				if x%100 ==10:
+#					rand_value_all = random.random() * base /99.90
+#					value_= 4000-rand_value_all - base 
+#				value = value_
+#			if value < 256:
+#				value = value*16+32768
+#			out +="%04x%04x" % (pos,value)
+#			if x%7 == 0:
+#				self.data_queue_.put(out+'\0')
+#				out='0x:'
+#				time.sleep(0.001)
 
 
 
@@ -254,15 +291,14 @@ class Endpoint(threading.Thread):
 			while not self.queue_cmd_in.empty():
 				self.deal_cmd()
 			while  self.run_flag and  (not self.queue_data.empty() ) :
-				count += 1
 				data = self.queue_data.get() # 从后台读数据源线程对象取数据	
 			#	print data+'\n'
 				try:
-					self.CliSock.send(data+'\n')
+					self.CliSock.send(data+'\0'+'\n')
 				except:
-					break
+					pass
 				#~ print count,':___',data,'\n'
-			time.sleep(0.003)
+			time.sleep(0.001)
 
 	def get_cmd(self):
 		try:
@@ -301,7 +337,7 @@ class Endpoint(threading.Thread):
 			self.run_flag = True
 			while not self.queue_data.empty():
 				self.queue_data.get()#flush old data 
-			self.motor.run()
+			#self.motor.run()
 
 		elif command.startswith("accl"):#excute in loop 
 			if command.startswith("accl:plus"):
@@ -334,10 +370,11 @@ class Endpoint(threading.Thread):
 	
 	
 	def OpenEndpoint(self,endpoint_name,baudrate):
+		print "open ep of usb"
 		try:
 			dev = usb.core.find(idVendor=0x0483, idProduct=0x5750)
 		
-		# was it found?
+			# was it found?
 			if dev is None:
 				raise ValueError('Device not found')
 			print "usb-device with pid/vid=0483/5750 found!!"
@@ -346,7 +383,7 @@ class Endpoint(threading.Thread):
 			# configuration will be the active one
 			dev.set_configuration()
 		
-		# get an endpoint instance
+			# get an endpoint instance
 			cfg = dev.get_active_configuration()
 			intf = cfg[(0,0)]
 		
@@ -361,6 +398,7 @@ class Endpoint(threading.Thread):
 	
 		except: 
 			print "open ep_out error...,now quit"
+			pass
 		# below two lines for debug only
 		ep_out = sys.stdout
 		ep_in = sys.stdin
@@ -382,11 +420,11 @@ class Server_Endpoints(threading.Thread):
 		tcpSerSock.bind((self.host,self.port))
 		tcpSerSock.listen(5)
 		while True:
-			print 'waiting for connection...'
+			print 'waiting for connection on %s:%d...'%(self.host,self.port)
 			tcpCliSock,addr=tcpSerSock.accept()
 			new_endpoint = Endpoint(CliSock=tcpCliSock)
 			new_endpoint.start()
-			time.sleep(0.001)
+			time.sleep(0.01)
 		
 class Client_Endpoints(threading.Thread):
 	def __init__(self,host='127.0.0.1',port=20001):
@@ -440,7 +478,7 @@ class Client_Endpoints(threading.Thread):
 				print "ep_client reads:%s" % self.queue_ep.get()
 
 if __name__=='__main__':
-	server = Server_Endpoints(host='127.0.0.1',port=PORT)
+	server = Server_Endpoints(host=IP_ADDRESS,port=PORT)
 	server.start()
 	#client = Client_Endpoints(host='127.0.0.1',port=PORT)
 	#client.start()

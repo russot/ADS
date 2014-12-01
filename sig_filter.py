@@ -5,6 +5,7 @@ import sys
 import wx 
 import os 
 import string
+import traceback
 import threading
 import random
 import time
@@ -12,75 +13,48 @@ from socket import *
 import const
 from Queue import Queue
 import math
-from data_point import Data_Point,Data_Real,Data_Validated
-from data_validator import Data_Validator_Linear
-from signal_control import Thread_Source
-import wx.lib.agw.balloontip as btip
 import struct 
-from thread_sqlite import Thread_Sqlite
-import config_db
-import sqlite3 as sqlite
-import wx.lib.scrolledpanel as scrolledpanel
-from dialog_query import Dialog_Query
-import wx.lib.newevent
-from signal_panel import Signal_Panel
-
-MyEvent, EVT_MY_EVENT = wx.lib.newevent.NewCommandEvent()
 
 
-class Calibrator(wx.Object):
-	def __init__(self,calibrator_file=""):
-		if calibrator_file:
-			self.create_table(calibrator_file)
 
-	def create_table(self,file_name):
-		if not file_name:
-			return 
-		calibrator_file = open(file_name,'r')
-		head = calibrator_file.readline()
 
 ############################################################################################################################################
 class Grouping_Filter(threading.Thread):
-	def __init__(self,queue_cmd_in,queue_cmd_out,queue_data_in,queue_data_out,validator):
+	x10_magic = 0x10000# 0x1000, means data x10 in mcu
+	A1_to_A2 = 10
+	sleep_trig_level = 300
+	step_trig_level = 30
+	err= -999999
+	def __init__(self,queue_cmd_in,queue_cmd_out,queue_data_in,queue_out):
 		threading.Thread.__init__(self)
 		self.queue_cmd_in   = queue_cmd_in
 		self.queue_cmd_out  = queue_cmd_out
 		self.queue_data_in  = queue_data_in
-		self.queue_data_out = queue_data_out
-		self.validator      = validator 
+		self.queue_out = queue_out
 		self.buffer_group=[]
 		#~ sys.stdout = self
-<<<<<<< HEAD
+
 		self.count = 0
-		self.new_value = 0.018
-=======
 		self.data_count = 0
-		self.new_value = 0.028
->>>>>>> 42916cdb87852a84cf64d34306013e8f52716298
-		self.sleep_count = 300
+		self.new_value = 0.02
+
 		self.run_flag =  False
+		self.step_flag =  False
 		self.running_flag= False
 		self.loop_flag =  False
 		self.new_flag =  False
 		self.trigger_flag =  False
-		self.dozing_flag =  False
-		self.step_count = int(50)
 		self.cur_refer = 0
 		self.last_refer = 0
-<<<<<<< HEAD
+		#below is x10 constants , depending on circuits OP part
+
 		self.time_now = time.time()
-=======
 		self.last_time = time.time()
->>>>>>> 42916cdb87852a84cf64d34306013e8f52716298
 
 	def write(self,TE):
 		pass
 
-	def set_validator(self,validator):
-		self.validator = validator 
 
-	def set_calibrator(self,validator):
-		self.calibrator= calibrator
 
 	def run(self):#运行一个线程
 		while True:
@@ -89,8 +63,8 @@ class Grouping_Filter(threading.Thread):
 
 
 	def clear_data(self):
-		while not self.queue_data_out.empty(): # 清除输出队列中的过期数据
-			self.queue_data_out.get()
+		while not self.queue_out.empty(): # 清除输出队列中的过期数据
+			self.queue_out.get()
 		while not self.queue_data_in.empty(): # 清除输入队列中的过期数据
 			self.queue_data_in.get()
 
@@ -113,158 +87,190 @@ class Grouping_Filter(threading.Thread):
 
 	def grouping_data(self):
 		while not self.queue_data_in.empty():
+			#print  self.queue_data_in.get()
 			try:
-				pos_,value_ = self.queue_data_in.get()
-				if value_ >= 32768:
-					value = (float(value_)-32768)/16
+				#!!!!input data must be (pos_,value) tuple or list
+				Xvalue,Yvalue = self.queue_data_in.get() 
+				#print Xvalue,Yvalue
+				if Yvalue == 0:# avoid error of devide_by_zero
+					Yvalue = 0.0001
+				if float(Yvalue) >= float(self.x10_magic) :
+					data_new = (float(Yvalue)-self.x10_magic )/self.A1_to_A2
 				else:
-					value = float(value_)
-				data_new = (float(pos_),value)
-				data_last=self.buffer_group[-1]["value"]
-				precision =  abs( float(data_last[-1]-data_new[-1])/float(data_last[-1]) ) 
-				if  precision > self.new_value:
-					if self.buffer_group[-1]["length"] > self.step_count: # stepped once 
-						#print self.buffer_group[-1],"grouping.........cur_refer",self.cur_refer
-						diff = data_last[-1] - data_new[-1]
-						if  (diff<0) and (self.running_flag==True):
-							self.last_refer = self.cur_refer 
-							self.cur_refer += 1
-						if (diff>0) and (self.running_flag==True):
-							self.last_refer = self.cur_refer 
-							self.cur_refer -= 1
+					data_new = float(Yvalue)
+				data_last=self.buffer_group[-1]["value"][-1]
+				diff_ =   (data_last-data_new)/data_last  
+				if  abs(diff_) > self.new_value:
 					self.new_flag =  True
-					self.buffer_group.append( {"length":int(1),"value":data_new} )
+					self.buffer_group.append( {"length":int(1),"value":(Xvalue,data_new),"flag":"new"} )
 				else:
 					self.buffer_group[-1]["length"] += 1
-			except:
+
+			except Exception,e:
+				pass
+				#print  e
 				self.new_flag =  True
-				self.buffer_group.append( {"length":int(1),"value":data_new} )
+				self.buffer_group.append( {"length":int(1),"value":(Xvalue,data_new),"flag":"new"} )
 
 
-	def update_trigger(self):
+	def get_last_step(self):
+		buf_len = len(self.buffer_group) 
+		for i in range(0,buf_len-1):
+			last = -2-i
+			if self.buffer_group[last]["length"] > self.step_trig_level :
+				return  last
+		return self.err
+
+	def get_last_sleep(self):
+		buf_len = len(self.buffer_group) 
+		for i in range(0,buf_len-1):
+			last = -2-i
+			if self.buffer_group[last]["length"] > self.sleep_trig_level :
+				return  last
+		return self.err
+
+	def update_filter(self):
 		try:
-			if (self.buffer_group[-2]["length"] > self.sleep_count) and (self.trigger_flag == False):
-				cur_value = self.buffer_group[-1]["value"][-1]
-				last_value = self.buffer_group[-2]["value"][-1]
-				if (cur_value > last_value) and (self.running_flag == False):
-					#print "started ..........\n"
-					self.running_flag =  True
-					self.last_refer = 0
-					self.cur_refer = 1
-					for i in range(0,len(self.buffer_group[0:-2])):
-						del self.buffer_group[i]
-				if self.running_flag == True:
-					#print "triggered ..........\n"
-					self.trigger_flag = True
-		except:
-			pass
-
-	def update_dozer(self):
-		try:
-			if (self.buffer_group[-1]["length"] > self.sleep_count) and (self.trigger_flag == True):
-				#print "dozing ..........\n"
+			if self.buffer_group[-1]["length"] >= self.sleep_trig_level and self.buffer_group[-1]["flag"] == "step":
 				self.trigger_flag = False
-				cur_value = self.buffer_group[-1]["value"][-1]
-				last_value = self.buffer_group[-2]["value"][-1]
-				if (cur_value < last_value) and (self.running_flag==True):
-<<<<<<< HEAD
-					#print "stopped and cycled once ..........\n"
-					time_last= self.time_now 
-					self.time_now = time.time()
-					self.count += 1 
-					if self.time_now-time_last > 4.0:
-						print self.time_now-time_last, "count...", self.count
-					del self.buffer_group
-					self.buffer_group=[]
-=======
-					self.data_count += 1
-					now = time.time()
-					if now - self.last_time  > 4.0:
-						print "missed ........ @", self.data_count
-					print "stopped and cycled once ..........", now - self.last_time
-					self.last_time = now
->>>>>>> 42916cdb87852a84cf64d34306013e8f52716298
-					self.running_flag = False
-		except:
-			pass
+				#print "sleeping........."
+				self.queue_out.put( "sleep")
+				self.buffer_group[-1]["flag"] = "sleep"
+				last_step = self.get_last_step()
+				if self.buffer_group[last_step]["flag"]=="step":
+					cur_value = self.buffer_group[-1]["value"][-1]
+					last_step_value = self.buffer_group[last_step]["value"][-1]
+					# going back to start point again,it circled once!
+					if (cur_value < last_step_value) and (self.running_flag == True):
+						#print "circled once ..........\n"
+						#self.queue_out.put( "circle")
+						self.running_flag =  False
+						del self.buffer_group
+						self.buffer_group = []
 	
+			if self.buffer_group[-1]["length"] >= self.step_trig_level and self.buffer_group[-1]["flag"] == "new":
+				self.buffer_group[-1]["flag"] = "step"
+				#print "stepping........."
+				
 
-	def validate(self):
-		if (self.new_flag == True) and (self.running_flag == True):
-			self.new_flag = False
-			data = self.buffer_group[-2]
-			print "validating...............",self.last_refer, data
-			data_value = data["value"] 
-			x_value= data_value[0]
-			y_value = data_value[1]
-			data_v  = self.validator.ValidateData_Step(
-					position=x_value,
-					value=y_value,
-					step=self.last_refer)
+				#two consequent steps generates a trigger, for bypassing noises
+				last_step = self.get_last_step()
+				if self.buffer_group[last_step]["flag"]=="step" and self.trigger_flag == False :
+					print "triggering ........."
+					self.trigger_flag = True
+					self.queue_out.put( "trigger")
+					cur_value = self.buffer_group[-1]["value"][-1]
+					last_step_value = self.buffer_group[last_step]["value"][-1]
+					if (cur_value > last_step_value) and (self.running_flag == False):
+						#print "started ..........\n"
+						#self.queue_out.put( "start")
+						self.running_flag =  True
+						self.last_refer = 0
+						self.cur_refer = 1
+						#reserve last_step_-1 and conseqence, remove noises
+						#print len(self.buffer_group)
+					last_step = self.get_last_sleep()
+					#for item in self.buffer_group[last_sleep:-1]:
+						#self.queue_out.put(item)
+			
+				if self.trigger_flag == True:
+					for item in self.buffer_group[last_step:-1]:
+						self.queue_out.put(item)
+		except Exception,e:
+			pass
+			#print  e
 
-			self.queue_data_out.put( {"count":data["length"],"data_v":data_v} )
 
 	def filter_data(self):
 		self.grouping_data()
-		self.update_trigger()
-		self.update_dozer()
-		self.validate()
+		self.update_filter()
+		#self.validate()
 				
 ####################################################################################################
-def create_validator(refer_file_name):
-	ref_cfg = open(refer_file_name,'r')
-	if  not ref_cfg.readline().startswith("#signal refer table"):
-		print "refer file format not right!\nThe first line should be \"#signal refer table\", and \"displacement,value,precision\" each following line"
-		quit  
-	refer_table=[]
-	for line in ref_cfg.readlines():
-		#~ print line
-		line = line.replace(" ","").replace("\t","").strip('\n')# 
-		element = line.split(',')
-		key   =  string.atoi(element[0])
-		value = string.atof(element[1])
-		precision =  string.atof(element[2])
-		refer_table.append([key,value,precision])
-	return Data_Validator_Linear(parent=None, refer_table=refer_table)
-
 
 ############################################################################################################################################
+class Eut_Source(threading.Thread):
+	def __init__(self,queue_out):
+		threading.Thread.__init__(self)
+		self.queue_out = queue_out
+
+
+	def run(self):
+		while(True):
+			self.populate_data()
+
+	def populate_data(self):
+		rand_value_all = 0 
+		value_ = 0
+		#step up
+		for valueX in range (1,1200):
+			base = (int(valueX)/int(100)*100) + 50
+			if valueX%100 < 10: 
+				rand_value_once= random.random()* base / 99.99
+				valueY= rand_value_once + base 
+			else:
+				if valueX%100 ==10:
+					rand_value_all = random.random() * base /99.90
+					value_= rand_value_all + base 
+				valueY = value_
+			self.queue_out.put((valueX,valueY))
+			time.sleep(0.001)
+		#remain high for sometime
+		for valueX in range (1,1200):
+			self.queue_out.put((1200,4095))
+			time.sleep(0.001)
+		#step down
+		for valueX in range (1,1200):
+			base = (int(valueX)/int(100)*100) + 50
+			if valueX%100 < 10: 
+				rand_value_once= random.random()* base / 99.99
+				valueY= 1200-(rand_value_once + base)
+			else:
+				if valueX%100 ==10:
+					rand_value_all = random.random() * base /99.90
+					value_= rand_value_all + base 
+				valueY = 1200-value_
+			self.queue_out.put((valueX,valueY))
+			time.sleep(0.001)
+		#remain low for sometime
+		for valueX in range (1,1200):
+			self.queue_out.put((0,0.001))
+			time.sleep(0.001)
+		#pull out eut and remain high
+		for valueX in range (1,100):
+			rand_value_once= random.random()* 1299
+			self.queue_out.put((0,rand_value_once))
+			time.sleep(0.001)
+		for valueX in range (1,1200):
+			self.queue_out.put((0,4095))
+			time.sleep(0.001)
+		#pull in eut and remain low
+		for valueX in range (1,100):
+			rand_value_once= random.random()* 1299
+			self.queue_out.put((0,rand_value_once))
+			time.sleep(0.001)
+		for valueX in range (1,1200):
+			self.queue_out.put((0,0.001))
+			time.sleep(0.001)
+############################################################################################################################################
 if __name__=='__main__':
-	queue_in = Queue(0)
-	queue_in_1 = Queue(0)
-	queue_data= Queue(0)
-	queue_data_out= Queue(0)
-	source = Thread_Source(window=None,
-			url="127.0.0.1:20001/com6",
-			queue_in=queue_in,
-			queue_out=queue_data)
+	queue_cmd_i= Queue(-10)
+	queue_in_1 = Queue(-10)
+	queue_data_i= Queue(-10)
+	queue_data_o= Queue(-10)
 
-	validator = create_validator("refer_table.cfg")	
-	filtor = Grouping_Filter(queue_cmd_in=queue_in_1,
+	filtor = Grouping_Filter(queue_cmd_in=queue_cmd_i,
 				queue_cmd_out=None,
-				queue_data_in=queue_data,
-				queue_data_out=queue_data_out,
-				validator=validator)
+				queue_data_in=queue_data_i,
+				queue_out=queue_data_o)
+	source = Eut_Source(queue_data_i)
 	source.start()
-<<<<<<< HEAD
-#	filtor.start()
-=======
-	#filtor.start()
->>>>>>> 42916cdb87852a84cf64d34306013e8f52716298
 
-	open_cmd = "open:%s:%s"%("com5",'115200')
-	queue_in.put(open_cmd)
-	time.sleep(1)
-	queue_in.put("run:\n")
 	while True:
-<<<<<<< HEAD
+		filtor.deal_cmd()
 		filtor.filter_data()
-		while not queue_data_out.empty():
-			data = queue_data_out.get()
-			#print "filtered out.............",data
-=======
-		#filtor.deal_cmd()
-		filtor.filter_data()
-		while not queue_data_out.empty():
-			data = queue_data_out.get()
->>>>>>> 42916cdb87852a84cf64d34306013e8f52716298
+		while not queue_data_o.empty():
+			data = queue_data_o.get()
+			print "data................",data
+
+		time.sleep(0.001)

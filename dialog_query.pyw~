@@ -17,7 +17,7 @@ from data_validator import Data_Validator_Linear
 
 import wx.lib.agw.balloontip as btip
 import struct 
-from thread_sqlite import Thread_Sqlite
+from thread_sqlite import Thread_Sql
 import config_db
 import sqlite3 as sqlite
 import wx.lib.scrolledpanel as scrolledpanel
@@ -37,7 +37,7 @@ class Dialog_Query(wx.Frame):
 			pos=wx.DefaultPosition,
 			title='query !'):
 		super(Dialog_Query, self).__init__(parent, id, title,size=size)
-		self.db_name = config_db.Connection_db
+		self.db_name = config_db.data_db
 		self.SetBackgroundColour("light grey")
 
 

@@ -16,8 +16,15 @@ import sqlite3 as sqlite
 import config_db
 from time import sleep
 
+from hashlib import md5
 
 from thread_sqlite import Thread_Sqlite
+
+def md5sum(text):
+	m = md5()
+	m.update(text.encode('utf-8'))
+	return m.hexdigest()
+
 
 
 class Frame(wx.Frame):   #3
@@ -127,11 +134,10 @@ class Frame(wx.Frame):   #3
 		self.menuBar.Append(self.menu1, u"&File文件")                
 		 # 创建Edit菜单栏
 		self.menu2 = wx.Menu()
-		self.menu2.Append(wx.NewId(), "&Copy", "Copy in status bar")
-		self.menu2.Append(wx.NewId(), "C&ut", "")
-		self.menu2.Append(wx.NewId(), "&Paste", "")
+		self.menu_setUPSW = self.menu2.Append(wx.NewId(), u"User Password/用户密码", "")
+		self.menu_setAPSW = self.menu2.Append(wx.NewId(), u"Admin Password/管理密码", "")
 		self.menu2.AppendSeparator()
-		self.menu2.Append(wx.NewId(), "&Options...", "Display Options")
+		self.menu_option  = self.menu2.Append(wx.NewId(), u"&Options/选项...", "")
 		self.menuBar.Append(self.menu2, u"&Set设置")
 		
 		DBmenu = wx.Menu()
@@ -146,6 +152,8 @@ class Frame(wx.Frame):   #3
 		self.Bind(wx.EVT_MENU, self.OnSaveSession, self.menu_save)
 		self.Bind(wx.EVT_MENU, self.OnOpenSession, self.menu_open)
 		self.Bind(wx.EVT_MENU, self.OnAbout, id=wx.ID_ABOUT)
+		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setUPSW)
+		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setAPSW)
 
 		self.statusBar = self.CreateStatusBar()#1 创建状态栏 
 		
@@ -168,6 +176,48 @@ class Frame(wx.Frame):   #3
 	def OnRightDown(self,event):
 		pos = self.ScreenToClient(event.GetPosition())
 		self.PopupMenu(self.popmenu1, pos)
+	
+	def OnSetPassword(self,event):
+		dlg= wx.PasswordEntryDialog(self, message=u"管理密码",
+				caption=u"input password/输入密码", 
+				value="", 
+				style=wx.TextEntryDialogStyle,
+				pos=wx.DefaultPosition)
+		dlg.ShowModal()
+		password  = dlg.GetValue()
+		pwd_ = md5sum(password)
+		print pwd_
+		f=open('ad01','r')
+		pwd_org=f.read()
+		f.close()
+		if str(pwd_org)[:32] == pwd_:
+			print u"可以开始了..."
+		else:
+			print u"管理密码错"
+			msg = wx.MessageDialog(self,message=u"错误:",
+					caption=u"管理密码错")
+			msg.ShowModal()
+			return 
+		if event.GetId() == self.menu_setUPSW.GetId():
+			psw_file = open('ad02','w')
+			message_ = u'新用户密码'
+		else:
+			psw_file = open('ad01','w')
+			message_ = u'新管理密码'
+
+		dlg= wx.PasswordEntryDialog(self, message=message_,
+				caption=u"input password/输入密码", 
+				value="", 
+				style=wx.TextEntryDialogStyle,
+				pos=wx.DefaultPosition)
+		dlg.ShowModal()
+		password  = dlg.GetValue()
+		pwd_ = md5sum(password)
+		psw_file.write(pwd_)
+		psw_file.close()
+
+
+
 	
 	def OnAbout(self, event):
 		"""Show the about dialog"""
@@ -345,7 +395,7 @@ class Frame(wx.Frame):   #3
 					points = 290,
 					persist =(self.queue_persist_in, self.queue_persist_out)
 					)
-			signal_ctrl.populate_data()
+			#signal_ctrl.populate_data()
 			self.AddSignalOnce(signal_ctrl)
 			signals_num -= 1
 		#扩展窗口以显示全貌

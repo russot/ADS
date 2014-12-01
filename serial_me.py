@@ -26,17 +26,12 @@ class Serial_write(threading.Thread):
 		print "write start..\n", self.serial
 		count = 0
 		while True:
-
-			count += 1
-			x =  random.randint(100, 2000)
-			s = struct.pack('i',x)
-
-			self.serial.write('\xff\xaa')
-			self.serial.write(struct.pack("4s4s",'4095','4096'))
-			self.serial.write('\xff\x55')
-
+			self.serial.write('\xfe\x28')
+			self.serial.write('\xfe\x28')
+			self.serial.write('\xfe\x01')
+			self.serial.write(' UNIMAS                                ************************* ')
 			
-			time.sleep(0.002)
+			time.sleep(2.002)
 			
 			
 class Serial_read(threading.Thread):
@@ -56,33 +51,10 @@ class Serial_read(threading.Thread):
 		while True:
 
 			current = self.serial.read(1)
-			if start :
-				message += current
-				#~ message += struct.unpack("c",current)[0]
-			pattern += current
-			if len(pattern) ==2:
-			#jjj	print repr(pattern)
-				if pattern == "\xff\x55": #end  magic
-					end = True
-					start= False
-				if pattern == "\xff\xaa": #end  magic  missed
-					#end = True
-					start= True
-				pattern = pattern[1:2]
-			if end :
-				end = False
-				msg_len = len(message)
-			#	print msg_len 
-			#	print message 
-				try:
-					i1,i2= struct.unpack('4s4s',message[0:8])
-					print count,'\t' , i1,'\t' ,i2 
-					message = ''
-				except:
-					pass
-				count +=1
-				if count == 40001:
-					break
+			message += current
+			if current == '\x00':
+				print message
+				message = ''
 			
 		now = time.time()
 		print now-begin
@@ -91,9 +63,9 @@ class Serial_read(threading.Thread):
 		
 if __name__=='__main__':
 	
-	com1 = serial.Serial(5)
+	com1 = serial.Serial(1)
 	#~ com2 = serial.Serial(0)
-	com1.baudrate = 115200
+	com1.baudrate = 2400
 	#~ com2.baudrate = 115200
 
 	t1 = Serial_read(serial=com1)

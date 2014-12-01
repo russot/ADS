@@ -21,307 +21,69 @@ from thread_sqlite import Thread_Sqlite
 import config_db
 import sqlite3 as sqlite
 import wx.lib.scrolledpanel as scrolledpanel
+import wx.lib.imagebrowser as imagebrowser
 from dialog_query import Dialog_Query
 import wx.lib.newevent
 from signal_panel import Signal_Panel
+import signal_panel
 
-MyEvent, EVT_MY_EVENT = wx.lib.newevent.NewCommandEvent()
+import server_endpoints_usb
 
-
-
-############################################################################################################################################
-class Dialog_Setup(wx.Dialog):
-	""" configure the run time parameters """
-	def __init__(self,  parent=None, 
-		id=-1,caption="signal source & UI setup",
-		color_ok="green",color_bad="red",
-		url_name="127.0.0.1:20001/ep1",
-		refer_file="",
-		calib_file="",
-		points_number=10000):
-
-		super(Dialog_Setup, self).__init__(parent, id , caption)
-		self.color_ok = color_ok
-		self.color_bad = color_bad
-		self.url_name  = url_name
-		self.refer_file = refer_file
-		self.calib_file = calib_file
-		self.points_number = points_number
-		
-		self.file = wx.TextCtrl(self,-1,self.refer_file,size=(200,-1))
-		self.file.Bind(wx.EVT_LEFT_DCLICK, self.OnFileSelect,self.file)
-		self.url = wx.TextCtrl(self,-1,self.url_name,size=(200,-1), style=wx.TE_PROCESS_ENTER)
-		self.url.Bind(wx.EVT_TEXT_ENTER, self.OnUrlEnter,self.url)
-		
-		self.points_ctrl = wx.SpinCtrl(self, -1,"%d"%self.points_number, wx.DefaultPosition, (50,-1), wx.SP_ARROW_KEYS,0, 10000, 1)
-		
-		self.btn_color_ok = wx.Button(self,-1,"GOOD color")
-		self.btn_color_bad = wx.Button(self,-1,"BAD color")
-		self.btn_color_ok.SetBackgroundColour(self.color_ok)
-		self.btn_color_bad.SetBackgroundColour(self.color_bad)
-		self.btn_color_ok.Bind(wx.EVT_BUTTON, self.OnColorSelect_Ok,self.btn_color_ok)
-		self.btn_color_bad.Bind(wx.EVT_BUTTON, self.OnColorSelect_Bad,self.btn_color_bad)
-		self.topsizer= wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
-		self.topsizer.Add(wx.StaticText(self, -1,u"input points number"))
-		self.topsizer.Add(self.points_ctrl)
-		self.topsizer.Add((200,40))
-		self.topsizer.Add(wx.StaticText(self, -1,u"Signal refer "))
-		self.topsizer.Add(self.file)
-		self.topsizer.Add((200,40))
-		self.topsizer.Add(wx.StaticText(self, -1,u"Endpoint URL, IP:port/com{0~100}"))
-		self.topsizer.Add(self.url)
-		
-		self.hsizer= wx.BoxSizer(wx.HORIZONTAL|wx.ALIGN_CENTER)# 创建一个分割窗
-		self.hsizer.Add((20,20))
-		self.hsizer.Add(self.btn_color_ok)
-		self.hsizer.Add((20,20))
-		self.hsizer.Add(self.btn_color_bad)
-		self.topsizer.Add((40,20))
-		self.topsizer.Add(self.hsizer)		
-		
-		btnszr = self.CreateButtonSizer(wx.OK|wx.CANCEL) 
-		self.topsizer.Add((40,20))
-		self.topsizer.Add(btnszr, 0,wx.EXPAND|wx.ALL, 5) 
-
-		self.SetSizer(self.topsizer)
-		self.Fit()
-		
-
-	def OnUrlEnter(self,evt):
-		self.url_name = self.url.GetValue()
-		self.Close()
+from refer_table import Refer_Sheet
+from data_source import Data_Source 
+from data_source import MyEvent, EVT_MY_EVENT
 
 
+class Result_Ctrl(wx.Control):
+	def __init__(self,parent=None,id=-1,size=(400,400),image_fn=None):
+		super(Result_Ctrl, self).__init__(parent, id,size=size,style=wx.NO_BORDER)
+		self.back_color = parent.GetBackgroundColour()
+		self.Bind(wx.EVT_PAINT, self.OnPaint)
+		self.ok_status = True
+		self.timer = wx.Timer(self,-1)
+		self.Bind(wx.EVT_TIMER,self.OnTimer,self.timer)
+		self.timer.Start(1000,False)
+
+	def OnPaint(self,event):
+		self.redraw()
 	
-	def OnFileSelect(self,evt):
-		 
-		dlg = wx.FileDialog(None,"select a file ")
-		if dlg.ShowModal() == wx.ID_OK:
-			self.refer_file = dlg.GetPath()
-			self.file.SetValue(self.refer_file)
-		dlg.Destroy()             
-
-	def OnColorSelect_Ok(self,evt):
-		dlg = wx.ColourDialog(self)
-		dlg.GetColourData().SetChooseFull(True)
-		if dlg.ShowModal() == wx.ID_OK:
-			self.color_ok = dlg.GetColourData().GetColour()
-			self.btn_color_ok.SetBackgroundColour(self.color_ok)
-		dlg.Destroy()
-		
-	def OnColorSelect_Bad(self,evt):
-		dlg = wx.ColourDialog(self)
-		dlg.GetColourData().SetChooseFull(True)
-		if dlg.ShowModal() == wx.ID_OK:
-			self.color_bad = dlg.GetColourData().GetColour()
-			self.btn_color_bad.SetBackgroundColour(self.color_bad)
-		dlg.Destroy()
-				
-	def GetOkColor(self):
-		return self.color_ok
+	def OnTimer(self,event):
+		self.Refresh(True)
 	
-	def GetBadColor(self):
-		return self.color_bad
-	
-	def GetReferFile(self):
-		return self.refer_file
-
-	def GetPointsNumber(self):
-		return self.points_number
-
-	def GetUrlName(self):
-		return self.url.GetValue()
-
-class Endpoint():
-	def __init__(self, url="127.0.0.1:8088/ep1"):
-		self.ip=self.SetUrlIP(url) # example string "127.0.0.1"
-		self.port =self.SetUrlPort(url) # example integer 8088
-		self.ep_index =self.SetUrlEpIndex(url)# example string "ep1" , "ep2" ...
+	def redraw(self):
+		dc = wx.PaintDC(self)
+		brush = wx.Brush(self.back_color)
+		dc.SetBackground(brush)
+		if self.ok_status:
+			result_str = "PASS"
+			dc.SetTextForeground(wx.Colour(0,200,0,200))
+		else:
+			result_str= "FAIL"
+			dc.SetTextForeground(wx.Colour(255,0,0,200))
+		font =self.GetFont()
+		font.SetPointSize(30)
+		font.SetWeight(wx.FONTWEIGHT_BOLD)
+		dc.SetFont(font)
+		dc.DrawText(result_str,0,0)
+		#now,show time 
+		font.SetPointSize(12)
+		font.SetWeight(wx.FONTWEIGHT_BOLD)
+		dc.SetFont(font)
+		dc.SetTextForeground(wx.Colour(20,90,90,200))
+		time_str = time.strftime('%Y-%m-%d',time.localtime(time.time()))
+		dc.DrawText(time_str,0,42)
+		time_str = time.strftime('%H:%M:%S',time.localtime(time.time()))
+		dc.DrawText(time_str,0,62)
 		
-	def SetUrlIP(self,url):
-		parts = url.split(':')
-		return parts[0]
-		
+	def SetPass(self):
+		self.ok_status = True
 
-	def SetUrlPort(self,url):
-		__parts = url.split(':')
-		parts = __parts[1].split('/')
-		return string.atoi(parts[0])
+	def SetFail(self):
+		self.ok_status = False
 
-	def SetUrlEpIndex(self,url):
-		__parts = url.split(':')
-		parts = __parts[1].split('/')
-		return parts[1]
-
-
-	def GetIP(self):# example string "127.0.0.1"
-		return self.ip
 		
 
-	def GetPort(self):# example integer 8088
-		return self.port
 
-	def GetEpIndex(self):# example string "com1" , "com2" ...
-		return self.ep_index
-
-
-
-############################################################################################################################################
-class Thread_Source(threading.Thread):
-	def __init__(self,window,url,queue_in,queue_out):
-		threading.Thread.__init__(self)
-		self.window = window
-		self.url = url 
-		self.queue_cmd_in   = queue_in
-		self.queue_out = queue_out
-		self.endpoint = Endpoint(url)
-		self.run_flag =  False
-		self.tcpCliSock = socket(AF_INET,SOCK_STREAM)
-		self.buffer_recv=[]
-		#~ sys.stdout = self
-		self.feed_flag = True
-		self.data_count = 0
-
-	def write(self,TE):
-		pass
-
-	def FeedDog(self):
-		self.tcpCliSock.send('feed:dog\n') #
-		threading.Timer(5,self.FeedDog).start()
-
-	def run(self):#运行一个线程
-		threading.Timer(5,self.FeedDog).start()
-		print self.endpoint.GetIP()
-		print self.endpoint.GetPort()
-		self.tcpCliSock.connect( ( self.endpoint.GetIP(), self.endpoint.GetPort() ) )
-		self.tcpCliSock.setblocking(0)
-		while True:
-			self.deal_cmd()
-			if self.run_flag == True : # get data  from endpoint by socket, and upload to UI
-				self.GetData()
-			else: #!!!~~~~~~~~~~~~~~~~~~~~继续接收数据, 以避免程序运行异常~~~~~~~~~~~~~~~~~~~~~~~~~!!!
-				try:
-					recv_segment = self.tcpCliSock.recv(1024)
-				except:
-					pass
-
-	def SetEndpoint(self,url):
-		self.endpoint.SetUrlIP(url)
-		self.endpoint.SetUrlPort(url)
-		self.endpoint.SetUrlEpIndex(url)
-	def run_adc(self):
-		self.tcpCliSock.send("adc:cfg:manual:Y\n")
-		time.sleep(0.01)
-		self.tcpCliSock.send("adc:cfg:interval:20\n")
-		time.sleep(0.01)
-		self.tcpCliSock.send("adc:cfg:channel:0\n")
-		time.sleep(0.01)
-		self.tcpCliSock.send("adc:run:\n")
-		time.sleep(0.01)
-	
-	def sample(self):
-		self.tcpCliSock.send("adc:cfg:channel:0\n")
-		time.sleep(0.01)
-		self.tcpCliSock.send("adc:sample:\n") # request sample
-		time.sleep(0.01)		# wait for data from source
-		self.GetData()   # data is in self.queue_out 
-		return self.queue_out.get() # fetch value from self.queue_out[pos,value),....]
-
-	def calibrate_append(self,value):
-		real_value = float(value)
-		sample_value = self.sample()[1]  #  return (pos,value)
-		self.cailbrate_table.append((real_value,sample_value))
-		self.cailbrate_table.sort()
-		wx.PostEvent(self.window,MyEvent(60001)) #tell front to update
-
-	def calibrate_delete(self,index):
-		del self.cailbrate_table[int(index)]
-		self.cailbrate_table.sort()
-		wx.PostEvent(self.window,MyEvent(60001)) #tell front to update
-
-	def calibrate_save(self,filename):
-		self.cailbrate_table.sort()
-		calib_file = open(filename,'w')
-		for x in self.cailbrate_table:
-			calib_file.write('%5.3f \t %5.3f\n' %(x[0],x[1]))
-		calib_file.close()
-
-	def calibrate_load(self,filename):
-		self.cailbrate_table=[]
-		calib_file = open(filename,'r')
-		for line in calib_file.readlines():
-			real_value = float(line[:line.find('\t')])
-			sample_value = float(line[line.find('\t')+1:])
-			self.cailbrate_table.append((real_value,sample_value))
-		self.cailbrate_table.sort()
-		wx.PostEvent(self.window,MyEvent(60001)) #tell front to update
-		calib_file.close()
-
-	def calibrate(self,command):
-		if command.startswith("append:"):
-			self.calibrate_append(command[len("append:"):])
-		elif command.startswith("delete:"):
-			self.calibrate_delete(command[len("delete:"):])
-		elif command.startswith("save:"):
-			self.calibrate_save(command[len("save:"):])
-		elif command.startswith("load:"):
-			self.calibrate_load(command[len("load:"):])
-
-
-
-
-	def deal_cmd(self):
-		if self.queue_cmd_in.empty():
-			return
-		command = self.queue_cmd_in.get() #get command (from self.queue_cmd_in), then process it and response(to  self.queue_out)
-		print "thread_source command: %s" % command
-		if command.startswith("stop"): #excute
-			self.run_flag =  False
-			while not self.queue_out.empty(): # 清除输出队列中的过期数据
-				self.queue_out.get()
-		#	self.queue_out.put("endpoint stopped by command.\n")
-		elif command.startswith("run"):# 
-			self.run_flag = True 
-			while not self.queue_out.empty(): # 清除输出队列中的过期数据
-				self.queue_out.get()
-			#~ time.sleep(3)
-		#	self.run_adc()
-		elif  command.startswith("get_status"): #excute 
-			self.queue_out.put(self.run_flag)
-		elif  command.startswith("calibrate:") and self.run_flag==False: #excute 
-			self.calibrate(command[len("calibrate:"):])
-		#print command + '\n' 
-		self.tcpCliSock.send(command + '\n') #
-
-	def GetData(self):
-		try:
-			recv_segment = self.tcpCliSock.recv(1024)
-			#~ print "seg:%s\n"%recv_segment
-			while '\n' in recv_segment:
-				pos_newline = recv_segment.find('\n')
-				self.buffer_recv.append(recv_segment[:pos_newline] )
-				raw_data = ''.join(self.buffer_recv)
-				if raw_data.startswith("0x:"):
-					data_str = raw_data[3:]
-					len_data = data_str.find('\0')/8 
-					for i in range(0,len_data):
-						data_x = int(data_str[i*8:i*8+4],16)
-						data_y = int(data_str[i*8+4:i*8+8],16)
-						self.queue_out.put((data_x,data_y))
-					if self.data_count > 200 and self.window!=None:
-						event = MyEvent(60000) # id is 60000 or any numbergreat than 20000 here
-						wx.PostEvent(self.window, event)
-						self.data_count= 0
-				
-				self.buffer_recv = []
-				try:
-					recv_segment = recv_segment[pos_newline+1:]
-				except:
-					pass
-			self.buffer_recv.append(recv_segment)
-		
-		except:
-			pass
 
 
 ############################################################################################################################################
@@ -329,27 +91,14 @@ class Signal_Control(wx.Panel):   #3
 	def __init__(self,  parent=None,
 		     size=(-1,-1),
 		     id=-1,
-		     color_ok=wx.Color(0,250,0,200),
-		     color_bad=wx.Color(250,0,250,200),
-		     url_name="127.0.0.1:20001/com6",
-		     refer_file = "",
-		     calib_file = "",
 		     eut_name="qw32edrt44s",
 		     eut_serial="10p8-082wj490",
-		     points=255,
 		     persist=None):
 		super(Signal_Control, self).__init__(parent=parent, id=id,size=size)
 		#panel 创建
-		self.parent__ = parent
-		self.color_ok = color_ok  #persist~~~~~~~~~~~~~~~~~~
-		self.color_bad = color_bad #persist~~~~~~~~~~~~~~~~~~ 
-		self.url_name = url_name #persist~~~~~~~~~~~~~~~~~~
 		self.eut_name = eut_name #persist~~~~~~~~~~~~~~~~~~
 		self.eut_serial = eut_serial #persist~~~~~~~~~~~~~~~~~~
-		self.points = points
 		self.persist = persist
-		self.refer_table = {}
-		self.data_validator =  Data_Validator_Linear()
 		self.refer_file = refer_file
 		self.calib_file = calib_file
 		if refer_file:
@@ -365,7 +114,7 @@ class Signal_Control(wx.Panel):   #3
 
 		self.queue_cmd =  Queue(-1) # 创建一个无限长队列,用于输入命令
 		self.queue_data=  Queue(-1)# 创建一个无限长队列,用于输出结果
-		self.thread_source = Thread_Source(self,self.url_name,self.queue_cmd,self.queue_data)
+		self.thread_source = Data_Source(self,self.url_name,self.queue_cmd,self.queue_data)
 		self.started_flag = False
 		self.running_flag = False
 		self.move_flag = False
@@ -375,57 +124,76 @@ class Signal_Control(wx.Panel):   #3
 		self.init_data()
 
 
+		# 创建字体改善UI
+		font = self.GetFont()
+		font.SetPointSize(13)
+		
 		self.topsizer = wx.BoxSizer(wx.HORIZONTAL)
 
-
-		self.data_window = wx.SplitterWindow(self)# 创建一个分割窗
+		# 创建主分割窗
+		self.sp_window = wx.SplitterWindow(self)
+		self.sp_window.SetMinimumPaneSize(1)  
+		#创建上分割窗
+		self.data_window = wx.SplitterWindow(self.sp_window)#创建一个分割窗
 		self.data_window.SetMinimumPaneSize(1)  #创建一个分割窗
+		#创建debug窗口栏
+		self.debug_lane  = wx.ScrolledWindow(self.sp_window)
+		self.debug_lane.SetScrollbars(1,1,100,100)
+		self.sizer_debug  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
+		self.debug_lane.SetSizer(self.sizer_debug)
+		self.debug_out   = wx.TextCtrl(self.debug_lane,-1,style=(wx.TE_MULTILINE|wx.TE_RICH2|wx.HSCROLL) )
+		self.sizer_debug.Add(self.debug_out,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
+
 		#创建信息栏
 		self.info_lane  = wx.ScrolledWindow(self.data_window,-1)
-		self.sizer_debug  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
-		self.info_lane.SetSizer(self.sizer_debug)
-		self.debug_out   = wx.TextCtrl(self.info_lane,-1,style=(wx.TE_MULTILINE|wx.TE_RICH2|wx.HSCROLL) )
-		self.sizer_debug.Add(self.debug_out,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
+		self.info_lane.SetScrollbars(1,1,100,100)
+		self.sizer_sheet  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
+		self.info_lane.SetSizer(self.sizer_sheet)
+		self.info_sheet   = Refer_Sheet(self.info_lane)
+		self.sizer_sheet.Add(self.info_sheet,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 		
+	
 		#创建信号栏
 		self.signal_lane  = wx.ScrolledWindow(self.data_window,-1)
+		self.signal_lane.SetScrollbars(1,1,100,100)
 		self.signal_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_lane.SetSizer(self.signal_sizer)
-		self.signal   = Signal_Panel(parent=self.signal_lane,id=-1,size=(1100,800))
+		self.signal   = Signal_Panel(parent=self.signal_lane,id=-1,size=(800,600))
 		self.signal.SetMaxValue(4096)
 		self.signal_sizer.Add(self.signal,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
-		#创建信号栏/信息栏 分割窗, 并纳入到窗口管理器
-		self.info_lane.Hide()
-		self.signal_lane.Hide()
-		self.data_window.SplitVertically(self.signal_lane,self.info_lane,-1)
-		self.sizer_data_window = wx.BoxSizer(wx.VERTICAL)
-		self.sizer_data_window.Add(self.data_window)
-		
+		#加入信号栏/信息栏 分割窗
+		self.data_window.SplitVertically(self.signal_lane,self.info_lane,-10)
+		self.sp_window.SplitHorizontally(self.data_window,self.debug_lane,-100)
+
 		self.text_name = wx.TextCtrl(self,-1,eut_name,style=(wx.TE_READONLY))
 		self.text_name.SetBackgroundColour( self.GetBackgroundColour())
 		self.text_name.SetForegroundColour("purple")
 		self.text_serial = wx.TextCtrl(self,-1,eut_serial,style=(wx.TE_READONLY))
-		self.text_name1= wx.TextCtrl(self,-1,"eut_name1",style=(wx.TE_READONLY))
-		self.text_name2= wx.TextCtrl(self,-1,"eut_name2",style=(wx.TE_READONLY))
+		self.text_therm= wx.TextCtrl(self,-1,"eut_name1",style=(wx.TE_READONLY))
+		self.text_NTC= wx.TextCtrl(self,-1,"eut_name2",style=(wx.TE_READONLY))
+		self.text_NTC.Bind(wx.EVT_KEY_UP, self.OnPass)
 
 		self.sizer_info = wx.BoxSizer(wx.VERTICAL)
-		self.sizer_info.Add(wx.StaticText(self,-1,u"型号/名称"))
-		self.sizer_info.Add(self.text_name,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
-		self.sizer_info.Add((100,20))
-		self.sizer_info.Add(wx.StaticText(self,-1,u"ID编号"))
-		self.sizer_info.Add(self.text_serial,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
-		self.sizer_info.Add((100,20))
-		self.sizer_info.Add(wx.StaticText(self,-1,u"温度"))
-		self.sizer_info.Add(self.text_name1,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
-		self.sizer_info.Add((100,20))
-		self.sizer_info.Add(wx.StaticText(self,-1,u"速度"))
-		self.sizer_info.Add(self.text_name2,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
+		for label_name,txt in ((u"型号/PN",self.text_name),
+				(u"编号/SN",self.text_serial),
+				(u"温度/Temprature.",self.text_therm),
+				(u"热敏电阻/NTC Resistor",self.text_NTC),):
+			label = wx.StaticText(self,-1,label_name)
+			label.SetFont(font)
+			txt.SetFont(font)
+			self.sizer_info.Add(label)
+			self.sizer_info.Add(txt,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
+			self.sizer_info.Add((100,20))
+
+		self.sizer_info.Add((100,300))
+		self.result = Result_Ctrl(parent=self,id=-1)
+		self.sizer_info.Add(self.result,2,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		
-		self.topsizer.Add(self.sizer_data_window,9)
-		self.topsizer.Add(self.sizer_info,1)
 		self.SetSizer(self.topsizer)
+		self.topsizer.Add(self.sp_window,8,wx.EXPAND|wx.LEFT|wx.RIGHT)
+		self.topsizer.Add(self.sizer_info,1)
 
 
 
@@ -462,9 +230,11 @@ class Signal_Control(wx.Panel):   #3
 		self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
 
 
-	#	self.populate_timer = wx.Timer(self)
-	#	self.Bind(wx.EVT_TIMER, self.OnPopulateTimer,self.populate_timer)
+		self.populate_timer = wx.Timer(self)
+		#self.Bind(wx.EVT_TIMER, self.OnPopulateTimer,self.populate_timer)
+		#self.Bind(wx.EVT_TIMER, self.OnNewData,self.populate_timer)
 		self.toggle_clear = True
+		self._result = True	
 
 		#指定 DEBUG 窗口
 		sys.stdout = self.debug_out
@@ -480,6 +250,18 @@ class Signal_Control(wx.Panel):   #3
 		#print self.signal.data_store[1].GetValue()
 		self.signal.Refresh(True)
 
+
+	def OnPass(self,event):
+		try:
+			self._result = not (self._result)
+			if self._result:
+				self.result.SetPass()
+			else:
+				self.result.SetFail()
+
+			self.result.Refresh(True)
+		except:
+			pass
 
 
 	def OnQuery_UI(self,event):
@@ -649,90 +431,30 @@ class Signal_Control(wx.Panel):   #3
 		pos = 0
 		value = 0
 		while not self.queue_data.empty():
-			raw_data = self.queue_data.get()
-			#print raw_data,'\n'
-			pos = raw_data[0]
-			value = raw_data[1]
-			out += '%04d\t%04d' % (pos,value)
-			data_v = Data_Validated(valid= True,
-					pos=pos,
-					value= value,
+			item = self.queue_data.get()
+			if isinstance(item,str):
+				if item.startswith("trigger"):
+					self.data_count = 0
+					self.signal.InitValue()
+					self.signal.Refresh()
+			if isinstance(item,dict):
+				self.data_count += 1
+				valueX,valueY = item["value"]
+				length = item["length"]
+				if length > 1000:
+					length = 50
+				data_v = Data_Validated(valid= True,
+					pos=valueX,
+					value= valueY,
 					value_refer=0.0,
 					precision_refer=0.0,
 					precision=0.0,
 					)
-			self.data_count += 1
-			if self.data_count > 1200:
-				self.data_count = 0
-				self.signal.InitValue()
-				self.signal.Refresh(True)
-			if (self.data_count % 200) == 0:
-				self.signal.Refresh(True)
-			self.signal.SetValue(self.data_count,data_v)
+				data_v.SetLength(length)
+				self.signal.SetValue(self.data_count,data_v)
+				self.signal.DrawData()
+				#self.signal.Refresh()
 	
-#			self.data_buffer.append(Data_Real(pos,value))
-#			#self.data_buffer_size +=1
-#
-#			if len(self.data_buffer) == 3:
-#				
-#				pos0 = self.data_buffer[0].GetPos() 
-#				pos1 = self.data_buffer[1].GetPos() 
-#				pos2 = self.data_buffer[2].GetPos() 
-#				pos_delta1 = pos1-pos0
-#				pos_delta2 = pos2-pos1
-#				if pos_delta1 > 0 and pos_delta2 > 0:  #上行
-#					self.data_point_current += 1
-#					
-#				elif  pos_delta1 < 0 and pos_delta2 < 0:# 下行
-#					self.data_point_current  -= 1
-#					
-#					
-#				elif  pos_delta1 > 0 and pos_delta2 < 0: # 上行转下行
-#					#先填入空白数据
-#					self.direction='down'
-#					for data_panel in self.data_store:
-#						data_panel.data.append(Data_Validated())
-#						data_panel.Refresh(True)
-#					self.data_store[self.data_point_current].data[-1]=self.data_store[self.data_point_current].data[-2]
-#					self.data_point_current  -= 1  # 转下行
-#					
-#					
-#				elif  pos_delta1 < 0 and pos_delta2 > 0:# 下行转上行, 已完成一个器件测试, 新器件开始测试
-#					self.direction='up'
-#					data_block=[]
-#					self.SetBackgroundColour(self.bgcolor)
-#					self.Refresh(True)
-#					for data_panel in self.data_store:
-#						data_v = data_panel.data[-2]
-#						if data_v.GetValue() !=-100:
-#							data_block.append(data_v)
-#						data_panel.data.append(Data_Validated())
-#						data_panel.Refresh(True)
-#					for index_ in range(1, len(self.data_store)+1 ):
-#						if len(self.data_store[-index_].data) > 1: #重要,边界测试, 未用数据点跳过保存,避免抛出异常.
-#							data_v = self.data_store[-index_].data[-2]
-#							if data_v.GetValue() != -100:
-#								data_block.append(data_v)
-#
-#					self.Data_Persist(data_block) #保存已完成测试器件的测试数据
-#					self.AdjustSerial( +1 ) #更新测试器件的序列流水号, 新器件开始测试
-#					self.data_point_current  += 1  # 转上行
-#				else:
-#					pass
-#				self.data_buffer.pop(0)
-#				#self.data_buffer_size -= 1
-#			else: # 初
-#				self.data_point_current += 1
-				
-			#~ print self.data_point_current
-#			data_v = self.data_validator.ValidateData(pos,value)
-#			current_data = self.data_store[self.data_point_current]
-#			current_data.data[-1]=data_v
-#			#~ current_data.SetTip()
-#			current_data.Refresh(True)
-#			
-#			if data_v.GetValid() == False:
-#				self.set_fault_color()
 
 	def set_fault_color(self):
 		self.signal.SetBackgroundColour(self.color_bad)
@@ -759,37 +481,6 @@ class Signal_Control(wx.Panel):   #3
 		
 
 		
-###########################################################		
-		
-#	def OnShowCurrent(self, evt):
-#		print time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-#		print self.eut_name , '\t' , self.eut_serial , '\t' , u' 数据清单如下:'
-#		print u"位置\t数值\t参考值\t参考精度\t实际精度\t结果"
-#		data = []
-#		if self.direction=='up':
-#			for data_point in self.data_store:
-#				data.append( data_point.data[-1] )
-#		else:
-#			for data_point in self.data_store:
-#				data.append( data_point.data[-2] )
-#			for index_ in range(1,len(self.data_store) + 1):
-#				data.append( self.data_store[-(index_)].data[-1] )
-#		for curent_data in data:
-#			valid = curent_data.GetValid()
-#			pos   = curent_data.GetPos()
-#			value= curent_data.GetValue()
-#			value_refer= curent_data.GetValue_refer()
-#			precision_refer= curent_data.GetPrecision_refer()
-#			precision= curent_data.GetPrecision()
-#			if value!= -100:
-#				print "%d\t%5.2f\t%5.2f\t%5.4f\t%5.4f\t"%(pos, value,value_refer, precision_refer, precision),valid
-#	
-#		
-#		
-#		#~ Dialog_Show(data_store=self.data_store, direction=self.direction).ShowModal()
-		
-
-		
 	def OnRunStop(self, evt):
 		if self.running_flag != True:
 			self.Run()
@@ -801,10 +492,11 @@ class Signal_Control(wx.Panel):   #3
 	def Run(self):
 		print "run.....\n"
 		if self.started_flag != True:
+			self.thread_source = Data_Source(self,self.url_name,self.queue_cmd,self.queue_data)
 			self.thread_source.setDaemon(True)
 			self.thread_source.start() #启动后台线程, 与endpoint server进行连接与通信
 			self.started_flag = True
-			self.menu_setup.Enable(False)#已运行，再不能设置
+			#self.menu_setup.Enable(False)#已运行，再不能设置
 			pos_slash = self.url_name.find('/')
 			serial_name = self.url_name[pos_slash+1:]
 			open_cmd = "open:%s:%s"%(serial_name,'115200')
@@ -817,7 +509,7 @@ class Signal_Control(wx.Panel):   #3
 		self.text_name.SetBackgroundColour("green")
 		self.text_name.Refresh(True)
 
-#		self.populate_timer.Start(2000)
+		#self.populate_timer.Start(20)
 
 	def Pause(self):
 		print "pause.....\n"
@@ -829,39 +521,26 @@ class Signal_Control(wx.Panel):   #3
 		self.text_name.Refresh(True)
 		self.init_data()
 
-#		self.populate_timer.Stop()
+		self.populate_timer.Stop()
 
 	def OnSetup(self,evt):
 		if self.started_flag == True:
 			return
-		dlg = Dialog_Setup(None,-1,u"请选择配置文件 & 颜色",
-					color_ok=self.color_ok,
-					color_bad=self.color_bad,
-					url_name = self.url_name,
-					refer_file=self.refer_file,
-					calib_file=self.calib_file,
-					)
+		dlg = Dialog_Setup(None,-1,self.sig_sources)
 		if dlg.ShowModal()==wx.ID_OK:
-			#~ self.color_ok = dlg.GetOkColor()
-			#~ self.color_bad = dlg.GetBadColor()
-			self.url_name = dlg.GetUrlName()
-			self.thread_source.SetEndpoint(self.url_name)
-			new_refer_file = dlg.GetReferFile()
-
-			if self.refer_file != new_refer_file:   	#setup refer first
-				self.refer_file = new_refer_file
-				self.SetupRefer(self.refer_file)
-			if self.color_ok != dlg.GetOkColor():
-				self.color_ok = dlg.GetOkColor()
-				self.signal.SetOKColour(self.color_ok)
-			if self.color_bad != dlg.GetBadColor():
-				self.color_bad = dlg.GetBadColor()
-				self.signal.SetBadColour(self.color_bad)
-
+			print "setup OK!"
+		else:
+			print "setup cancelled!"
 		
-		print self.data_validator.GetMaxValue()
 		dlg.Destroy() #释放资源
 			
+	def OnOptions(self.event):
+
+		self.signal.SetReferColour(wx.Colour(0,250,250,200))
+		self.signal.SetBackgroundColour(wx.Colour(150,50,90,200))
+		self.signal.SetRefer(signal_panel.pupulate_refer_table())
+
+		self.signal.SetMaxValue(1200)
 
 	def SetupRefer(self,refer_file): # format as "D,V,e",  202,44.8,1
 		ref_cfg = open(refer_file,'r')
@@ -878,7 +557,7 @@ class Signal_Control(wx.Panel):   #3
 			value = string.atof(element[1])
 			precision = string.atof(element[2])
 			refer_table.append ([key,value,precision])
-		self.data_validator.SetupTable(refer_table=refer_table)
+		#self.data_validator.SetupTable(refer_table=refer_table)
 		#~ for x in self.refer_table.values():
 			#~ print x.GetValue(),'\n'
 			#~ self.data_1 = Data_Point(parent=self,id =-1,size=(5,45), data=x[1],pos=x[0],max_value=100,ok_color=self.color_ok,bad_color=self.color_bad)
@@ -891,12 +570,15 @@ class Signal_Control(wx.Panel):   #3
 		if dlg.ShowModal() == wx.ID_OK :
 			self.Set_Name(dlg.GetValue())
 		dlg.Destroy()
+		self.result.Refresh()
 
 	def OnDclick_serial(self, evt):
 		dlg =  wx.TextEntryDialog(None,u"请输入序列号",u"序列号输入",self.text_serial.GetValue(),style=wx.OK|wx.CANCEL)
 		if dlg.ShowModal() == wx.ID_OK :
 			self.Set_Serial(dlg.GetValue())
 		dlg.Destroy()
+		self.result.SetFail()
+		self.result.Refresh()
 
 	def Set_Name(self, name):
 		self.eut_name = name 
@@ -908,62 +590,79 @@ class Signal_Control(wx.Panel):   #3
 		self.text_serial.SetValue(serial)
 
 
-	def populate_data(self):
-		rand_value_all = 0 
-		value_ = 0
-		for pos in range (1,1200):
-			base = (int(pos)/int(100)*100) + 50
-			if pos%100 < 10: 
-				rand_value_once= random.random()* base / 99.99
-				value= rand_value_once + base 
-			else:
-				if pos%100 ==10:
-					rand_value_all = random.random() * base /99.90
-					value_= rand_value_all + base 
-				value = value_
-			precision = float(value)/float(base) 
-			if precision > 0.99 and precision < 1.01:
-				valid = True
-				self.signal.SetBackgroundColour("black")
-			else:
-				valid = False
-				self.signal.SetBackgroundColour("red")
-
-			data_v = Data_Validated(valid= valid,
-					pos=pos,
-					value= value,
-					value_refer=0.0,
-					precision_refer=0.0,
-					precision=precision,
-					)
-			self.signal.SetValue(pos,data_v)
-		self.signal.SetMaxValue(1400)
-
+#	def populate_data(self):
+#		rand_value_all = 0 
+#		value_ = 0
+#		for pos in range (1,1200):
+#			base = (int(pos)/int(100)*100) + 50
+#			if pos%100 < 10: 
+#				rand_value_once= random.random()* base / 99.99
+#				value= rand_value_once + base 
+#			else:
+#				if pos%100 ==10:
+#					rand_value_all = random.random() * base /99.90
+#					value_= rand_value_all + base 
+#				value = value_
+#			precision = float(value)/float(base) 
+#			if precision > 0.99 and precision < 1.01:
+#				valid = True
+#				self.signal.SetBackgroundColour("black")
+#			else:
+#				valid = False
+#				self.signal.SetBackgroundColour("red")
+#
+#			data_v = Data_Validated(valid= valid,
+#					pos=pos,
+#					value= value,
+#					value_refer=0.0,
+#					precision_refer=0.0,
+#					precision=precision,
+#					)
+#			self.signal.SetValue(pos,data_v,0)
+#			data_v_ = Data_Validated(valid= valid,
+#					pos=pos,
+#					value= value+50,
+#					value_refer=0.0,
+#					precision_refer=0.0,
+#					precision=precision,
+#					)
+#			self.signal.SetValue(pos,data_v_,1)
+#		self.signal.SetMaxValue(1400)
+#
 
 ############################################################################################################################################
 if __name__=='__main__':
 	app = wx.App()
 	frm = wx.Frame(None)
 	frm.SetSize((1400,800))
-	queue_in_ = Queue(-1)
-	queue_out_= Queue(-1)
+	persist =(Queue(0),Queue(0))
 	
-	sql = Thread_Sqlite(db_name="sqlite3_all.db",queue_in=queue_in_, queue_out=queue_out_) 
+	sql = Thread_Sqlite(db_name="sqlite3_all.db",queue_in=persist[0], queue_out=persist[1]) 
 	sql.setDaemon(True)
 	sql.start()
+
+	port = '%d'%(server_endpoints_usb.PORT)
+	ip = '%s'%(server_endpoints_usb.IP_ADDRESS)
+	URL = ip+':'+port+'/'+'usb1'
+	print URL
 	
 	
 	panel = Signal_Control(parent=frm,
 					size = (1400,800),
-					url_name="127.0.0.1:20001/com6",
+					url_name=URL,
 					eut_name="Eawdfr2s3WEE",
 					eut_serial="10p8-082wj490",
 					refer_file="./refer_table.cfg",
 					calib_file="",
 					points = 290,
-					persist =(queue_in_, queue_out_)
+					persist =persist 
 					)
-	#populate_data(panel.signal)
+	#panel.populate_data()
+	panel.signal.SetMaxValue(1200)
+	panel.signal.SetRefer(signal_panel.pupulate_refer_table())
+	panel.signal.SetReferColour(wx.Colour(0,250,250,200))
+	panel.signal.SetBackgroundColour(wx.Colour(150,50,90,200))
+	panel.signal.SetBadColour(wx.Colour(200,0,200))
 	frm.Show()
 	app.SetTopWindow(frm)
 	
