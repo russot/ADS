@@ -68,14 +68,56 @@ _MAP		= 4
 
 
 class Refer_Entry():
-	def __init__(self,Xvalue=0,Xprecision=0,Yvalue=0,Yprecision=0,Yoffset=0):
-		self.Xvalue = float( Xvalue)
-		self.Xprecision = float( Xprecision)
-		self.Yvalue     = float (Yvalue)
-		self.Yprecision = float(Yprecision)
-		self.Yoffset    = float(Yoffset)
+	def __init__(self,Xvalue=0,Xprecision=0,Yvalue=0,Yprecision=0,Yoffset=0,Ymin=0,Ymax=0):
+		if Xvalue:
+			self.Xvalue = float( Xvalue)
+		else:
+			self.Xvalue = float(0)
+		if Xprecision:
+			self.Xprecision = float( Xprecision)
+		else:
+			self.Xprecision = float(0)
+		if Yvalue:
+			self.Yvalue = float (Yvalue)
+		else:
+			self.Yvalue = float(0)
+		if Yprecision:
+			self.Yprecision = float(Yprecision)
+		else:
+			self.Yprecision = float(0)
+		if Yoffset:
+			self.Yoffset    = float(Yoffset)
+		else: 
+			self.Yoffset    = float(0)
+		if Ymin:
+			self.Ymin    = float(Ymin)
+		else: 
+			self.Ymin    = float(0)
+		if Ymax:
+			self.Ymax    = float(Ymax)
+		else: 
+			self.Ymax    = float(0)
+
+
 		self.valid_status = False 
 
+	def Show(self):
+		out = ''
+		out += "X:%.3f,"%(self.Xvalue)
+		out += "Xp:%.3f,"%(self.Xprecision)
+		out += "Y:%.3f,"%(self.Yvalue)
+		out += "Yp:%.3f,"%(self.Yprecision)
+		out += "Yo:%.3f,"%(self.Yoffset)
+		return out
+
+	def ShowThermo(self):
+		out = ''
+		out += "X:%.3f,"%(self.Xvalue)
+		out += "Ymin:%.3f,"%(self.Ymin)
+		out += "Y:%.3f,"%(self.Yvalue)
+		out += "Ymax:%.3f,"%(self.Ymax)
+		return out
+	
 	def GetValidStatus(self):
 		return self.valid_status
 
@@ -101,6 +143,18 @@ class Refer_Entry():
 	def SetYvalue(self,value):
 		self.Yvalue= float(value)
 
+	def GetYmin(self,value):
+		return self.Ymin
+
+	def SetYmin(self,value):
+		self.Ymin= float(value)
+
+	def GetYmax(self,value):
+		return self.Ymax
+
+	def SetYmax(self,value):
+		self.Ymax= float(value)
+
 	def GetYprecision(self):
 		return self.Yprecision
 
@@ -114,35 +168,75 @@ class Refer_Entry():
 		self.Yoffset= float(value)
 
 class Thermo_Sensor():
-	def __init(self,table=None,PN=None):
+	def __init__(self,PN="",model="",value=0,precision=0,X_unit="C",Y_unit="ohm",table=[]):
 		self.field = {}
 		self.field["PN"]= PN 
-		self.field["model"]= ""
-		self.field["value"]= 0
-		self.field["unit"]= "ohm"
-		self.field["precision"]=0.01
-		self.field["X_unit"] = "C"
-		self.field["Y_unit"] = "ohm"
-		self.table=[]
+		self.field["model"]= model
+		self.field["value"]= value
+		self.field["precision"]=precision
+		self.field["X_unit"] = X_unit 
+		self.field["Y_unit"] = Y_unit 
+		self.Refer_Table = []
 		if table:
 			self.SetTable(table)
 
-	def SetName(self,name):
-		self.name = name
+	def ShowFields(self):
+		for (name,value) in self.field.items():
+			print name,value
 
-	def GetName(self,name):
-		return self.name
+	def ShowRefer(self):
+		try:
+			for refer_entry in self.Refer_Table:
+				print refer_entry.ShowThermo()
+		except:
+			pass
 
-	def SetTable(self,table):
+	def SetField(self,line):
+		if line.startswith("#"):
+			return
+		try:
+			field_name,value = line.split(',')[:2]
+			if self.field.has_key(field_name):
+				self.field[field_name] = value
+		except:
+			pass
+
+	def SetRefer(self,line):
+		if line.startswith("#"):
+			return
+		
+		values = line.split(',')[:-1]#remove '\n'
+		self.Refer_Table.append(
+				Refer_Entry( Xvalue=values[0],
+					Ymin = values[1],
+					Yvalue=values[2],
+					Ymax= values[3]))
+		
+		pass
+	
+	def Import(self,reader):
+		for x in range(0,15):
+			line = reader.readline()
+			if line.startswith('###'):#表格起始标志
+				break
+			self.SetField(line)
+		for line in reader.readlines():
+			self.SetRefer(line)
+		self.Refer_Table.sort(key=lambda x:x.GetYvalue())
+
+
+	#used for PT100/PT1000 thermo_resistor
+	def SetTable(self,table): 
 		for x in table:
 			#!!!!~~~~table item is as of [T,R]~~~!!!!!!!
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!
-			self.table.append(Refer_Entry(Xvalue=x[1],Yvalue=x[0]))
-		self.table.sort(key=lambda x:x.GetYvalue())
+			self.Refer_Table.append(Refer_Entry( Xvalue=values[0],
+						Yvalue=values[1]))
+		self.Refer_Table.sort(key=lambda x:x.GetYvalue())
 
 	def GetT(self,Rvalue):
-		x0 = self.table[0]
-		for x1 in self.table:
+		x0 = self.Refer_Table[0]
+		for x1 in self.Refer_Table:
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!
 			r0 = x0.GetXvalue()
 			r1 = x1.GetXvalue()
@@ -165,8 +259,8 @@ class Thermo_Sensor():
 		return tx
 			
 	def GetR(self,Tvalue):
-		x0 = self.table[0]
-		for x1 in self.table:
+		x0 = self.Refer_Table[0]
+		for x1 in self.Refer_Table:
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!
 			t0 = x0.GetYvalue()
 			t1 = x1.GetYvalue()
@@ -197,34 +291,63 @@ class Eut():
 		self.field["PN"] = PN
 		self.field["SN"] = SN
 		self.field["thermo_PN"] = thermo_PN
-		self.field["Refer_Table"] = Refer_Table
 		self.field["signal_num"] = 2
 		self.field["X_unit"] = "mm"
 		self.field["Y1_unit"] = "ohm"
 		self.field["Y2_unit"] = "ohm"
+		self.Refer_Table = Refer_Table
 
 
 	def SetField(self,line):
-		if line[0].startswith("#"):
+		if line.startswith("#"):
 			return
-		field_name = line[0] 
-		if self.field.has_key(field_name):
-			self.field[field_name] = line[1]
+		try:
+			field_name,value = line.split(',')[:2]
+			if self.field.has_key(field_name):
+				self.field[field_name] = value
+		except:
+			pass
 
-	def Import(self,csv_reader):
-		for line in csv_reader[:10]:
+	def SetRefer(self,line):
+		if line.startswith("#"):
+			return
+		try:
+			values = line.split(',')[:-1]#remove '\n'
+			refer_entry1 = Refer_Entry(
+					values[0],
+					values[1],
+					values[2],
+					values[3],
+					values[4])
+			self.AppendReferTable(0,refer_entry1)
+			refer_entry2 = Refer_Entry(
+					values[5],
+					values[6],
+					values[7],
+					values[8],
+					values[9])
+			self.AppendReferTable(1,refer_entry2)
+		except:
+			pass
+
+	def Import(self,reader):
+		for x in range(0,15):
+			line = reader.readline()
+			if line.startswith('###'):#表格起始标志
+				break
 			self.SetField(line)
-		for line in csv_reader[10:]:
+		for line in reader.readlines():
 			self.SetRefer(line)
+			#print line.split(',')[:-1]
 
 	
 	def SetReferTable(self,Refer_Table):
-		self.field["Refer_Table"] = Refer_Table
-		for table in self.field["Refer_Table"]:
+		self.Refer_Table = Refer_Table
+		for table in self.Refer_Table:
 			table.sort(key=lambda x:x.GetYvalue())
 
 	def GetReferTable(self):
-		return self.field["Refer_Table"] 
+		return self.Refer_Table 
 
 	def SetThermoSensor(self,thermo_sensor):
 		self.thermo_sensor= thermo_sensor
@@ -234,7 +357,7 @@ class Eut():
 
 
 	def AppendReferTable(self,table_num,refer_entry):
-		if not isinstance(Refer_Entry,refer_entry):
+		if not isinstance(refer_entry,Refer_Entry):
 			return -1
 		try:
 			self.Refer_Table[table_num].append(refer_entry)
@@ -248,6 +371,18 @@ class Eut():
 			for table in self.Refer_Table:
 				for i in table:
 					i.SetValidStatus(False)
+		except:
+			pass
+
+	def ShowFields(self):
+		for (name,value) in self.field.items():
+			print name,value
+
+	def ShowRefer(self):
+		try:
+			for table in self.Refer_Table:
+				for refer_entry in table:
+					print refer_entry.Show()
 		except:
 			pass
 
@@ -489,6 +624,64 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 				row +=1
 		#sort refer points by YVALUE as below
 		self.eut[_REF_PTS].sort(key=lambda x:x[_YVALUE])	
+
+	def UpdateField(self,field):
+		i = 0
+		j = 1
+		for (name,value) in field.items():
+			i += 1
+			i %= 5
+			if i==0:
+				i = 1
+				j += 1
+			print i,j
+			self.SetCellValue(j*2 , i, name )
+			self.SetCellValue(j*2+1 , i, value )
+
+	def UpdateTable(self,row,col,table,type_="NTC"):
+		if type_ == "NTC":
+			self.SetCellValue(row,col,u"温度/C")
+			self.SetCellValue(row,col+1,u"最小值/ohm")
+			self.SetCellValue(row,col+2,u"中间值/ohm")
+			self.SetCellValue(row,col+3,u"最大值/ohm")
+			for (temprature,Tmin,T,Tmax) in table:
+				row += 1
+				self.SetCellValue(row,col,temprature)
+				self.SetCellValue(row,col+1,Tmin)
+				self.SetCellValue(row,col+2,T)
+				self.SetCellValue(row,col+3,Tmax)
+		if type_ == "sensor":
+			self.SetCellValue(row,col,u"位置/mm")
+			self.SetCellValue(row,col+1,u"位偏移/ohm")
+			self.SetCellValue(row,col+2,u"Sensor值")
+			self.SetCellValue(row,col+3,u"精度")
+			self.SetCellValue(row,col+3,u"修正值")
+			for (displace,Doffset,value,precision,Voffset) in table:
+				row += 1
+				self.SetCellValue(row,col,displace)
+				self.SetCellValue(row,col+1,Doffset)
+				self.SetCellValue(row,col+2,value)
+				self.SetCellValue(row,col+3,precision)
+				self.SetCellValue(row,col+4,Voffset)
+
+
+
+	def UpdateRefer(self,table):
+		if len(table) > 2:
+			row = 5
+			col = 0
+			self.UpdateTable(row,col,table,"NTC")
+		else:
+			row = 5
+			col = 0
+			self.UpdateTable(row,col,table[0],"sensor")
+			row = 5
+			col = 6
+			self.UpdateTable(row,col,table[0],"sensor")
+
+	def UpdateSensor(self,sensor):
+		self.UpdateField(sensor.field)
+		self.UpdateRefer(sensor.Refer_Table)
 
 	def Update_Cell(self,eut):
 		#print self.GetNumberRows()
@@ -779,17 +972,19 @@ class Refer_Editor(wx.Frame):
 		if not eut_name:
 			return 
 		reader =file(eut_name,"r")
+		reader.readline()#跳过第一行注释行
 		type_ = reader.readline().split(",")
 		print "type",type_
 		if type_[1].startswith("NTC"):
 			new_sensor = Thermo_Sensor()
-		elif type_[1].startswith("Sensor"):
+		elif type_[1].startswith("sensor"):
 			new_sensor = Eut()
 		else:
-			wx.MessageDialog(None,u"type值错误，必须是NTC或Sensor","警告",wx.YES_DEFAULT).ShowModal()
+			wx.MessageDialog(None,u"type值错误，必须是NTC或Sensor",u"警告",wx.YES_DEFAULT).ShowModal()
 			return 
 		
 		new_sensor.Import(reader)
+		self.refer_sheet.UpdateSensor(new_sensor)
 
 	def OnNew(self, event):
 		"""KeyDown event is sent first"""
