@@ -15,10 +15,11 @@ import const
 from Queue import Queue
 import math
 import csv
+import minidb
 from data_point import Data_Point,Data_Real,Data_Validated
 from data_validator import Data_Validator_Linear
 import wx.lib.buttons as buttons 
-
+import re
 import wx.lib.agw.balloontip as btip
 import struct 
 from thread_sqlite import Thread_Sql
@@ -67,39 +68,25 @@ _MAP		= 4
 
 
 
-class Refer_Entry():
-	def __init__(self,Xvalue=0,Xprecision=0,Yvalue=0,Yprecision=0,Yoffset=0,Ymin=0,Ymax=0):
-		if Xvalue:
-			self.Xvalue = float( Xvalue)
-		else:
-			self.Xvalue = float(0)
-		if Xprecision:
-			self.Xprecision = float( Xprecision)
-		else:
-			self.Xprecision = float(0)
-		if Yvalue:
-			self.Yvalue = float (Yvalue)
-		else:
-			self.Yvalue = float(0)
-		if Yprecision:
-			self.Yprecision = float(Yprecision)
-		else:
-			self.Yprecision = float(0)
-		if Yoffset:
-			self.Yoffset    = float(Yoffset)
-		else: 
-			self.Yoffset    = float(0)
-		if Ymin:
-			self.Ymin    = float(Ymin)
-		else: 
-			self.Ymin    = float(0)
-		if Ymax:
-			self.Ymax    = float(Ymax)
-		else: 
-			self.Ymax    = float(0)
+class Refer_Entry(object):
+#	__slots__ = {"Xvalue":float,"Xprecision":float,"Yvalue":float,"Yprecision":float,"Yoffset":float,"Ymin":float,"Ymax":float}
+	def __init__(self,Xvalue=0,Xprecision=0,Yvalue=0,Yprecision=0,Yoffset=0,Ymin=0,Ymax=0,valid_status=False):
+		self.valid_status = valid_status
+		self.Xvalue	= self.ToFloat( Xvalue)
+		self.Xprecision = self.ToFloat( Xprecision)
+		self.Yvalue	= self.ToFloat (Yvalue)
+		self.Yprecision = self.ToFloat(Yprecision)
+		self.Yoffset	= self.ToFloat(Yoffset)
+		self.Ymin = self.ToFloat(Ymin)
+		self.Ymax = self.ToFloat(Ymax)
 
+	def ToFloat(self,value):
+		if not value:
+			value = 0
+		return float(value)
 
-		self.valid_status = False 
+	def Values(self):
+		return (self.Xvalue,self.Xprecision,self.Yvalue,self.Yprecision,self.Yoffset,self.Ymin,self.Ymax)
 
 	def Show(self):
 		out = ''
@@ -167,8 +154,9 @@ class Refer_Entry():
 	def SetYoffset(self,value):
 		self.Yoffset= float(value)
 
-class Thermo_Sensor():
-	def __init__(self,PN="",model="",value=0,precision=0,X_unit="C",Y_unit="ohm",table=[]):
+class Thermo_Sensor(object):
+	__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
+	def __init__(self,PN="",model="",value=0,precision=0,X_unit=u" °C",Y_unit=u"ohm\xc2\xb0",table=[]):
 		self.field = {}
 		self.field["PN"]= PN 
 		self.field["model"]= model
@@ -179,6 +167,9 @@ class Thermo_Sensor():
 		self.Refer_Table = []
 		if table:
 			self.SetTable(table)
+
+		#as key for db access,
+		self.ID  =  self.field["PN"] 
 
 	def ShowFields(self):
 		for (name,value) in self.field.items():
@@ -201,13 +192,15 @@ class Thermo_Sensor():
 		except:
 			pass
 
+		#as key for db access,
+		self.ID  =  self.field["PN"] 
+
 	def SetRefer(self,line):
 		if line.startswith("#"):
 			return
 		
 		values = line.split(',')[:-1]#remove '\n'
-		self.Refer_Table.append(
-				Refer_Entry( Xvalue=values[0],
+		self.Refer_Table.append( Refer_Entry( Xvalue=values[0],
 					Ymin = values[1],
 					Yvalue=values[2],
 					Ymax= values[3]))
@@ -284,7 +277,8 @@ class Thermo_Sensor():
 	
 
 
-class Eut():
+class Eut(object):
+	__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
 	def __init__(self,model=None,PN=None,SN=None,Refer_Table=[[],[]],thermo_PN=None):
 		self.field={}
 		self.field["model"]=model
@@ -297,6 +291,8 @@ class Eut():
 		self.field["Y2_unit"] = "ohm"
 		self.Refer_Table = Refer_Table
 
+		#as key for db access,
+		self.ID  =  self.field["PN"] 
 
 	def SetField(self,line):
 		if line.startswith("#"):
@@ -307,28 +303,29 @@ class Eut():
 				self.field[field_name] = value
 		except:
 			pass
-
+		#as key for db access,
+		self.ID  =  self.field["PN"] 
 	def SetRefer(self,line):
 		if line.startswith("#"):
 			return
-		try:
-			values = line.split(',')[:-1]#remove '\n'
-			refer_entry1 = Refer_Entry(
-					values[0],
-					values[1],
-					values[2],
-					values[3],
-					values[4])
-			self.AppendReferTable(0,refer_entry1)
-			refer_entry2 = Refer_Entry(
-					values[5],
-					values[6],
-					values[7],
-					values[8],
-					values[9])
-			self.AppendReferTable(1,refer_entry2)
-		except:
-			pass
+		
+		values = line.split(',')[:-1]#remove '\n'
+		refer_entry1 = Refer_Entry(
+				values[0],
+				values[1],
+				values[2],
+				values[3],
+				values[4])
+		self.AppendReferTable(0,refer_entry1)
+		refer_entry2 = Refer_Entry(
+				values[5],
+				values[6],
+				values[7],
+				values[8],
+				values[9])
+		self.AppendReferTable(1,refer_entry2)
+		
+		pass
 
 	def Import(self,reader):
 		for x in range(0,15):
@@ -442,10 +439,10 @@ class Eut():
 class Refer_Sheet(wx.lib.sheet.CSheet):
 	def __init__(self, parent=None,eut=None): #2 初始化模型
 		super(Refer_Sheet, self).__init__(parent)
-		self.SetNumberCols(4)
-		self.SetNumberRows(205)
-		self.number_rows= 203
-		self.Init_Named_Cells()
+		self.SetNumberCols(20)
+		self.SetNumberRows(500)
+		self.number_rows= 500
+		#self.Init_Named_Cells()
 		self.Init_Sheet()
 		self.SetEut(eut)
 		self.db_name = config_db.eut_db
@@ -455,9 +452,9 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		return self.eut
 
 	def SetEut(self,eut):
-		self.eut	= eut
-		if self.eut:
-			self.Update_Cell(self.eut)
+		if isinstance(eut,Thermo_Sensor) or isinstance(eut,Eut):
+			self.eut = eut
+			self.UpdateCell()
 
 	def set_DB_name(self,db_name):
 		if db_name:
@@ -513,74 +510,75 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		font_.SetPointSize(12)
 		self.SetDefaultCellFont(font_)
 		self.SetDefaultRowSize(35,True)
+		self.SetDefaultColSize(100,True)
 		self.SetGridLineColour("RED")
 		self.SetDefaultCellAlignment(wx.ALIGN_CENTER,wx.ALIGN_CENTER)
-		for cell in self.named_cells:
-			#print cell
-			row,col = cell[_RC_LABEL]
-			self.SetReadOnly (row,col,True)
-			self.SetCellValue(row,col, cell[_LABEL])
-			self.SetCellBackgroundColour(row,col, "Light Grey")
-			if len(cell[_LABEL]) > 20:
-				self.SetRowSize(row,36)
-			if len(cell[_LABEL]) > 10:
-				self.SetColSize(col,130)
-		self.SetColSize(2,80)
-		self.SetRowLabelSize(80)
-		row,col = self.named_cells[_UNIT][_RC_VALUE]
-		self.SetCellEditor(
-				row,
-				col,
-				wx.grid.GridCellChoiceEditor(
-					[u"Ohm",u"V",u"mA"],
-					False))
-#~~~~~~~~~~~~~~format row labels below~~~~~~~~~~~~~~~~~~~~~
-		# !!!!!! first, setup normal cells
-		row_labels =	(u"model/PN\n型号/料号","",
-				u"NTC Res.\nNTC电阻","",
-				u"Ref_values\n参考值")
-		row_,col_ = self.named_cells[_MODEL][_RC_LABEL] 
-		for row in range(row_,row_+5):
-			self.SetRowLabelValue( row, row_labels[row] )
-			if row_labels[row]:
-				font_.SetPointSize(10)
-			else:
-				font_.SetPointSize(12)
-			for col in range(col_,col_+5):
-				self.SetReadOnly(row,col,True)
-				self.SetCellBackgroundColour(row,col,"Light Grey")
-				self.SetCellFont(row,col,font_)
-		row_,col_ = self.named_cells[_REF_POS][_RC_VALUE]
-		for row in range(row_,row_+200):
-			self.SetRowLabelValue(row,'%d'%(row-4))
-			for col in range(col_+3,col_+5):
-				self.SetReadOnly(row,col,True)
-				self.SetCellBackgroundColour(row,col,"Light Grey")
-			for col in range(col_,col_+3):
-				self.SetCellEditor(
-						row,
-						col,
-						wx.grid.GridCellFloatEditor())
+	#	for cell in self.named_cells:
+	#		#print cell
+	#		row,col = cell[_RC_LABEL]
+	#		self.SetReadOnly (row,col,True)
+	#		self.SetCellValue(row,col, cell[_LABEL])
+	#		self.SetCellBackgroundColour(row,col, "Light Grey")
+	#		if len(cell[_LABEL]) > 20:
+	#			self.SetRowSize(row,36)
+	#		if len(cell[_LABEL]) > 10:
+	#			self.SetColSize(col,130)
+	#	self.SetColSize(2,80)
+	#	self.SetRowLabelSize(80)
+	#	row,col = self.named_cells[_UNIT][_RC_VALUE]
+	#	self.SetCellEditor(
+	#			row,
+	#			col,
+	#			wx.grid.GridCellChoiceEditor(
+	#				[u"Ohm",u"V",u"mA"],
+	#				False))
+#~~~~~~~#~~~~~~~format row labels below~~~~~~~~~~~~~~~~~~~~~
+	#	# !!!!!! first, setup normal cells
+	#	row_labels =	(u"model/PN\n型号/料号","",
+	#			u"NTC Res.\nNTC电阻","",
+	#			u"Ref_values\n参考值")
+	#	row_,col_ = self.named_cells[_MODEL][_RC_LABEL] 
+	#	for row in range(row_,row_+5):
+	#		self.SetRowLabelValue( row, row_labels[row] )
+	#		if row_labels[row]:
+	#			font_.SetPointSize(10)
+	#		else:
+	#			font_.SetPointSize(12)
+	#		for col in range(col_,col_+5):
+	#			self.SetReadOnly(row,col,True)
+	#			self.SetCellBackgroundColour(row,col,"Light Grey")
+	#			self.SetCellFont(row,col,font_)
+	#	row_,col_ = self.named_cells[_REF_POS][_RC_VALUE]
+	#	for row in range(row_,row_+200):
+	#		self.SetRowLabelValue(row,'%d'%(row-4))
+	#		for col in range(col_+3,col_+5):
+	#			self.SetReadOnly(row,col,True)
+	#			self.SetCellBackgroundColour(row,col,"Light Grey")
+	#		for col in range(col_,col_+3):
+	#			self.SetCellEditor(
+	#					row,
+	#					col,
+	#					wx.grid.GridCellFloatEditor())
 
-		# !!!!!! second, setup named cells,override normal cells
-		for cell in self.named_cells:
-			row,col = cell[_RC_VALUE]
-			self.SetReadOnly(row,col,False)
-			self.SetCellBackgroundColour(row,col,"white")
-			if cell[_TYPE] == "float":
-				self.SetCellEditor(
-						row,
-						col,
-						wx.grid.GridCellFloatEditor())
-		self.SetEut([
-				"mk3",
-				"333ke-78dk-233",
-				20300,
-				1,
-				1,
-				"200-20300",
-				[[1,2,3],[2,2,3],[3,2,3],[4,2,3],[5,2,3],[6,2,3],[7,2,3],[8,2,3],[9,2,3],[10,2,3],[11,2,3],] ])
-		pass
+	#	# !!!!!! second, setup named cells,override normal cells
+	#	for cell in self.named_cells:
+	#		row,col = cell[_RC_VALUE]
+	#		self.SetReadOnly(row,col,False)
+	#		self.SetCellBackgroundColour(row,col,"white")
+	#		if cell[_TYPE] == "float":
+	#			self.SetCellEditor(
+	#					row,
+	#					col,
+	#					wx.grid.GridCellFloatEditor())
+	#	self.SetEut([
+	#			"mk3",
+	#			"333ke-78dk-233",
+	#			20300,
+	#			1,
+	#			1,
+	#			"200-20300",
+	#			[[1,2,3],[2,2,3],[3,2,3],[4,2,3],[5,2,3],[6,2,3],[7,2,3],[8,2,3],[9,2,3],[10,2,3],[11,2,3],] ])
+	#	pass
 
 	def SetReadOnlyAll(self,read_only):
 		for row in range(0,self.number_rows ):
@@ -626,82 +624,104 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.eut[_REF_PTS].sort(key=lambda x:x[_YVALUE])	
 
 	def UpdateField(self,field):
-		i = 0
-		j = 1
+		font_ = self.GetCellFont(0,0)
+		font_.SetPointSize(12)
+		col = 0
+		row = 0
 		for (name,value) in field.items():
-			i += 1
-			i %= 5
-			if i==0:
-				i = 1
-				j += 1
-			print i,j
-			self.SetCellValue(j*2 , i, name )
-			self.SetCellValue(j*2+1 , i, value )
+			if value == None:
+				value = ''
+			self.SetCellValue(row,col, name )
+			self.SetCellValue(row+1,col, value)
+			self.SetReadOnly(row,col,True)
+			self.SetCellBackgroundColour(row,col,"Light Grey")
+			self.SetCellFont(row,col,font_)
+			if re.search(r"Y.*unit",name):
+				editor =  wx.grid.GridCellChoiceEditor( [u"Ohm",u"V",u"mA"], False)
+				self.SetCellEditor( row+1, col, editor)
+			elif re.search(r"X.*unit",name):
+				editor =  wx.grid.GridCellChoiceEditor( [u"mm",u" °C"], False)
+				self.SetCellEditor( row+1, col, editor)
+			col += 1
+			col %= 5
+			if col==0:
+				col = 0
+				row += 2
 
-	def UpdateTable(self,row,col,table,type_="NTC"):
-		if type_ == "NTC":
-			self.SetCellValue(row,col,u"温度/C")
-			self.SetCellValue(row,col+1,u"最小值/ohm")
-			self.SetCellValue(row,col+2,u"中间值/ohm")
-			self.SetCellValue(row,col+3,u"最大值/ohm")
-			for (temprature,Tmin,T,Tmax) in table:
-				row += 1
-				self.SetCellValue(row,col,temprature)
-				self.SetCellValue(row,col+1,Tmin)
-				self.SetCellValue(row,col+2,T)
-				self.SetCellValue(row,col+3,Tmax)
-		if type_ == "sensor":
-			self.SetCellValue(row,col,u"位置/mm")
-			self.SetCellValue(row,col+1,u"位偏移/ohm")
-			self.SetCellValue(row,col+2,u"Sensor值")
-			self.SetCellValue(row,col+3,u"精度")
-			self.SetCellValue(row,col+3,u"修正值")
-			for (displace,Doffset,value,precision,Voffset) in table:
-				row += 1
-				self.SetCellValue(row,col,displace)
-				self.SetCellValue(row,col+1,Doffset)
-				self.SetCellValue(row,col+2,value)
-				self.SetCellValue(row,col+3,precision)
-				self.SetCellValue(row,col+4,Voffset)
+	def UpdateNTCTable(self,row,col,table):
+		col_ = col
+		for name in (u"温度/ °C",u"最小值/ohm",u"中间值/ohm",u"最大值/ohm"):
+			self.SetCellValue(row,col_,name)
+			self.SetReadOnly(row,col_,True)
+			self.SetCellBackgroundColour(row,col_,"Grey")
+			col_ +=1
+		for refer_entry in table:
+			row += 1
+			(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
+			col_ = col
+			for value in (Xvalue,Ymin,Yvalue,Ymax):
+				self.SetCellValue(row,col_,str(value))
+				self.SetCellEditor(
+					row,
+					col_,
+					wx.grid.GridCellFloatEditor())
+				col_ += 1
 
-
+	def UpdateSensorTable(self,row,col,table,table_num):
+		col_ = col
+		for name in (u"位置/mm",u"位偏移/mm",u"Sensor%d值"%(table_num+1),u"精度",u"修正值"):
+			self.SetCellValue(row,col_,name)
+			self.SetReadOnly(row,col_,True)
+			self.SetCellBackgroundColour(row,col_,"Grey")
+			col_ +=1
+		for refer_entry in table[table_num]:
+			row += 1
+			(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
+			print Xvalue
+			col_ = col
+			for value in (Xvalue,Xprecision,Yvalue,Yprecision,Yoffset):
+				self.SetCellValue(row,col_,str(value))
+				self.SetCellEditor(
+					row,
+					col_,
+					wx.grid.GridCellFloatEditor())
+				col_ += 1
 
 	def UpdateRefer(self,table):
 		if len(table) > 2:
-			row = 5
-			col = 0
-			self.UpdateTable(row,col,table,"NTC")
+			self.UpdateNTCTable(row=5,col=0,table=table)
 		else:
-			row = 5
-			col = 0
-			self.UpdateTable(row,col,table[0],"sensor")
-			row = 5
-			col = 6
-			self.UpdateTable(row,col,table[0],"sensor")
+			self.UpdateSensorTable(row=5,col=0,table=table,table_num=0)
+			self.UpdateSensorTable(row=5,col=6,table=table,table_num=1)
 
-	def UpdateSensor(self,sensor):
-		self.UpdateField(sensor.field)
-		self.UpdateRefer(sensor.Refer_Table)
+	def UpdateCell(self):
+		self.UpdateField(self.eut.field)
+		self.UpdateRefer(self.eut.Refer_Table)
 
-	def Update_Cell(self,eut):
-		#print self.GetNumberRows()
-		for cell in self.named_cells[0:5]:
-			row,col=cell[_RC_VALUE]
-			index = cell[_MAP]
-			#print row,col,index
-			#print index
-			#print self.eut[index] 
-			self.SetCellValue( row, col, str(self.eut[index]) )
-		row,col_= self.named_cells[_REF_POS][_RC_VALUE]
-		for ref_points in self.eut[_REF_PTS]:
-			for col in range(col_, col_ + 3):
-				self.SetCellValue( row, col, str(ref_points[col]) )
-				_row,_col = self.named_cells[_UNIT][_RC_VALUE]
-				if row == _row and col == _col:
-					self.SetCellValue( row, col, ref_points[col] )
-
-			row +=1
+#	def Update_Cell(self,eut):
+#		#print self.GetNumberRows()
+#		for cell in self.named_cells[0:5]:
+#			row,col=cell[_RC_VALUE]
+#			index = cell[_MAP]
+#			#print row,col,index
+#			#print index
+#			#print self.eut[index] 
+#			self.SetCellValue( row, col, str(self.eut[index]) )
+#		row,col_= self.named_cells[_REF_POS][_RC_VALUE]
+#		for ref_points in self.eut[_REF_PTS]:
+#			for col in range(col_, col_ + 3):
+#				self.SetCellValue( row, col, str(ref_points[col]) )
+#				_row,_col = self.named_cells[_UNIT][_RC_VALUE]
+#				if row == _row and col == _col:
+#					self.SetCellValue( row, col, ref_points[col] )
+#
+#			row +=1
 	def SaveEut(self):
+		db = minidb.Store(self.db_name)
+		print db.save(self.eut)
+		db.close()
+		
+	def SaveEut__(self):
 		self.Update_Value()
 		self.SetReadOnlyAll(True)
 
@@ -976,19 +996,23 @@ class Refer_Editor(wx.Frame):
 		type_ = reader.readline().split(",")
 		print "type",type_
 		if type_[1].startswith("NTC"):
-			new_sensor = Thermo_Sensor()
+			eut = Thermo_Sensor()
 		elif type_[1].startswith("sensor"):
-			new_sensor = Eut()
+			eut = Eut()
 		else:
 			wx.MessageDialog(None,u"type值错误，必须是NTC或Sensor",u"警告",wx.YES_DEFAULT).ShowModal()
 			return 
 		
-		new_sensor.Import(reader)
-		self.refer_sheet.UpdateSensor(new_sensor)
+		self.InitSheet()
+		eut.Import(reader)
+		self.refer_sheet.SetEut(eut)
+		print u"temp unit \xc2\xb0"
 
 	def OnNew(self, event):
 		"""KeyDown event is sent first"""
-		print "clear all"
+		self.InitSheet()
+
+	def InitSheet(self):
 		self.refer_sheet.SelectAll()
 		self.refer_sheet.Clear()
 		self.refer_sheet.ClearSelection()
@@ -1005,9 +1029,11 @@ class Refer_Editor(wx.Frame):
 		if wx.NO == wx.MessageBox(u"确认要使用此料？",
 				style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 			return
-		self.selected_eut = self.refer_sheet.eut
-		self.Hide()
-		print "hidding..."
+		db = minidb.Store(self.refer_sheet.db_name)
+		eut = db.get(Thermo_Sensor,ID="*")
+		self.refer_sheet.SetEut(eut)
+		print eut.ID
+		print "select ok" 
 		pass
 
 	def OnToggleEdit(self, event):
