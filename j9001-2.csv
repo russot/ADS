@@ -1,4 +1,5 @@
-type,Sensor,
+#下起第一行必须是"type,sensor,", 后续各行是"名称,值,", 直到"###"打头行; 后续各行是表格;"#"打头行为注释行,表头#打头是格式行
+type,sensor,
 PN,R939-m0x92,
 model,FTS800_BC959,
 thermo_PN,2939-m0299,
@@ -6,6 +7,8 @@ signal_num,2,
 X_unit,mm,
 Y1_unit,ohm,
 Y2_unit,ohm,
+
+###下行是格式行
 #Xvalue,Xprecision,Y1value,Yprecision,Yoffset, Xvalue,Xprecision,Y2value,Yprecision,Yoffset
 5,3,277.2,0.03,, 5,3,277.2,0.03,, 
 6,3,263.6,0.03,,6,3,263.6,0.03,,
