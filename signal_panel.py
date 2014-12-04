@@ -42,28 +42,32 @@ class Refer_Entry():
 		self.Yvalue= value
 
 class Signal(wx.Object):
-	def __init__(self,ok_color="green",bad_color="red",url="127.0.0.1:8088"):
-		self.ok_color = wx.Colour(ok_color)
-		self.bad_color= wx.Colour(bad_color)
+	def __init__(self,ok_colour="green",bad_colour="red",data=[], url="127.0.0.1:8088"):
+		self.ok_colour = ok_colour
+		self.bad_colour= bad_colour
 		self.url = url
+		self.data = data
+
+	def GetData(self):
+		return self.data
 
 	def SetOkColor(self,color):
-		self.ok_color = wx.Colour(color)
+		self.ok_colour = wx.Colour(color)
 
-	def GetOkColor(self)
-		return self.ok_color
+	def GetOkColor(self):
+		return self.ok_colour
 
 		
 	def SetBadColor(self,color):
-		self.bad_color = wx.Colour(color) 
+		self.bad_colour = wx.Colour(color) 
 
-	def GetBadColor(self)
-		return self.bad_color
+	def GetBadColor(self):
+		return self.bad_colour
 
 	def SetUrl(self,url):
 		self.url = url
 
-	def GetUrl(self,url):
+	def GetUrl(self):
 		return self.url
 
 
@@ -76,6 +80,7 @@ class signal_cfgUI(wx.Panel):
 		self.url= wx.TextCtrl(self,-1,self.signal.GetUrl(),size=(200,-1), style=wx.TE_PROCESS_ENTER)
 		
 		
+		self.url_btn = wx.Button(self,-1,"set URL")
 		self.ok_color_btn = wx.Button(self,-1,"GOOD color")
 		self.bad_color_btn = wx.Button(self,-1,"BAD color")
 		self.ok_color_btn.SetBackgroundColour(self.signal.GetOkColor())
@@ -86,6 +91,8 @@ class signal_cfgUI(wx.Panel):
 		self.topsizer.Add((200,40))
 		self.topsizer.Add(wx.StaticText(self, -1,u"Endpoint URL, 127.0.0.1:8088/usb1"))
 		self.topsizer.Add(self.url)
+		self.topsizer.Add(self.url_btn)
+		self.url_btn.Bind(wx.EVT_BUTTON, self.OnSetUrl)
 		
 		self.hsizer= wx.BoxSizer(wx.HORIZONTAL|wx.ALIGN_CENTER)# 创建一个分割窗
 		self.hsizer.Add((20,20))
@@ -120,26 +127,28 @@ class signal_cfgUI(wx.Panel):
 	def GetUrl(self):
 		return self.url.GetValue()
 
-	def SetUrl(self,url):
-		self.url.SetValue(str(url))
+	def OnSetUrl(self,event):
+		self.signal.SetUrl(self.url.GetValue())
+
 
 
 ############################################################################################################################################
 class Dialog_Setup(wx.Dialog):
 	""" configure the run time parameters """
 	def __init__(self,  parent=None, 
-		id=-1,caption="signal URL&UI setup", signals=[]) :
+		id=-1,caption=u"signal URL&UI setup", signals=[]) :
 
-		super(Dialog_Setup, self).__init__(parent, id , caption)
+		super(Dialog_Setup, self).__init__(parent,id,caption,size=(800,600))
 		
 		self.topsizer= wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
-		self.sig_sizer= wx.BoxSizer(wx.VERTICAL|wx.ALIGN_CENTER)# 创建一个分割窗
+		self.sig_sizer= wx.BoxSizer(wx.HORIZONTAL)
 		self.cfg_panels = []
+		print len(signals)
 		for signal in signals:
-			cfg_panel = source_cfgUI(self,-1,signal)
+			cfg_panel = signal_cfgUI(self,-1,signal)
 			self.cfg_panels.append(cfg_panel )
 			self.sig_sizer.Add((20,20))
-			self.hsizer.Add(cfg_panel)
+			self.sig_sizer.Add(cfg_panel,0,wx.EXPAND|wx.ALL,5)
 		self.topsizer.Add((40,20))
 		self.topsizer.Add(self.sig_sizer)		
 
@@ -157,26 +166,45 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 			size=(-1,-1),
 			id=-1,
 	 		signals=[],
-			back_color=wx.Colour("Black")):
+			back_color="Black"):
 		super(Signal_Panel, self).__init__(parent, id,size=size)
 		#panel 创建
 		self.SetupScrolling(scroll_x=True, scroll_y=True, rate_x=20, rate_y=20)
 		self.SetupScrolling() 
 		self.signals = signals #persist~~~~~~~~~~~~~~~~~~ 
 		self.SetBackgroundColour(back_color)
-		self.grid_color= wx.Colour(250,0,250,200)
+		self.grid_colour= wx.Colour(250,0,250,200)
+		self.ok_colour= wx.Colour(0,0,250,200)
+		self.bad_colour= wx.Colour(250,0,0,200)
 		self.refer_table = None
 
 		self.Bind(wx.EVT_PAINT, self.OnPaint)
 		self.Bind(wx.EVT_LEFT_DCLICK, self.OnShowCurrent)
+		self.Bind(wx.EVT_MIDDLE_DCLICK, self.OnSetup)
+
+	def OnSetup(self,evt):
+		dlg = Dialog_Setup(None,-1,"signal UI&CFG",self.signals)
+		if dlg.ShowModal()==wx.ID_OK:
+			print "setup OK!"
+		else:
+			print "setup cancelled!"
 		
+		dlg.Destroy() #释放资源
+
 	def SetRefer(self,refer_table):
 		self.refer_table = refer_table
 		self.refer_table.sort(key=lambda x:x.GetReferValue()) 
 
 
 	def SetGridColour(self,colour):
-		self.grid_color= colour
+		self.grid_colour= colour
+
+	def SetOkColour(self,colour):
+		self.ok_colour= colour
+
+
+	def SetBadColour(self,colour):
+		self.bad_colour= colour
 
 	def OnPaint(self,evt):
 		#print "redaw"
@@ -196,8 +224,8 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.SHORT_DASH))
 		if  self.refer_table == None:
 			return
-		dc.SetPen(wx.Pen(self.grid_color,1,style = wx.DOT))
-		dc.SetTextForeground(self.grid_color)
+		dc.SetPen(wx.Pen(self.grid_colour,1,style = wx.DOT))
+		dc.SetTextForeground(self.grid_colour)
 		count = 0
 		refer_num = len(self.refer_table)
 		if refer_num < 40:
@@ -219,23 +247,23 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.SHORT_DASH))
 		for signal in self.signals:
 			try:
-				self.RenderData(signal.data,dc,clientRect)
+				self.RenderData(signal,dc,clientRect)
 			except:
 				pass
 
-	def RenderData(self,signal_data,dc,clientRect):
+	def RenderData(self,signal,dc,clientRect):
 		#print "render data....."
 		x0 = 1
 		x1 = 1
 		last_Y0= 1
 		#try:
-		for data_ in signal_data:
+		for data_ in signal.data:
 			if data_.GetValue() > 0:
 				x1 = x0 + data_.GetLength()
 				if data_.GetValid() == True:
-					dc.SetPen(wx.Pen(self.ok_colour,2,style = wx.SOLID))
+					dc.SetPen(wx.Pen(signal.ok_colour,2,style = wx.SOLID))
 				else:
-					dc.SetPen(wx.Pen(self.bad_colour,2,style = wx.SOLID))
+					dc.SetPen(wx.Pen(signal.bad_colour,2,style = wx.SOLID))
 				Y0=int((1.0-data_.GetValue()/self.max_value)*clientRect.height )
 				dc.DrawLine(x0,Y0,x0,last_Y0)
 				dc.DrawLine(x0,Y0,x1,Y0)

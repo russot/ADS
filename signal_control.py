@@ -24,7 +24,7 @@ import wx.lib.scrolledpanel as scrolledpanel
 import wx.lib.imagebrowser as imagebrowser
 from dialog_query import Dialog_Query
 import wx.lib.newevent
-from signal_panel import Signal_Panel
+from signal_panel import Signal_Panel,Signal
 import signal_panel
 
 import server_endpoints_usb
@@ -91,6 +91,7 @@ class Signal_Control(wx.Panel):   #3
 	def __init__(self,  parent=None,
 		     size=(-1,-1),
 		     id=-1,
+		     url = "",
 		     eut_name="qw32edrt44s",
 		     eut_serial="10p8-082wj490",
 		     persist=None):
@@ -98,11 +99,8 @@ class Signal_Control(wx.Panel):   #3
 		#panel 创建
 		self.eut_name = eut_name #persist~~~~~~~~~~~~~~~~~~
 		self.eut_serial = eut_serial #persist~~~~~~~~~~~~~~~~~~
+		self.url_name = url
 		self.persist = persist
-		self.refer_file = refer_file
-		self.calib_file = calib_file
-		if refer_file:
-			self.SetupRefer(refer_file)
 		self.mincircle = 0
 		self.data_count = 0
 
@@ -112,6 +110,7 @@ class Signal_Control(wx.Panel):   #3
 		
 
 
+		print "sig ctrl init1"
 		self.queue_cmd =  Queue(-1) # 创建一个无限长队列,用于输入命令
 		self.queue_data=  Queue(-1)# 创建一个无限长队列,用于输出结果
 		self.thread_source = Data_Source(self,self.url_name,self.queue_cmd,self.queue_data)
@@ -128,6 +127,7 @@ class Signal_Control(wx.Panel):   #3
 		font = self.GetFont()
 		font.SetPointSize(13)
 		
+		print "sig ctrl init2"
 		self.topsizer = wx.BoxSizer(wx.HORIZONTAL)
 
 		# 创建主分割窗
@@ -145,11 +145,12 @@ class Signal_Control(wx.Panel):   #3
 		self.sizer_debug.Add(self.debug_out,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		#创建信息栏
+		print "sig ctrl init3"
 		self.info_lane  = wx.ScrolledWindow(self.data_window,-1)
 		self.info_lane.SetScrollbars(1,1,100,100)
 		self.sizer_sheet  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.info_lane.SetSizer(self.sizer_sheet)
-		self.info_sheet   = Refer_Sheet(self.info_lane)
+		self.info_sheet   = Refer_Sheet(self.info_lane,None)
 		self.sizer_sheet.Add(self.info_sheet,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 		
 	
@@ -158,7 +159,10 @@ class Signal_Control(wx.Panel):   #3
 		self.signal_lane.SetScrollbars(1,1,100,100)
 		self.signal_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_lane.SetSizer(self.signal_sizer)
-		self.signal   = Signal_Panel(parent=self.signal_lane,id=-1,size=(800,600))
+		signals=[]
+		signals.append(Signal())
+		signals.append(Signal())
+		self.signal   = Signal_Panel(parent=self.signal_lane,id=-1,size=(800,600),signals=signals)
 		self.signal.SetMaxValue(4096)
 		self.signal_sizer.Add(self.signal,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
@@ -206,13 +210,13 @@ class Signal_Control(wx.Panel):   #3
 		self.text_serial.Bind(wx.EVT_KEY_UP, self.OnKeyUp,self.text_serial)
 		
 		#self.Bind(wx.EVT_LEFT_DCLICK, self.OnShowCurrent)
-		self.Bind(wx.EVT_RIGHT_DCLICK, self.OnSetup)
 		self.Bind(EVT_MY_EVENT, self.OnNewData)
 
 		
 
 		
 
+		print "sig ctrl init4"
 		#弹出菜单创建
 		self.popmenu1 = wx.Menu()
 		self.menu_save = self.popmenu1.Append(wx.NewId(), u"保存数据", u"保存数据到数据库" )
@@ -230,15 +234,13 @@ class Signal_Control(wx.Panel):   #3
 		self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
 
 
-		self.populate_timer = wx.Timer(self)
+		print "sig ctrl init5"
 		#self.Bind(wx.EVT_TIMER, self.OnPopulateTimer,self.populate_timer)
 		#self.Bind(wx.EVT_TIMER, self.OnNewData,self.populate_timer)
-		self.toggle_clear = True
-		self._result = True	
 
 		#指定 DEBUG 窗口
-		sys.stdout = self.debug_out
-		sys.stderr = self.debug_out
+		#sys.stdout = self.debug_out
+		#sys.stderr = self.debug_out
 
 	def OnPopulateTimer(self,event):
 		#print "repopulate timer"
@@ -521,7 +523,6 @@ class Signal_Control(wx.Panel):   #3
 		self.text_name.Refresh(True)
 		self.init_data()
 
-		self.populate_timer.Stop()
 
 	def OnSetup(self,evt):
 		if self.started_flag == True:
@@ -534,7 +535,7 @@ class Signal_Control(wx.Panel):   #3
 		
 		dlg.Destroy() #释放资源
 			
-	def OnOptions(self.event):
+	def OnOptions(self,event):
 
 		self.signal.SetReferColour(wx.Colour(0,250,250,200))
 		self.signal.SetBackgroundColour(wx.Colour(150,50,90,200))
@@ -635,7 +636,7 @@ if __name__=='__main__':
 	app = wx.App()
 	frm = wx.Frame(None)
 	frm.SetSize((1400,800))
-	persist =(Queue(0),Queue(0))
+	persist =(Queue(-1),Queue(-1))
 	
 	sql = Thread_Sqlite(db_name="sqlite3_all.db",queue_in=persist[0], queue_out=persist[1]) 
 	sql.setDaemon(True)
@@ -648,19 +649,16 @@ if __name__=='__main__':
 	
 	
 	panel = Signal_Control(parent=frm,
-					size = (1400,800),
-					url_name=URL,
-					eut_name="Eawdfr2s3WEE",
-					eut_serial="10p8-082wj490",
-					refer_file="./refer_table.cfg",
-					calib_file="",
-					points = 290,
-					persist =persist 
-					)
+				size = (1200,700),
+				id=-1,
+				url = URL,
+				eut_name="Eawdfr2s3WEE",
+				eut_serial="10p8-082wj490",
+				persist =persist)
 	#panel.populate_data()
 	panel.signal.SetMaxValue(1200)
-	panel.signal.SetRefer(signal_panel.pupulate_refer_table())
-	panel.signal.SetReferColour(wx.Colour(0,250,250,200))
+	#panel.signal.SetRefer(signal_panel.pupulate_refer_table())
+	panel.signal.SetGridColour(wx.Colour(0,250,250,200))
 	panel.signal.SetBackgroundColour(wx.Colour(150,50,90,200))
 	panel.signal.SetBadColour(wx.Colour(200,0,200))
 	frm.Show()
