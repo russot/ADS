@@ -51,17 +51,17 @@ class Signal(wx.Object):
 	def GetData(self):
 		return self.data
 
-	def SetOkColor(self,color):
-		self.ok_colour = wx.Colour(color)
+	def SetOkColour(self,color):
+		self.ok_colour = color
 
-	def GetOkColor(self):
+	def GetOkColour(self):
 		return self.ok_colour
 
 		
-	def SetBadColor(self,color):
-		self.bad_colour = wx.Colour(color) 
+	def SetBadColour(self,color):
+		self.bad_colour = color 
 
-	def GetBadColor(self):
+	def GetBadColour(self):
 		return self.bad_colour
 
 	def SetUrl(self,url):
@@ -83,8 +83,8 @@ class signal_cfgUI(wx.Panel):
 		self.url_btn = wx.Button(self,-1,"set URL")
 		self.ok_color_btn = wx.Button(self,-1,"GOOD color")
 		self.bad_color_btn = wx.Button(self,-1,"BAD color")
-		self.ok_color_btn.SetBackgroundColour(self.signal.GetOkColor())
-		self.bad_color_btn.SetBackgroundColour(self.signal.GetBadColor())
+		self.ok_color_btn.SetBackgroundColour(self.signal.GetOkColour())
+		self.bad_color_btn.SetBackgroundColour(self.signal.GetBadColour())
 		self.ok_color_btn.Bind(wx.EVT_BUTTON, self.SelectColor)
 		self.bad_color_btn.Bind(wx.EVT_BUTTON, self.SelectColor)
 		self.topsizer= wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
@@ -113,9 +113,13 @@ class signal_cfgUI(wx.Panel):
 			return
 		color= dlg.GetColourData().GetColour()
 		if event.GetId() == self.ok_color_btn.GetId():
+			print "set ok color"
 			self.ok_color_btn.SetBackgroundColour(color)
+			self.signal.SetOkColour(color)
 		else:
+			print "set bad color"
 			self.bad_color_btn.SetBackgroundColour(color)
+			self.signal.SetBadColour(color)
 		dlg.Destroy()
 
 	def GetOkColor(self):
@@ -144,7 +148,8 @@ class Dialog_Setup(wx.Dialog):
 		self.sig_sizer= wx.BoxSizer(wx.HORIZONTAL)
 		self.cfg_panels = []
 		print len(signals)
-		for signal in signals:
+		self.signals = signals
+		for signal in self.signals:
 			cfg_panel = signal_cfgUI(self,-1,signal)
 			self.cfg_panels.append(cfg_panel )
 			self.sig_sizer.Add((20,20))

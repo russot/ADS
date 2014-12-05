@@ -239,8 +239,8 @@ class Signal_Control(wx.Panel):   #3
 		#self.Bind(wx.EVT_TIMER, self.OnNewData,self.populate_timer)
 
 		#指定 DEBUG 窗口
-		#sys.stdout = self.debug_out
-		#sys.stderr = self.debug_out
+		sys.stdout = self.debug_out
+		sys.stderr = self.debug_out
 
 	def OnPopulateTimer(self,event):
 		#print "repopulate timer"
