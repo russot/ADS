@@ -46,6 +46,7 @@ class Thread_Sqlite(threading.Thread):
 		self.db_cursor=self.db_con.cursor()
 		while True:
 			self.Cmd_line(timeout=0.01)
+			time.sleep(0.001)
 
 	def Cmd_line(self,timeout=0):
 		
@@ -148,6 +149,7 @@ class Thread_Sql(threading.Thread):
 		self.db_cursor=self.db_con.cursor()
 		while True:
 			self.Cmd_line(timeout=0.01)
+			time.sleep(0.001)
 
 	def Cmd_line(self,timeout=0):
 		

@@ -90,6 +90,7 @@ class Data_Source(threading.Thread,wx.Object):
 		self.tcpCliSock.connect( ( self.endpoint.GetIP(), self.endpoint.GetPort() ) )
 		self.tcpCliSock.setblocking(0)
 		while True:
+			time.sleep(0.001)
 			self.deal_cmd()
 			if self.run_flag == True : # get data  from endpoint by socket, and upload to UI
 				self.GetData()

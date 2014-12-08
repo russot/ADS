@@ -252,11 +252,11 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.SHORT_DASH))
 		for signal in self.signals:
 			try:
-				self.RenderData(signal,dc,clientRect)
+				self.DrawSignal(signal,dc,clientRect)
 			except:
 				pass
 
-	def RenderData(self,signal,dc,clientRect):
+	def DrawSignal(self,signal,dc,clientRect):
 		#print "render data....."
 		x0 = 1
 		x1 = 1
