@@ -28,18 +28,7 @@ import data_point
 from data_source import Data_Source 
 from data_source import MyEvent, EVT_MY_EVENT
 
-
-class Refer_Entry():
-	def __init__(self,Xvalue,Yvalue,precision):
-		self.Xvalue = Xvalue
-		self.Yvalue = Yvalue
-		self.precision= precision
-
-	def GetReferValue(self):
-		return self.Yvalue
-
-	def SetReferValue(self,value):
-		self.Yvalue= value
+from refer_table import Refer_Entry
 
 class Signal(wx.Object):
 	def __init__(self,ok_colour="green",bad_colour="red",data=[], url="127.0.0.1:8088"):
@@ -47,6 +36,7 @@ class Signal(wx.Object):
 		self.bad_colour= bad_colour
 		self.url = url
 		self.data = data
+		self.in_data_queue=Queue(-1)
 
 	def GetData(self):
 		return self.data
@@ -69,6 +59,17 @@ class Signal(wx.Object):
 
 	def GetUrl(self):
 		return self.url
+
+	def SetRefers(self,table):
+		self.Refers = table
+		self.Refers.sort(key=lambda x:x.GetYvalue())
+		self.SetMaxValue(self.Refers[-1].GetYvalue())
+
+	def SetMaxValue(self,value):
+		self.max_value = float(value)
+
+	def GetMaxValue(self,value):
+		return self.max_value
 
 
 class signal_cfgUI(wx.Panel):
@@ -181,7 +182,8 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.grid_colour= wx.Colour(250,0,250,200)
 		self.ok_colour= wx.Colour(0,0,250,200)
 		self.bad_colour= wx.Colour(250,0,0,200)
-		self.refer_table = None
+		self.refer_tables = None
+		self.eut = None
 
 		self.Bind(wx.EVT_PAINT, self.OnPaint)
 		self.Bind(wx.EVT_LEFT_DCLICK, self.OnShowCurrent)
@@ -196,10 +198,18 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		
 		dlg.Destroy() #释放资源
 
-	def SetRefer(self,refer_table):
-		self.refer_table = refer_table
-		self.refer_table.sort(key=lambda x:x.GetReferValue()) 
+	def SetEut(self,eut):
+		self.eut = eut
+		self.SetRefer(self.eut.GetReferTable())
 
+	def SetRefer(self,refer_tables):
+		self.refer_tables = refer_tables
+		for table in self.refer_tables:
+			table.sort(key=lambda x:x.GetYvalue())
+		i=0
+		for signal in self.signals:#map refer_tables to signals as 1:1
+			signal.SetRefers(self.refer_tables[i])
+			i += 1
 
 	def SetGridColour(self,colour):
 		self.grid_colour= colour
@@ -227,24 +237,25 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		dc = wx.ClientDC(self)
 		clientRect = self.GetRect()
 		#dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.SHORT_DASH))
-		if  self.refer_table == None:
+		if  self.refer_tables == None:
 			return
 		dc.SetPen(wx.Pen(self.grid_colour,1,style = wx.DOT))
 		dc.SetTextForeground(self.grid_colour)
-		count = 0
-		refer_num = len(self.refer_table)
+		refer_num = len(self.refer_tables[0])
 		if refer_num < 40:
 			sparse = 2
 		else:
 			sparse = refer_num / 20
-		for x in self.refer_table:
+		max_value = self.refer_tables[0][-1].GetYvalue() 
+		max_height= clientRect.height
+		count = 0
+		for refer_entry in self.refer_tables[0]:
 			count +=1
-		
 			if refer_num > 20 and count%sparse!=0:
 				continue
-			y = clientRect.height - clientRect.height*x.GetReferValue()/self.refer_table[-1].GetReferValue() 
+			y = int((1.0- refer_entry.GetYvalue()/max_value)*max_height)
 			dc.DrawLine(0,y,clientRect.width,y)
-			dc.DrawText("%.2f"%(float(x.GetReferValue())),0,y-15)
+			dc.DrawText("%.2f"%(float(refer_entry.GetYvalue())),0,y-15)
 
 	def DrawData(self):
 		dc = wx.ClientDC(self)
@@ -262,14 +273,16 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		x1 = 1
 		last_Y0= 1
 		#try:
+		max_value = signal.GetMaxValue() 
+		max_height= clientRect.height
 		for data_ in signal.data:
-			if data_.GetValue() > 0:
+			if data_.GetYvalue() > 0:
 				x1 = x0 + data_.GetLength()
 				if data_.GetValid() == True:
 					dc.SetPen(wx.Pen(signal.ok_colour,2,style = wx.SOLID))
 				else:
 					dc.SetPen(wx.Pen(signal.bad_colour,2,style = wx.SOLID))
-				Y0=int((1.0-data_.GetValue()/self.max_value)*clientRect.height )
+				Y0=int((1.0-data_.GetYvalue()/max_value)*max_height)
 				dc.DrawLine(x0,Y0,x0,last_Y0)
 				dc.DrawLine(x0,Y0,x1,Y0)
 				last_Y0 =  Y0
@@ -278,12 +291,6 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#except:
 			#pass
 	
-
-	def SetMaxValue(self,value):
-		self.max_value = float(value)
-
-	def GetMaxValue(self,value):
-		return self.max_value
 
 	def SetPointValue(self,point,data_v_obj,sig_num=0):
 		try:

@@ -75,9 +75,13 @@ class Data_Source(threading.Thread,wx.Object):
 
 		self.signal_filter = sig_filter.Grouping_Filter(self.Q4filter_cmd_in,self.Q4filter_cmd_out,self.Q4filter_data_in,self.Q4filter_data_out)
 		#self.signal_filter.start()
+		self.signals = []
 
 	def write(self,TE):
 		pass
+
+	def RegisterSignal(self,signal):
+		self.signals.append(signal)
 
 	def FeedDog(self):
 		self.tcpCliSock.send('feed:dog\n') #
@@ -177,6 +181,8 @@ class Data_Source(threading.Thread,wx.Object):
 			while not self.Q4filter_data_out.empty():
 				data = self.Q4filter_data_out.get()
 				self.queue_out.put(data)
+				for signal in self.signals:
+					signal.in_data_queue.put(data)
 				wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
 				
 		

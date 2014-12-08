@@ -82,7 +82,7 @@ class Refer_Entry(object):
 
 	def ToFloat(self,value):
 		if not value:
-			value = 0
+			value = float(0)
 		return float(value)
 
 	def Values(self):
@@ -185,15 +185,10 @@ class Thermo_Sensor(object):
 	def SetField(self,line):
 		if line.startswith("#"):
 			return
-		try:
-			field_name,value = line.split(',')[:2]
-			if self.field.has_key(field_name):
-				self.field[field_name] = value
-		except:
-			pass
-
+		field_name,value = line.split(',')[:2]
+		if self.field.has_key(field_name):
+			self.field[field_name] = value
 		#as key for db access,
-		self.ID  =  self.field["PN"] 
 
 	def SetRefer(self,line):
 		if line.startswith("#"):
@@ -212,9 +207,17 @@ class Thermo_Sensor(object):
 			line = reader.readline()
 			if line.startswith('###'):#表格起始标志
 				break
-			self.SetField(line)
+			try:
+				self.SetField(line)
+			except:
+				pass
+		self.ID  =  self.field["PN"] 
+		#
 		for line in reader.readlines():
-			self.SetRefer(line)
+			try:
+				self.SetRefer(line)
+			except:
+				pass
 		self.Refer_Table.sort(key=lambda x:x.GetYvalue())
 
 
@@ -297,44 +300,46 @@ class Eut(object):
 	def SetField(self,line):
 		if line.startswith("#"):
 			return
-		try:
-			field_name,value = line.split(',')[:2]
-			if self.field.has_key(field_name):
-				self.field[field_name] = value
-		except:
-			pass
+		field_name,value = line.split(',')[:2]
+		if self.field.has_key(field_name):
+			self.field[field_name] = value
 		#as key for db access,
-		self.ID  =  self.field["PN"] 
 	def SetRefer(self,line):
 		if line.startswith("#"):
 			return
 		
 		values = line.split(',')[:-1]#remove '\n'
 		refer_entry1 = Refer_Entry(
-				values[0],
-				values[1],
-				values[2],
-				values[3],
-				values[4])
+				Xvalue=values[0],
+				Xprecision=values[1],
+				Yvalue=values[2],
+				Yprecision=values[3],
+				Yoffset=values[4])
 		self.AppendReferTable(0,refer_entry1)
 		refer_entry2 = Refer_Entry(
-				values[5],
-				values[6],
-				values[7],
-				values[8],
-				values[9])
+				Xvalue=values[5],
+				Xprecision=values[6],
+				Yvalue=values[7],
+				Yprecision=values[8],
+				Yoffset=values[9])
 		self.AppendReferTable(1,refer_entry2)
 		
-		pass
-
 	def Import(self,reader):
 		for x in range(0,15):
 			line = reader.readline()
 			if line.startswith('###'):#表格起始标志
 				break
-			self.SetField(line)
+			try:
+				self.SetField(line)
+			except:
+				pass
+		self.ID  =  self.field["PN"] 
+		#
 		for line in reader.readlines():
-			self.SetRefer(line)
+			try:
+				self.SetRefer(line)
+			except:
+				pass
 			#print line.split(',')[:-1]
 
 	
