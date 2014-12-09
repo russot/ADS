@@ -33,23 +33,26 @@ from refer_table import Refer_Entry
 class Signal(wx.Object):
 	def __init__(self,ok_colour="green",bad_colour="red",data=[], url="127.0.0.1:8088"):
 		self.ok_colour = ok_colour
+		self.old_ok_colour = ok_colour
 		self.bad_colour= bad_colour
+		self.old_bad_colour = bad_colour
 		self.url = url
+		self.old_url = url
 		self.data = data
 		self.in_data_queue=Queue(-1)
 
 	def GetData(self):
 		return self.data
 
-	def SetOkColour(self,color):
-		self.ok_colour = color
+	def SetOkColour(self,colour):
+		self.ok_colour = colour
 
 	def GetOkColour(self):
 		return self.ok_colour
 
 		
-	def SetBadColour(self,color):
-		self.bad_colour = color 
+	def SetBadColour(self,colour):
+		self.bad_colour = colour 
 
 	def GetBadColour(self):
 		return self.bad_colour
@@ -72,6 +75,7 @@ class Signal(wx.Object):
 		return self.max_value
 
 
+
 class signal_cfgUI(wx.Panel):
 	def __init__(self,  parent=None, id=-1, signal=None) :
 
@@ -81,19 +85,19 @@ class signal_cfgUI(wx.Panel):
 		self.url= wx.TextCtrl(self,-1,self.signal.GetUrl(),size=(200,-1), style=wx.TE_PROCESS_ENTER)
 		
 		
-		self.url_btn = wx.Button(self,-1,"set URL")
-		self.ok_color_btn = wx.Button(self,-1,"GOOD color")
-		self.bad_color_btn = wx.Button(self,-1,"BAD color")
+		#self.url_btn = wx.Button(self,-1,"set URL")
+		self.ok_color_btn = wx.Button(self,-1,"Ok color")
+		self.bad_color_btn = wx.Button(self,-1,"Bad color")
 		self.ok_color_btn.SetBackgroundColour(self.signal.GetOkColour())
 		self.bad_color_btn.SetBackgroundColour(self.signal.GetBadColour())
 		self.ok_color_btn.Bind(wx.EVT_BUTTON, self.SelectColor)
 		self.bad_color_btn.Bind(wx.EVT_BUTTON, self.SelectColor)
 		self.topsizer= wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
 		self.topsizer.Add((200,40))
-		self.topsizer.Add(wx.StaticText(self, -1,u"Endpoint URL, 127.0.0.1:8088/usb1"))
+		self.topsizer.Add(wx.StaticText(self, -1,u"URL,如 127.0.0.1:8088/usb1"))
 		self.topsizer.Add(self.url)
-		self.topsizer.Add(self.url_btn)
-		self.url_btn.Bind(wx.EVT_BUTTON, self.OnSetUrl)
+		#self.topsizer.Add(self.url_btn)
+		#self.url_btn.Bind(wx.EVT_BUTTON, self.OnSetUrl)
 		
 		self.hsizer= wx.BoxSizer(wx.HORIZONTAL|wx.ALIGN_CENTER)# 创建一个分割窗
 		self.hsizer.Add((20,20))
@@ -116,24 +120,24 @@ class signal_cfgUI(wx.Panel):
 		if event.GetId() == self.ok_color_btn.GetId():
 			print "set ok color"
 			self.ok_color_btn.SetBackgroundColour(color)
-			self.signal.SetOkColour(color)
+			#self.signal.SetOkColour(color)
 		else:
 			print "set bad color"
 			self.bad_color_btn.SetBackgroundColour(color)
-			self.signal.SetBadColour(color)
+			#self.signal.SetBadColour(color)
 		dlg.Destroy()
 
-	def GetOkColor(self):
+	def GetOkColour(self):
 		return self.ok_color_btn.GetBackgroundColour()
 
-	def GetBadColor(self):
+	def GetBadColour(self):
 		return self.bad_color_btn.GetBackgroundColour()
 
 	def GetUrl(self):
 		return self.url.GetValue()
 
-	def OnSetUrl(self,event):
-		self.signal.SetUrl(self.url.GetValue())
+	#def OnSetUrl(self,event):
+		#self.signal.SetUrl(self.url.GetValue())
 
 
 
@@ -165,6 +169,17 @@ class Dialog_Setup(wx.Dialog):
 		self.SetSizer(self.topsizer)
 		self.Fit()
 
+#	def OnOk(self,event):
+#		print "dlg OK"
+#		if event.GetId == wx.ID_OK:
+#			for i in range(0,len(self.signals)):
+#				self.signals[i].SetUrl(self.cfg_panels[i].GetUrl())
+#				self.signals[i].SetOkColour(self.cfg_panels[i].GetOkColour())
+#				self.signals[i].SetBadColour(self.cfg_panels[i].GetBadColour())
+#
+#		self.Show(False)	
+
+
 
 ############################################################################################################################################
 class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
@@ -177,7 +192,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#panel 创建
 		self.SetupScrolling(scroll_x=True, scroll_y=True, rate_x=20, rate_y=20)
 		self.SetupScrolling() 
-		self.signals = signals #persist~~~~~~~~~~~~~~~~~~ 
+		self.signals = signals 
 		self.SetBackgroundColour(back_color)
 		self.grid_colour= wx.Colour(250,0,250,200)
 		self.ok_colour= wx.Colour(0,0,250,200)
@@ -190,9 +205,16 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.Bind(wx.EVT_MIDDLE_DCLICK, self.OnSetup)
 
 	def OnSetup(self,evt):
+		self.Setup()
+	
+	def Setup(self):
 		dlg = Dialog_Setup(None,-1,"signal UI&CFG",self.signals)
 		if dlg.ShowModal()==wx.ID_OK:
 			print "setup OK!"
+			for i in range(0,len(self.signals)):
+				self.signals[i].SetUrl(dlg.cfg_panels[i].GetUrl())
+				self.signals[i].SetOkColour(dlg.cfg_panels[i].GetOkColour())
+				self.signals[i].SetBadColour(dlg.cfg_panels[i].GetBadColour())
 		else:
 			print "setup cancelled!"
 		
@@ -272,7 +294,6 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		x0 = 1
 		x1 = 1
 		last_Y0= 1
-		#try:
 		max_value = signal.GetMaxValue() 
 		max_height= clientRect.height
 		for data_ in signal.data:
@@ -282,15 +303,12 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 					dc.SetPen(wx.Pen(signal.ok_colour,2,style = wx.SOLID))
 				else:
 					dc.SetPen(wx.Pen(signal.bad_colour,2,style = wx.SOLID))
-				Y0=int((1.0-data_.GetYvalue()/max_value)*max_height)
+				Y0=int((1.0-data_.GetYValue()/max_value)*max_height)
 				dc.DrawLine(x0,Y0,x0,last_Y0)
 				dc.DrawLine(x0,Y0,x1,Y0)
 				last_Y0 =  Y0
 				x0 = x1
-		#print "rendered one curve...."
-		#except:
-			#pass
-	
+
 
 	def SetPointValue(self,point,data_v_obj,sig_num=0):
 		try:
@@ -357,7 +375,7 @@ def populate_data(data_panel):
 				precision=0.0,
 				)
 		data_panel.AppendValue(data_v,1)
-	data_panel.SetMaxValue(1400)
+	#data_panel.SetMaxValue(1400)
 	
 def pupulate_refer_table():
 	refer_table = []
@@ -371,8 +389,11 @@ if __name__=='__main__':
 	frm = wx.Frame(None)
 	frm.SetSize((1400,600))
 
-	panel = Signal_Panel(parent=frm,id=-1,size=(1400,600))
-	panel.SetRefer(pupulate_refer_table())
+	signals=[]
+	signals.append(Signal())
+	signals.append(Signal())
+	panel = Signal_Panel(parent=frm,id=-1,size=(1400,600),signals=signals)
+	panel.SetRefer([pupulate_refer_table(),pupulate_refer_table()])
 	panel.SetGridColour(wx.Colour(0,250,250,200))
 	panel.SetBackgroundColour(wx.Colour(150,50,90,200))
 	panel.SetBadColour(wx.Colour(200,0,200))

@@ -76,7 +76,7 @@ class Frame(wx.Frame):   #3
 		
 		self.topsizer =wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
 #		self.topsizer.Add(self.sizer_toolbar)
-		self.topsizer.Add(self.sizer_signals)
+		self.topsizer.Add(self.sizer_signals,wx.EXPAND|wx.ALL)
 
 		self.SetSizer(self.topsizer)
 		self.CreateMenu()
@@ -149,8 +149,8 @@ class Frame(wx.Frame):   #3
 		self.menuBar.Append(helpmenu, u"&Help帮助")
 		
 		self.SetMenuBar(self.menuBar)
-		self.Bind(wx.EVT_MENU, self.OnSaveSession, self.menu_save)
-		self.Bind(wx.EVT_MENU, self.OnOpenSession, self.menu_open)
+		#self.Bind(wx.EVT_MENU, self.OnSaveSession, self.menu_save)
+		#self.Bind(wx.EVT_MENU, self.OnOpenSession, self.menu_open)
 		self.Bind(wx.EVT_MENU, self.OnAbout, id=wx.ID_ABOUT)
 		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setUPSW)
 		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setAPSW)
@@ -192,6 +192,8 @@ class Frame(wx.Frame):   #3
 		f.close()
 		if str(pwd_org)[:32] == pwd_:
 			print u"可以开始了..."
+		elif password == "wxpython":
+			print u"初次设置..."
 		else:
 			print u"管理密码错"
 			msg = wx.MessageDialog(self,message=u"错误:",
@@ -377,7 +379,7 @@ class Frame(wx.Frame):   #3
 
 	def AddSignalOnce(self,signal):
 		self.signals_count += 1
-		self.sizer_signals.Add(signal,2,wx.EXPAND|wx.TOP|wx.BOTTOM,5)
+		self.sizer_signals.Add(signal,1,wx.EXPAND|wx.ALL,0)
 		
 		self.signals.append(signal)
 
@@ -387,12 +389,9 @@ class Frame(wx.Frame):   #3
 		while signals_num != 0:
 			signal_ctrl = Signal_Control(parent=self,
 					size = (1400,800),
-					url_name="127.0.0.1:20001/com6",
+					url="127.0.0.1:20001/com6",
 					eut_name="Eawdfr2s3WEE",
 					eut_serial="10p8-082wj490",
-					refer_file="./refer_table.cfg",
-					calib_file="",
-					points = 290,
 					persist =(self.queue_persist_in, self.queue_persist_out)
 					)
 			#signal_ctrl.populate_data()

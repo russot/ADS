@@ -29,7 +29,7 @@ import signal_panel
 
 import server_endpoints_usb
 
-from refer_table import Refer_Sheet
+from refer_table import *
 from data_source import Data_Source 
 from data_source import MyEvent, EVT_MY_EVENT
 
@@ -88,12 +88,10 @@ class Result_Ctrl(wx.Control):
 
 ############################################################################################################################################
 class Signal_Control(wx.Panel):   #3
-	def __init__(self,  parent=None,
-		     size=(-1,-1),
-		     id=-1,
+	def __init__(self,  parent=None, size=wx.DefaultSize, id=-1,
 		     url = "",
-		     eut_name="qw32edrt44s",
-		     eut_serial="10p8-082wj490",
+		     eut_name="demo",
+		     eut_serial="demo",
 		     persist=None):
 		super(Signal_Control, self).__init__(parent=parent, id=id,size=size)
 		#panel 创建
@@ -138,11 +136,11 @@ class Signal_Control(wx.Panel):   #3
 		self.data_window.SetMinimumPaneSize(1)  #创建一个分割窗
 		#创建debug窗口栏
 		self.debug_lane  = wx.ScrolledWindow(self.sp_window)
-		self.debug_lane.SetScrollbars(1,1,100,100)
+		#self.debug_lane.SetScrollbars(1,1,100,100)
 		self.sizer_debug  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.debug_lane.SetSizer(self.sizer_debug)
 		self.debug_out   = wx.TextCtrl(self.debug_lane,-1,style=(wx.TE_MULTILINE|wx.TE_RICH2|wx.HSCROLL) )
-		self.sizer_debug.Add(self.debug_out,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
+		self.sizer_debug.Add(self.debug_out,1,wx.EXPAND|wx.ALL)
 
 		#创建信息栏
 		print "sig ctrl init3"
@@ -155,19 +153,18 @@ class Signal_Control(wx.Panel):   #3
 		
 	
 		#创建信号栏
-		self.signal_lane  = wx.ScrolledWindow(self.data_window,-1)
-		self.signal_lane.SetScrollbars(1,1,100,100)
-		self.signal_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
-		self.signal_lane.SetSizer(self.signal_sizer)
+		self.signal_panel_lane  = wx.ScrolledWindow(self.data_window,-1)
+		self.signal_panel_lane.SetScrollbars(1,1,100,100)
+		self.signal_panel_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
+		self.signal_panel_lane.SetSizer(self.signal_panel_sizer)
 		signals=[]
 		signals.append(Signal())
 		signals.append(Signal())
-		self.signal   = Signal_Panel(parent=self.signal_lane,id=-1,size=(800,600),signals=signals)
-		self.signal.SetMaxValue(4096)
-		self.signal_sizer.Add(self.signal,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
+		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=signals)
+		self.signal_panel_sizer.Add(self.signal_panel,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		#加入信号栏/信息栏 分割窗
-		self.data_window.SplitVertically(self.signal_lane,self.info_lane,-10)
+		self.data_window.SplitVertically(self.signal_panel_lane,self.info_lane,-10)
 		self.sp_window.SplitHorizontally(self.data_window,self.debug_lane,-100)
 
 		self.text_name = wx.TextCtrl(self,-1,eut_name,style=(wx.TE_READONLY))
@@ -196,18 +193,20 @@ class Signal_Control(wx.Panel):   #3
 
 		
 		self.SetSizer(self.topsizer)
-		self.topsizer.Add(self.sp_window,8,wx.EXPAND|wx.LEFT|wx.RIGHT)
-		self.topsizer.Add(self.sizer_info,1)
+		self.topsizer.Add(self.sp_window,15,wx.EXPAND|wx.ALL)
+		self.topsizer.Add(self.sizer_info,2)
+
+		self.Eut_editor = Refer_Editor()
 
 
 
 		#下面进行行为动作绑定
-		self.text_name.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_name,self.text_name)
-		self.text_name.Bind(wx.EVT_KEY_DOWN, self.OnKeyRun,self.text_name)
-		self.debug_out.Bind(wx.EVT_KEY_DOWN, self.OnClearDebug,self.debug_out)
-		self.text_serial.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_serial,self.text_serial)
-		self.text_serial.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown,self.text_serial)
-		self.text_serial.Bind(wx.EVT_KEY_UP, self.OnKeyUp,self.text_serial)
+		self.text_name.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_name)
+		self.text_name.Bind(wx.EVT_KEY_DOWN, self.OnKeyRun)
+		self.debug_out.Bind(wx.EVT_KEY_DOWN, self.OnClearDebug)
+		self.text_serial.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_serial)
+		self.text_serial.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
+		self.text_serial.Bind(wx.EVT_KEY_UP, self.OnKeyUp)
 		
 		#self.Bind(wx.EVT_LEFT_DCLICK, self.OnShowCurrent)
 		self.Bind(EVT_MY_EVENT, self.OnNewData)
@@ -225,12 +224,14 @@ class Signal_Control(wx.Panel):   #3
 		self.menu_query_ui = self.popmenu1.Append(wx.NewId(), u"数据库查询", u"组合查询已存储数据")
 		self.menu_query_current = self.popmenu1.Append(wx.NewId(), u"当前数据查询", u"查询正在测试的数据")
 		self.popmenu1.AppendSeparator()
+		self.menu_eut = self.popmenu1.Append(wx.NewId(), u"Sensor选择", u"被测件选择")
 		self.menu_setup = self.popmenu1.Append(wx.NewId(), u"配置", u"测试参数配置")
 		self.Bind(wx.EVT_CONTEXT_MENU, self.OnRightDown)
 		self.Bind(wx.EVT_MENU, self.OnRunStop,self.menu_run)
 		self.Bind(wx.EVT_MENU, self.OnShowCurrent,self.menu_query_current)
 		self.Bind(wx.EVT_MENU, self.OnQuery_UI,self.menu_query_ui)
 		self.Bind(wx.EVT_MENU, self.OnSetup,self.menu_setup)
+		self.Bind(wx.EVT_MENU, self.OnSelectEut,self.menu_eut)
 		self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
 
 
@@ -239,18 +240,17 @@ class Signal_Control(wx.Panel):   #3
 		#self.Bind(wx.EVT_TIMER, self.OnNewData,self.populate_timer)
 
 		#指定 DEBUG 窗口
-		#sys.stdout = self.debug_out
-		#sys.stderr = self.debug_out
+		sys.stdout = self.debug_out
+		sys.stderr = self.debug_out
 
 	def OnPopulateTimer(self,event):
 		#print "repopulate timer"
 		self.toggle_clear = not self.toggle_clear
 		if self.toggle_clear == True:
-			self.signal.InitValue()
+			self.signal_panel.InitValue()
 		else:
 			self.populate_data()	
-		#print self.signal.data_store[1].GetValue()
-		self.signal.Refresh(True)
+		self.signal_panel.Refresh(True)
 
 
 	def OnPass(self,event):
@@ -286,10 +286,10 @@ class Signal_Control(wx.Panel):   #3
 		print u"位置\t数值\t参考值\t参考精度\t  实际精度\t结果"
 		out = ''
 		x_pos = 0
-		last_pos = len(self.signal.data_store)-1
+		last_pos = len(self.signal_panel.data_store)-1
 		copy_count = 1
-		last_data= self.signal.data_store[0]
-		for data in self.signal.data_store[1:]:
+		last_data= self.signal_panel.data_store[0]
+		for data in self.signal_panel.data_store[1:]:
 			x_pos += 1
 			if data.GetValue() == last_data.GetValue() and x_pos!=last_pos:
 				copy_count += 1
@@ -398,7 +398,7 @@ class Signal_Control(wx.Panel):   #3
 	def OnSave(self, event):
 		"""KeyDown event is sent first"""
 		print "save data"
-		self.Data_Persist(self.signal.data_store)
+		self.Data_Persist(self.signal_panel.data_store)
 
 	def OnKeyDown(self, event):
 		"""KeyDown event is sent first"""
@@ -437,8 +437,8 @@ class Signal_Control(wx.Panel):   #3
 			if isinstance(item,str):
 				if item.startswith("trigger"):
 					self.data_count = 0
-					self.signal.InitValue()
-					self.signal.Refresh()
+					self.signal_panel.InitValue()
+					self.signal_panel.Refresh()
 			if isinstance(item,dict):
 				self.data_count += 1
 				valueX,valueY = item["value"]
@@ -453,13 +453,13 @@ class Signal_Control(wx.Panel):   #3
 					precision=0.0,
 					)
 				data_v.SetLength(length)
-				self.signal.SetValue(self.data_count,data_v)
-				self.signal.DrawData()
-				#self.signal.Refresh()
+				self.signal_panel.SetValue(self.data_count,data_v)
+				self.signal_panel.DrawData()
+				#self.signal_panel.Refresh()
 	
 
 	def set_fault_color(self):
-		self.signal.SetBackgroundColour(self.color_bad)
+		self.signal_panel.SetBackgroundColour(self.color_bad)
 				
 	def Data_Persist(self,data_block):
 		bytes_block = ''
@@ -525,23 +525,18 @@ class Signal_Control(wx.Panel):   #3
 
 
 	def OnSetup(self,evt):
-		if self.started_flag == True:
-			return
-		dlg = Dialog_Setup(None,-1,self.sig_sources)
-		if dlg.ShowModal()==wx.ID_OK:
-			print "setup OK!"
-		else:
-			print "setup cancelled!"
-		
-		dlg.Destroy() #释放资源
-			
+		self.signal_panel.Setup()
+
+	def OnSelectEut(self,evt):
+		self.Eut_editor.Show()
+
 	def OnOptions(self,event):
 
-		self.signal.SetReferColour(wx.Colour(0,250,250,200))
-		self.signal.SetBackgroundColour(wx.Colour(150,50,90,200))
-		self.signal.SetRefer(signal_panel.pupulate_refer_table())
+		self.signal_panel.SetReferColour(wx.Colour(0,250,250,200))
+		self.signal_panel.SetBackgroundColour(wx.Colour(150,50,90,200))
+		self.signal_panel.SetRefer(signal_panel.pupulate_refer_table())
 
-		self.signal.SetMaxValue(1200)
+		self.signal_panel.SetMaxValue(1200)
 
 	def SetupRefer(self,refer_file): # format as "D,V,e",  202,44.8,1
 		ref_cfg = open(refer_file,'r')
@@ -656,11 +651,10 @@ if __name__=='__main__':
 				eut_serial="10p8-082wj490",
 				persist =persist)
 	#panel.populate_data()
-	panel.signal.SetMaxValue(1200)
 	#panel.signal.SetRefer(signal_panel.pupulate_refer_table())
-	panel.signal.SetGridColour(wx.Colour(0,250,250,200))
-	panel.signal.SetBackgroundColour(wx.Colour(150,50,90,200))
-	panel.signal.SetBadColour(wx.Colour(200,0,200))
+	panel.signal_panel.SetGridColour(wx.Colour(0,250,250,200))
+	panel.signal_panel.SetBackgroundColour(wx.Colour(150,50,90,200))
+	panel.signal_panel.SetBadColour(wx.Colour(200,0,200))
 	frm.Show()
 	app.SetTopWindow(frm)
 	
