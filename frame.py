@@ -93,7 +93,7 @@ class Frame(wx.Frame):   #3
 		self.SetEditable(False)
 		print "add signal"
 
-		self.AddSignals(1)
+		self.AddSignals(2)
 		print "add signal OK"
 		
 		self.Relayout()

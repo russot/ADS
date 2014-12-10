@@ -154,8 +154,10 @@ class Refer_Entry(object):
 	def SetYoffset(self,value):
 		self.Yoffset= float(value)
 
-class Thermo_Sensor(object):
-	__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
+class Thermo_Sensor():
+	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
+	table_name =config_db.thermo_table_name
+	db_name = config_db.eut_db
 	def __init__(self,PN="",model="",value=0,precision=0,X_unit=u" °C",Y_unit=u"ohm\xc2\xb0",table=[]):
 		self.field = {}
 		self.field["PN"]= PN 
@@ -169,7 +171,92 @@ class Thermo_Sensor(object):
 			self.SetTable(table)
 
 		#as key for db access,
-		self.ID  =  self.field["PN"] 
+
+	def RestoreFromDB(self,PN):
+		db_con = sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor = db_con.cursor()
+		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,PN)
+		db_cursor.execute(cmd)
+		for existed in db_cursor:
+			if existed[0] <= 0:
+				wx.MessageBox(u"抱歉！此记录不存在!",
+					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+				return
+			else:
+				break
+		cmd = "select * from %s where PN like '%s'" % (self.table_name, self.field["PN"])
+		db_cursor.execute(cmd)
+		eut_b = db_cursor.fetchone()
+
+		self.field["PN"]	= eut_b[0]
+		self.field["model"]	= eut_b[1]
+		self.field["value"]	= eut_b[2]
+		self.field["precision"]	= eut_b[3]
+		self.field["X_unit"]	= eut_b[4]
+		self.field["Y_unit"]	= eut_b[5]
+		self.Refer_Table = self.Blob2Refers(eut_b[6]) 
+		db_con.close()
+
+	def Save2DB(self):
+		db_con = sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor = db_con.cursor()
+		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,self.field["PN"])
+		db_cursor.execute(cmd)
+		for existed in db_cursor:
+			if existed[0] > 0:
+				if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+				else:
+					cmd = "delete from %s where PN like '%s'" % (self.table_name, self.field["PN"])
+					db_cursor.execute(cmd)
+					db_con.commit()
+			else:
+				if  wx.NO == wx.MessageBox(u"确认要保存？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+			break
+		eut_b = (self.field["PN"],
+			self.field["model"],
+			self.field["value"],
+			self.field["precision"],
+			self.field["X_unit"],
+			self.field["Y_unit"],
+			self.Refers2Blob(self.Refer_Table)) 
+		db_cursor.execute("insert into %s values (?,?,?,?,?,?,?)"%self.table_name,eut_b)
+		db_con.commit()
+		db_con.close()
+
+	def Refers2Blob(self,Refer_Table):
+		bytes_block = ''
+		for refer_entry in Refer_Table:
+			bytes_block += struct.pack('4f',
+					refer_entry.GetXvalue(),
+					refer_entry.GetYmin(),
+					refer_entry.GetYvalue(),
+					refer_entry.GetYmax())	
+		return bytes_block
+	
+	def Blob2Refers(self,block):
+		data_size = struct.calcsize('4f')
+		offset = 0
+		Refer_Table=[]
+		while 1:
+			try:
+				data = struct.unpack_from('4f',block, offset)
+				offset += data_size
+				Refer_Table.append(Refer_Entry(
+						Xvalue = data[0],
+						Ymin   = data[1],
+						Yvalue = data[2],
+						Ymax   = data[3],
+						))
+				#~ print data
+			except:
+				break
+		return Refer_Table
 
 	def ShowFields(self):
 		for (name,value) in self.field.items():
@@ -195,13 +282,17 @@ class Thermo_Sensor(object):
 			return
 		
 		values = line.split(',')[:-1]#remove '\n'
-		self.Refer_Table.append( Refer_Entry( Xvalue=values[0],
+		if len(values) >=4 :
+			entry =  Refer_Entry( Xvalue=values[0],
 					Ymin = values[1],
 					Yvalue=values[2],
-					Ymax= values[3]))
-		
-		pass
+					Ymax= values[3])
+		else:
+			entry =  Refer_Entry( Xvalue=values[0],
+					Yvalue=values[1])
+		self.Refer_Table.append(entry)
 	
+	#used for PT100/1000 and NTC thermo_resistor
 	def Import(self,reader):
 		for x in range(0,15):
 			line = reader.readline()
@@ -212,7 +303,9 @@ class Thermo_Sensor(object):
 			except:
 				pass
 		self.ID  =  self.field["PN"] 
-		#
+		#clear table and append new values by SetRefer(line)
+		del self.Refer_Table
+		self.Refer_Table = []
 		for line in reader.readlines():
 			try:
 				self.SetRefer(line)
@@ -221,15 +314,16 @@ class Thermo_Sensor(object):
 		self.Refer_Table.sort(key=lambda x:x.GetYvalue())
 
 
-	#used for PT100/PT1000 thermo_resistor
+	#used only for PT100/PT1000 thermo_resistor
 	def SetTable(self,table): 
-		for x in table:
+		for value in table:
 			#!!!!~~~~table item is as of [T,R]~~~!!!!!!!
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!
-			self.Refer_Table.append(Refer_Entry( Xvalue=values[0],
-						Yvalue=values[1]))
+			self.Refer_Table.append(Refer_Entry( Xvalue=value[0],
+						Yvalue=value[1]))
 		self.Refer_Table.sort(key=lambda x:x.GetYvalue())
 
+	#calculate Thermo from Resistor value
 	def GetT(self,Rvalue):
 		x0 = self.Refer_Table[0]
 		for x1 in self.Refer_Table:
@@ -254,6 +348,7 @@ class Thermo_Sensor(object):
 
 		return tx
 			
+	#calculate Resistor from Thermo value
 	def GetR(self,Tvalue):
 		x0 = self.Refer_Table[0]
 		for x1 in self.Refer_Table:
@@ -280,13 +375,15 @@ class Thermo_Sensor(object):
 	
 
 
-class Eut(object):
-	__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
+class Eut():
+	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
+	table_name = config_db.eut_table_name
+	db_name = config_db.eut_db
 	def __init__(self,model=None,PN=None,SN=None,Refer_Table=[[],[]],thermo_PN=None):
 		self.field={}
-		self.field["model"]=model
 		self.field["PN"] = PN
 		self.field["SN"] = SN
+		self.field["model"]=model
 		self.field["thermo_PN"] = thermo_PN
 		self.field["signal_num"] = 2
 		self.field["X_unit"] = "mm"
@@ -296,6 +393,100 @@ class Eut(object):
 
 		#as key for db access,
 		self.ID  =  self.field["PN"] 
+
+	def RestoreFromDB(self,PN):
+		db_con = sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor = db_con.cursor()
+		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,PN)
+		db_cursor.execute(cmd)
+		for existed in db_cursor:
+			if existed[0] <= 0:
+				wx.MessageBox(u"抱歉！此记录不存在!",
+					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+				return
+			else:
+				break
+		cmd = "select * from %s where PN like '%s'" % (self.table_name, self.field["PN"])
+		db_cursor.execute(cmd)
+		eut_b = db_cursor.fetchone()
+
+		self.field["PN"]	= eut_b[0]
+		self.field["SN"]	= eut_b[1]
+		self.field["model"]	= eut_b[2]
+		self.field["thermo_PN"]	= eut_b[3]
+		self.field["signal_num"]= eut_b[4]
+		self.field["X_unit"]	= eut_b[5]
+		self.field["Y1_unit"]	= eut_b[6]
+		self.field["Y2_unit"]	= eut_b[7]
+		del self.Refer_Table
+		self.Refer_Table = []
+		self.Refer_Table.append(self.Blob2Refers(eut_b[8]))
+		self.Refer_Table.append(self.Blob2Refers(eut_b[9]))
+		db_con.close()
+
+	def Save2DB(self):
+		db_con = sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor = db_con.cursor()
+		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,self.field["PN"])
+		db_cursor.execute(cmd)
+		for existed in db_cursor:
+			if existed[0] > 0:
+				if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+				else:
+					cmd = "delete from %s where PN like '%s'" % (self.table_name, self.field["PN"])
+					db_cursor.execute(cmd)
+					db_con.commit()
+			else:
+				if  wx.NO == wx.MessageBox(u"确认要保存？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+			break
+		eut_b = ( self.field["PN"],
+			self.field["SN"],
+			self.field["model"],
+			self.field["thermo_PN"],
+			self.field["signal_num"],
+			self.field["X_unit"],
+			self.field["Y1_unit"],
+			self.field["Y2_unit"],
+			self.Refers2Blob(self.Refer_Table[0]),
+			self.Refers2Blob(self.Refer_Table[1])) 
+		db_cursor.execute("insert into %s values (?,?,?,?,?,?,?,?,?,?)"%self.table_name,eut_b)
+		db_con.commit()
+		db_con.close()
+
+	def Refers2Blob(self,Refer_Table):
+		bytes_block = ''
+		for refer_entry in Refer_Table:
+			bytes_block += struct.pack('5f',
+					refer_entry.GetXvalue(),
+					refer_entry.GetXprecision(),
+					refer_entry.GetYvalue(),
+					refer_entry.GetYprecision(),
+					refer_entry.GetYoffset())	
+		return bytes_block
+	
+	def Blob2Refers(self,block):
+		data_size = struct.calcsize('5f')
+		offset = 0
+		Refer_Table=[]
+		while 1:
+			try:
+				data = struct.unpack_from('5f',block, offset)
+				offset += data_size
+				Refer_Table.append(Refer_Entry(
+						Xvalue	= data[0],
+						Xprecision = data[1],
+						Yvalue	= data[2],
+						Yprecision = data[3],
+						Yoffset	= data[4],))
+			except:
+				break
+		return Refer_Table
 
 	def SetField(self,line):
 		if line.startswith("#"):
@@ -450,8 +641,6 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		#self.Init_Named_Cells()
 		self.Init_Sheet()
 		self.SetEut(eut)
-		self.db_name = config_db.eut_db
-		self.table_name = config_db.eut_table_name
 
 	def GetEut(self,eut):
 		return self.eut
@@ -461,54 +650,19 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 			self.eut = eut
 			self.UpdateCell()
 
-	def set_DB_name(self,db_name):
+	def SetDbName(self,db_name):
 		if db_name:
 			self.db_name = db_name
 
-	def Init_Named_Cells(self):
-		self.named_cells=[]
-		for i in range(0,NAMED_CELLS_NUM):
-			self.named_cells.append(None)
-		self.named_cells[_MODEL] = [
-				(0,0),		# index _RC_LABEL
-				u"model/型号",	# index _LABEL
-				(1,0),		# index _RC_VALUE
-				"text",_MODEL]	# index _TYPE
-		self.named_cells[_PN]	=[
-				(0,1),
-				u"PN/料号",
-				(1,1),
-				"text",_PN]	# index _TYPE
-		self.named_cells[_NTC]	=[
-				(2,0),
-				u"NTC Resister(Ohm)\nNTC阻值(欧姆)",
-				(3,0),
-				"float",_NTC]	# index _TYPE
-		self.named_cells[_NTC_PRC]=[
-				(2,1),
-				u"NTC Precision(%)\nNTC精度(%)",
-				(3,1),
-				"float",_NTC_PRC]	# index _TYPE
-		self.named_cells[_UNIT]	=[
-				(4,3),
-				u"Unit\n单位",
-				(5,3),
-				"text",_UNIT]	# index _TYPE
-		self.named_cells[_REF_POS] =[
-				(4,0),
-				u"Point\n位置",
-				(5,0),
-				"float",_REF_POS]	# index _TYPE
-		self.named_cells[_REF_VAL] =[
-				(4,1),
-				u"Value\n参考值",
-				(5,1),
-				"float",_REF_VAL]	# index _TYPE
-		self.named_cells[_REF_PRC] =[
-				(4,2),
-				u"Precision\n精度",
-				(5,2),
-				"float",_REF_PRC]	# index _TYPE
+	def GetDbName(self):
+		return	self.db_name
+
+	def SetTableName(self,table_name):
+		if table_name:
+			self.table_name = table_name 
+
+	def GetTableName(self):
+		return self.table_name
 
 	def Init_Sheet(self):
 		font_ = self.GetCellFont(0,0)
@@ -518,72 +672,6 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.SetDefaultColSize(100,True)
 		self.SetGridLineColour("RED")
 		self.SetDefaultCellAlignment(wx.ALIGN_CENTER,wx.ALIGN_CENTER)
-	#	for cell in self.named_cells:
-	#		#print cell
-	#		row,col = cell[_RC_LABEL]
-	#		self.SetReadOnly (row,col,True)
-	#		self.SetCellValue(row,col, cell[_LABEL])
-	#		self.SetCellBackgroundColour(row,col, "Light Grey")
-	#		if len(cell[_LABEL]) > 20:
-	#			self.SetRowSize(row,36)
-	#		if len(cell[_LABEL]) > 10:
-	#			self.SetColSize(col,130)
-	#	self.SetColSize(2,80)
-	#	self.SetRowLabelSize(80)
-	#	row,col = self.named_cells[_UNIT][_RC_VALUE]
-	#	self.SetCellEditor(
-	#			row,
-	#			col,
-	#			wx.grid.GridCellChoiceEditor(
-	#				[u"Ohm",u"V",u"mA"],
-	#				False))
-#~~~~~~~#~~~~~~~format row labels below~~~~~~~~~~~~~~~~~~~~~
-	#	# !!!!!! first, setup normal cells
-	#	row_labels =	(u"model/PN\n型号/料号","",
-	#			u"NTC Res.\nNTC电阻","",
-	#			u"Ref_values\n参考值")
-	#	row_,col_ = self.named_cells[_MODEL][_RC_LABEL] 
-	#	for row in range(row_,row_+5):
-	#		self.SetRowLabelValue( row, row_labels[row] )
-	#		if row_labels[row]:
-	#			font_.SetPointSize(10)
-	#		else:
-	#			font_.SetPointSize(12)
-	#		for col in range(col_,col_+5):
-	#			self.SetReadOnly(row,col,True)
-	#			self.SetCellBackgroundColour(row,col,"Light Grey")
-	#			self.SetCellFont(row,col,font_)
-	#	row_,col_ = self.named_cells[_REF_POS][_RC_VALUE]
-	#	for row in range(row_,row_+200):
-	#		self.SetRowLabelValue(row,'%d'%(row-4))
-	#		for col in range(col_+3,col_+5):
-	#			self.SetReadOnly(row,col,True)
-	#			self.SetCellBackgroundColour(row,col,"Light Grey")
-	#		for col in range(col_,col_+3):
-	#			self.SetCellEditor(
-	#					row,
-	#					col,
-	#					wx.grid.GridCellFloatEditor())
-
-	#	# !!!!!! second, setup named cells,override normal cells
-	#	for cell in self.named_cells:
-	#		row,col = cell[_RC_VALUE]
-	#		self.SetReadOnly(row,col,False)
-	#		self.SetCellBackgroundColour(row,col,"white")
-	#		if cell[_TYPE] == "float":
-	#			self.SetCellEditor(
-	#					row,
-	#					col,
-	#					wx.grid.GridCellFloatEditor())
-	#	self.SetEut([
-	#			"mk3",
-	#			"333ke-78dk-233",
-	#			20300,
-	#			1,
-	#			1,
-	#			"200-20300",
-	#			[[1,2,3],[2,2,3],[3,2,3],[4,2,3],[5,2,3],[6,2,3],[7,2,3],[8,2,3],[9,2,3],[10,2,3],[11,2,3],] ])
-	#	pass
 
 	def SetReadOnlyAll(self,read_only):
 		for row in range(0,self.number_rows ):
@@ -592,12 +680,9 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 
 	
 	def SetEditable(self,read_only):
-		for cell in self.named_cells:
-			row,col = cell[_RC_VALUE]
-			self.SetReadOnly(row,col,read_only)
-		row_,col_ = self.named_cells[_REF_POS][_RC_VALUE]
-		for row in range(row_,self.GetNumberRows()):
-			for col in range(col_,col_+3):
+		# from row 7, editable
+		for row in range(7,self.GetNumberRows()):
+			for col in range(0,self.GetNumberCols()):
 				self.SetReadOnly(row,col,read_only)
 
 #eut looks like [model,PN,NTC,NTC_PRC,unit,range,ref_points[[pos,value,precision],,,]]
@@ -722,54 +807,8 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 #
 #			row +=1
 	def SaveEut(self):
-		db = minidb.Store(self.db_name)
-		print db.save(self.eut)
-		db.close()
+		self.eut.Save2DB()
 		
-	def SaveEut__(self):
-		self.Update_Value()
-		self.SetReadOnlyAll(True)
-
-		db_con   =sqlite.connect(self.db_name)
-		db_con.text_factory = str #解决8bit string 问题
-		db_cursor=db_con.cursor()
-		SELECT = "select count(*) from %s where PN like '%s'"%(self.table_name,self.eut[_PN])
-		db_cursor.execute(SELECT)
-		for existed in db_cursor:
-			if existed[0] > 0:
-				if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
-						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-					return
-				else:
-					cmd = "delete from %s where PN like  '%s'" % (self.table_name, self.eut[_PN])
-					db_cursor.execute(cmd)
-					db_con.commit()
-			else:
-				if  wx.NO == wx.MessageBox(u"确认要保存？",
-						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-					return
-			break
-
-		bytes_block = ''
-		for data in self.eut[_REF_PTS]:
-			bytes_block += struct.pack('3f',
-					data[_XVALUE],
-					data[_YVALUE],
-					data[_PRECISION],)	
-	#	print self.eut[_REF_PTS]
-		range_ = "%.2f-%.2f"%(self.eut[_REF_PTS][0][_YVALUE],
-				self.eut[_REF_PTS][-1][_YVALUE])
-	#	print range_
-		eut_b = (self.eut[_MODEL],
-			self.eut[_PN],
-			self.eut[_NTC],
-			self.eut[_NTC_PRC],
-			self.eut[_UNIT],
-			range_,
-			bytes_block) 
-		db_cursor.execute("insert into %s values (?,?,?,?,?,?,?)"%self.table_name,eut_b)
-		db_con.commit()
-		db_con.close()
 
 	def show(self,PN):
 		db_con   =sqlite.connect(self.db_name)
@@ -813,7 +852,7 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor=db_con.cursor()
 		
-		SELECT = "SELECT model,PN,range FROM %s WHERE model LIKE '%%%s%%' and PN LIKE '%%%s%%'" %( 
+		SELECT = "SELECT model,PN FROM %s WHERE model LIKE '%%%s%%' and PN LIKE '%%%s%%'" %( 
 			self.table_name,model_pattern,PN_pattern)
 		db_cursor.execute(SELECT)
 	
@@ -831,8 +870,8 @@ class Refer_Editor(wx.Frame):
 			title='model editor',
 			entries=None):
 		super(Refer_Editor, self).__init__(parent, id, title,size=size)
-		self.db_name = config_db.eut_db
-		self.table_name = config_db.eut_table_name
+		self.db_name = Eut.db_name 
+		self.table_name = Eut.table_name
 		#self.SetBackgroundColour("light grey")
 		self.entries = entries
 
@@ -879,8 +918,10 @@ class Refer_Editor(wx.Frame):
 
 		self.sizer_btn  = wx.BoxSizer(wx.VERTICAL) 
 		self.btn_filter = wx.Button(self,-1,u"筛选")
-		self.btn_selectDB = wx.Button(self,-1,u"选择数据库")
+		self.btn_selectType = buttons.GenToggleButton(self,-1,u"Sensor")
+		self.btn_selectDB = wx.Button(self,-1,u"DB/选择数据库")
 		self.sizer_btn.Add(self.btn_filter)
+		self.sizer_btn.Add(self.btn_selectType)
 		self.sizer_btn.Add(self.btn_selectDB)
 		self.sizer_filter = wx.BoxSizer(wx.HORIZONTAL)
 		self.sizer_filter.Add(self.sizer_btn_1)
@@ -893,8 +934,9 @@ class Refer_Editor(wx.Frame):
 		#self.sizer_filter.Add((10,20),1)
 		#self.sizer_filter.Add(sizer_valid)
 		self.sizer_filter.Add(self.sizer_btn)
-		self.btn_filter.Bind(wx.EVT_BUTTON, self.OnFilter,self.btn_filter)
-		self.btn_selectDB.Bind(wx.EVT_BUTTON, self.OnSelectDb,self.btn_selectDB)
+		self.btn_filter.Bind(wx.EVT_BUTTON, self.OnFilter)
+		self.btn_selectType.Bind(wx.EVT_BUTTON, self.OnSelectType)
+		self.btn_selectDB.Bind(wx.EVT_BUTTON, self.OnSelectDb)
 		self.btn_import.Bind(wx.EVT_BUTTON, self.OnImport)
 		self.btn_new.Bind(wx.EVT_BUTTON, self.OnNew)
 		self.btn_save.Bind(wx.EVT_BUTTON, self.OnSave)
@@ -1034,12 +1076,11 @@ class Refer_Editor(wx.Frame):
 		if wx.NO == wx.MessageBox(u"确认要使用此料？",
 				style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 			return
-		db = minidb.Store(self.refer_sheet.db_name)
-		eut = db.get(Thermo_Sensor,ID="*")
-		self.refer_sheet.SetEut(eut)
-		print eut.ID
-		print "select ok" 
-		pass
+		if not isinstance(self.refer_sheet.GetEut(),Eut):
+			wx.MessageBox(u"您选的不是传感器\n  请选择传感器!!!",
+				style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+			return 
+		self.eut = self.refer_sheet.GetEut()
 
 	def OnToggleEdit(self, event):
 		"""KeyDown event is sent first"""
@@ -1106,6 +1147,16 @@ class Refer_Editor(wx.Frame):
 			self.mode = ""
 		print "ctrl up....\n"
 
+	def OnSelectType(self,event):
+		"""select table file to query"""
+		if self.btn_selectType.GetCaption() == u"Thermo":
+			self.btn_selectType.SetCaption(u"Sensor")
+			self.refer_sheet.SetTableName( Eut.table_name )
+		else:
+
+			self.btn_selectType.SetCaption(u"Thermo")
+			self.refer_sheet.SetTableName( Thermo_Sensor.table_name )
+
 	def OnSelectDb(self,event):
 		"""select db file to query"""
 		dlg = wx.FileDialog(None,u"选择数据库文件",wildcard="*.db")
@@ -1113,7 +1164,7 @@ class Refer_Editor(wx.Frame):
 			return
 		db_name = dlg.GetPath()
 		if db_name: 
-			self.refer_sheet.set_DB_name(db_name)
+			self.refer_sheet.SetDbName(db_name)
 
 	def OnKeyDown(self,event):
 		"""KeyDown event is sent first"""
@@ -1138,12 +1189,12 @@ class Refer_Editor(wx.Frame):
 		item = self.refer_sheet.GetFocusedItem()
 		serial =  self.refer_sheet.GetItem(item,3).GetText()
 		time  =  self.refer_sheet.GetItem(item,4).GetText()
-		db_con   = sqlite.connect(self.db_name)
+		db_con   = sqlite.connect(self.refer_sheet.GetDbName())
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor=db_con.cursor()
 
-		SELECT = "SELECT * FROM data  WHERE"
-		SELECT += " eut_serial LIKE '%%%s%%' " % (serial)
+		SELECT = "SELECT * FROM %s  WHERE"%(self.refer_sheet.GetTableName())
+		SELECT += " PN LIKE '%%%s%%' " % (serial)
 		SELECT += " AND create_time LIKE '%%%s%%' " % (time)
 
 		db_cursor.execute(SELECT)

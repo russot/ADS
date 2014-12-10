@@ -152,11 +152,13 @@ class Dialog_Setup(wx.Dialog):
 		self.topsizer= wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
 		self.sig_sizer= wx.BoxSizer(wx.HORIZONTAL)
 		self.cfg_panels = []
+		self.ui_map = []
 		print len(signals)
 		self.signals = signals
 		for signal in self.signals:
 			cfg_panel = signal_cfgUI(self,-1,signal)
 			self.cfg_panels.append(cfg_panel )
+			self.ui_map.append([signal,cfg_panel])
 			self.sig_sizer.Add((20,20))
 			self.sig_sizer.Add(cfg_panel,0,wx.EXPAND|wx.ALL,5)
 		self.topsizer.Add((40,20))
@@ -211,10 +213,10 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		dlg = Dialog_Setup(None,-1,"signal UI&CFG",self.signals)
 		if dlg.ShowModal()==wx.ID_OK:
 			print "setup OK!"
-			for i in range(0,len(self.signals)):
-				self.signals[i].SetUrl(dlg.cfg_panels[i].GetUrl())
-				self.signals[i].SetOkColour(dlg.cfg_panels[i].GetOkColour())
-				self.signals[i].SetBadColour(dlg.cfg_panels[i].GetBadColour())
+			for (signal,cfg_panel) in dlg.ui_map:
+				signal.SetUrl(cfg_panel.GetUrl())
+				signal.SetOkColour(cfg_panel.GetOkColour())
+				signal.SetBadColour(cfg_panel.GetBadColour())
 		else:
 			print "setup cancelled!"
 		
