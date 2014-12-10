@@ -1,6 +1,6 @@
 #下起第一行必须是"type,sensor,", 后续各行是"名称,值,", 直到"###"打头行; 后续各行是表格;"#"打头行为注释行,表头#打头是格式行
 type,sensor,
-PN,R939-m0x92,
+PN,R939-m0x55,
 model,FTS800_BC959,
 thermo_PN,2939-m0299,
 signal_num,2,

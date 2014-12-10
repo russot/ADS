@@ -171,6 +171,23 @@ class Thermo_Sensor():
 			self.SetTable(table)
 
 		#as key for db access,
+	def CreateTable(self,db_cursor):
+		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
+		for x in db_cursor:
+			if x[0] <=0 :
+				SELECT   = "CREATE TABLE %s ("%(self.table_name)
+				SELECT += " PN TEXT,"
+				SELECT += " model TEXT,"
+				SELECT += " value FLOAT,"
+				SELECT += " precision FLOAT,"
+				SELECT += " X_unit TEXT,"
+				SELECT += " Y_unit TEXT,"
+				#SELECT += " create_time TimeStamp NOT NULL DEFAULT(datetime('now','localtime')),"
+				SELECT += " Refer_Table BLOB)"
+				self.db_cursor.execute(SELECT)
+				self.db_con.commit()
+			else:
+				print "table thermo_sensor existed already."
 
 	def RestoreFromDB(self,PN):
 		db_con = sqlite.connect(self.db_name)
@@ -202,6 +219,7 @@ class Thermo_Sensor():
 		db_con = sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor = db_con.cursor()
+		self.CreateTable(db_cursor)
 		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,self.field["PN"])
 		db_cursor.execute(cmd)
 		for existed in db_cursor:
@@ -394,6 +412,27 @@ class Eut():
 		#as key for db access,
 		self.ID  =  self.field["PN"] 
 
+	def CreateTable(self,db_cursor):
+		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
+		for x in db_cursor:
+			if x[0] <=0 :
+				SELECT   = "CREATE TABLE %s ("%(self.table_name)
+				SELECT += " PN TEXT,"
+				SELECT += " SN TEXT,"
+				SELECT += " model TEXT,"
+				SELECT += " thermo_PN TEXT,"
+				SELECT += " signal_num int,"
+				SELECT += " X_unit TEXT,"
+				SELECT += " Y1_unit TEXT,"
+				SELECT += " Y2_unit TEXT,"
+				#SELECT += " create_time TimeStamp NOT NULL DEFAULT(datetime('now','localtime')),"
+				SELECT += " Refer_Table1 BLOB,"
+				SELECT += " Refer_Table2 BLOB)"
+				db_cursor.execute(SELECT)
+				#self.db_con.commit()
+			else:
+				print "table thermo_sensor existed already."
+
 	def RestoreFromDB(self,PN):
 		db_con = sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
@@ -407,9 +446,10 @@ class Eut():
 				return
 			else:
 				break
-		cmd = "select * from %s where PN like '%s'" % (self.table_name, self.field["PN"])
+		cmd = "select * from %s where PN like '%s'" % (self.table_name, PN)
 		db_cursor.execute(cmd)
 		eut_b = db_cursor.fetchone()
+		print eut_b
 
 		self.field["PN"]	= eut_b[0]
 		self.field["SN"]	= eut_b[1]
@@ -429,6 +469,7 @@ class Eut():
 		db_con = sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor = db_con.cursor()
+		self.CreateTable(db_cursor)
 		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,self.field["PN"])
 		db_cursor.execute(cmd)
 		for existed in db_cursor:
@@ -640,7 +681,10 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.number_rows= 500
 		#self.Init_Named_Cells()
 		self.Init_Sheet()
+		self.eut = Eut()
 		self.SetEut(eut)
+		self.db_name=config_db.eut_db
+		self.table_name=config_db.eut_table_name
 
 	def GetEut(self,eut):
 		return self.eut
@@ -721,8 +765,8 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		for (name,value) in field.items():
 			if value == None:
 				value = ''
-			self.SetCellValue(row,col, name )
-			self.SetCellValue(row+1,col, value)
+			self.SetCellValue(row,col, str(name))
+			self.SetCellValue(row+1,col, str(value))
 			self.SetReadOnly(row,col,True)
 			self.SetCellBackgroundColour(row,col,"Light Grey")
 			self.SetCellFont(row,col,font_)
@@ -811,41 +855,8 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		
 
 	def show(self,PN):
-		db_con   =sqlite.connect(self.db_name)
-		db_con.text_factory = str #解决8bit string 问题
-		db_cursor=db_con.cursor()
-
-		SELECT = "SELECT * FROM %s WHERE PN LIKE '%s'" % (self.table_name,PN)
-		db_cursor.execute(SELECT)
-		eut_b = db_cursor.fetchone()
-
-		model,PN,NTC,NTC_precision,unit,range_,block =  eut_b
-
-		data_points = []
-		data_size = struct.calcsize('3f')
-		offset = 0
-		out = ""
-		while 1:
-			try:
-				data = struct.unpack_from('3f',block, offset)
-				offset += data_size
-				data_points.append(data)
-				#~ print data
-			except:
-				break
-		eut = [model,PN,NTC,NTC_precision,unit,range_,data_points]
-		self.SetEut(eut)
-		#~ print "start format...\n"
-		#~ sys.stdout.flush()
-		line  =  str(model)+'\t'+ str(PN)+ '\t'+str(NTC) + '\t'+str(range_) + u'\t清单如下:\n'
-		line += u"位置\t参考值 \t \t参考精度"
-		print  line
-		for curent_data in data_points:
-			pos, value, precision= curent_data
-			line=  "%04d\t"   % pos
-			line+=  "%05.2f\t" % value
-			line+=  "%05.2f\t"% precision
-			print line
+		self.eut.RestoreFromDB(PN)
+		self.UpdateCell()
 
 	def query(self,model_pattern,PN_pattern):
 		db_con   =sqlite.connect(self.db_name)
@@ -1267,13 +1278,13 @@ class Refer_Editor(wx.Frame):
 				PN_pattern = self.filter_PN.GetValue())
 		if not entries:
 			return
-		column = [(1,u"序号",50),(2,u"Model/\n型号",180),(3,u"PN/料号",120),(4,u"Range/范围",120)]
+		column = [(1,u"序号",50),(2,u"Model/\n型号",180),(3,u"PN/料号",120),]
 		for  column_ in  column:
 			self.eut_list.InsertColumn(column_[0],column_[1],width=column_[2])
 		count = 0 
 		for  entry_ in entries:
-			model,PN,range_ = entry_
-			entry = ((0,count+1),(1,model),(2,PN),(3,range_))
+			model,PN= entry_
+			entry = ((0,count+1),(1,model),(2,PN))
 			row = self.eut_list.InsertStringItem(
 					sys.maxint,
 					"%10d"%count)
