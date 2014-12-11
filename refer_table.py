@@ -419,8 +419,6 @@ class Eut():
 		self.Refer_Table = Refer_Table
 
 		#as key for db access,
-	def InitTable(self):
-		self.Refer_Table = [[],[]]
 
 	def CreateTable(self,db_cursor):
 		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
@@ -627,7 +625,7 @@ class Eut():
 		try:
 			for table in self.Refer_Table:
 				for refer_entry in table:
-					print refer_entry.Show()
+					refer_entry.Show()
 		except:
 			pass
 
@@ -845,7 +843,8 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.SaveField(self.eut.field)
 		self.SaveRefer(self.eut.Refer_Table)
 
-	def SaveSensorTable(self,row,col,table):
+	def SaveSensorTable(self,row,col):
+		table=[]
 		col_ = col
 		end = False
 		x= 0
@@ -853,28 +852,26 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 			row += 1
 			col_ = col
 			Xvalue,Xprecision,Yvalue,Yprecision,Yoffset=(0,0,0,0,0)
-			for value in (Xvalue,Xprecision,Yvalue,Yprecision,Yoffset):
-				value = self.GetCellValue(row,col_)
-				try:
-					float(value)
-				except ValueError,e:
-					print e
-					end = True
-					break
-				col_ += 1
-			if end != True:
-				table.append(Refer_Entry(Xvalue = Xvalue,
-							Xprecision = Xprecision,
-							Yvalue = Yvalue,
-							Yprecision = Yprecision,
-							Yoffset = Yoffset))
-			else:
+			Xvalue = self.GetCellValue(row,col_)
+			if len(Xvalue) == 0:
 				break
+			col_ += 1
+			Xprecision = self.GetCellValue(row,col_)
+			col_ += 1
+			Yvalue = self.GetCellValue(row,col_)
+			col_ += 1
+			Yprecision = self.GetCellValue(row,col_)
+			col_ += 1
+			Yoffset = self.GetCellValue(row,col_)
+			table.append(Refer_Entry(Xvalue = Xvalue,
+						Xprecision = Xprecision,
+						Yvalue = Yvalue,
+						Yprecision = Yprecision,
+						Yoffset = Yoffset))
 
 
 		table.sort(key=lambda x:x.GetYvalue())
-		print "after saver table",self.eut.ShowRefer()
-		print "end show .............................................................."
+		return table
 
 	def SaveField(self,field):
 		#print "before save field ...",field
@@ -883,17 +880,20 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 			row +=1
 			field[name][_VALUE]= self.GetCellValue(row,col)
 		#print "after save field ...",field
-	def SaveRefer(self,table):
-		if len(table) > 2:
-			self.SaveNTCTable(row=REF_ROW,col=0,table=table)
-		else:
-			self.SaveSensorTable(row=REF_ROW,col=0,table=table[0])
-			self.SaveSensorTable(row=REF_ROW,col=REF_COL,table=table[1])
+	def SaveRefer_Eut(self):
+		table = []
+		table.append( self.SaveSensorTable(row=REF_ROW,col=0))
+		table.append( self.SaveSensorTable(row=REF_ROW,col=REF_COL))
+		for t in table:
+			for r in t:
+				print "............",r.GetYvalue()
+		self.eut.SetReferTable(table)
+		print	self.eut.ShowRefer()
+		return table
 
 	def SaveEut(self):
-		self.eut = Eut()
 		self.SaveField(self.eut.field)
-		self.SaveRefer(self.eut.Refer_Table)
+		self.SaveRefer_Eut()
 		self.eut.Save2DB()
 		
 
