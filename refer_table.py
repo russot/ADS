@@ -66,7 +66,13 @@ _MAP		= 4
 
 #index for refer_entry status
 
+#index for named cells
+_VALUE	= int(0)
+_RC	= int(1)
 
+#index for refer table RC
+REF_ROW = 6
+REF_COL = 6
 
 class Refer_Entry(object):
 #	__slots__ = {"Xvalue":float,"Xprecision":float,"Yvalue":float,"Yprecision":float,"Yoffset":float,"Ymin":float,"Ymax":float}
@@ -171,6 +177,10 @@ class Thermo_Sensor():
 			self.SetTable(table)
 
 		#as key for db access,
+
+	def InitTable(self):
+		self.Refer_Table = []
+
 	def CreateTable(self,db_cursor):
 		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
 		for x in db_cursor:
@@ -320,7 +330,6 @@ class Thermo_Sensor():
 				self.SetField(line)
 			except:
 				pass
-		self.ID  =  self.field["PN"] 
 		#clear table and append new values by SetRefer(line)
 		del self.Refer_Table
 		self.Refer_Table = []
@@ -399,18 +408,19 @@ class Eut():
 	db_name = config_db.eut_db
 	def __init__(self,model=None,PN=None,SN=None,Refer_Table=[[],[]],thermo_PN=None):
 		self.field={}
-		self.field["PN"] = PN
-		self.field["SN"] = SN
-		self.field["model"]=model
-		self.field["thermo_PN"] = thermo_PN
-		self.field["signal_num"] = 2
-		self.field["X_unit"] = "mm"
-		self.field["Y1_unit"] = "ohm"
-		self.field["Y2_unit"] = "ohm"
+		self.field["PN"] = [PN,(0,0)]
+		self.field["SN"] = [SN,(0,1)]
+		self.field["model"]=[model,(0,2)]
+		self.field["thermo_PN"] = [thermo_PN,(2,0)]
+		self.field["signal_num"] =[ 2,(2,1)]
+		self.field["X_unit"] = ["mm",(REF_ROW-2,0)]
+		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2)]
+		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
 		self.Refer_Table = Refer_Table
 
 		#as key for db access,
-		self.ID  =  self.field["PN"] 
+	def InitTable(self):
+		self.Refer_Table = [[],[]]
 
 	def CreateTable(self,db_cursor):
 		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
@@ -431,7 +441,7 @@ class Eut():
 				db_cursor.execute(SELECT)
 				#self.db_con.commit()
 			else:
-				print "table thermo_sensor existed already."
+				print "table eut existed already."
 
 	def RestoreFromDB(self,PN):
 		db_con = sqlite.connect(self.db_name)
@@ -449,28 +459,31 @@ class Eut():
 		cmd = "select * from %s where PN like '%s'" % (self.table_name, PN)
 		db_cursor.execute(cmd)
 		eut_b = db_cursor.fetchone()
-		print eut_b
+		#print eut_b
 
-		self.field["PN"]	= eut_b[0]
-		self.field["SN"]	= eut_b[1]
-		self.field["model"]	= eut_b[2]
-		self.field["thermo_PN"]	= eut_b[3]
-		self.field["signal_num"]= eut_b[4]
-		self.field["X_unit"]	= eut_b[5]
-		self.field["Y1_unit"]	= eut_b[6]
-		self.field["Y2_unit"]	= eut_b[7]
+		self.field["PN"][_VALUE]	= eut_b[0]
+		self.field["SN"][_VALUE]	= eut_b[1]
+		self.field["model"][_VALUE]	= eut_b[2]
+		self.field["thermo_PN"][_VALUE]	= eut_b[3]
+		self.field["signal_num"][_VALUE]= eut_b[4]
+		self.field["X_unit"][_VALUE]	= eut_b[5]
+		self.field["Y1_unit"][_VALUE]	= eut_b[6]
+		self.field["Y2_unit"][_VALUE]	= eut_b[7]
 		del self.Refer_Table
 		self.Refer_Table = []
 		self.Refer_Table.append(self.Blob2Refers(eut_b[8]))
 		self.Refer_Table.append(self.Blob2Refers(eut_b[9]))
 		db_con.close()
+		#print "field after restore from DB",self.field
 
 	def Save2DB(self):
+		#print "before save2db...", self.field
 		db_con = sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor = db_con.cursor()
 		self.CreateTable(db_cursor)
-		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,self.field["PN"])
+		cretia = self.field["PN"][_VALUE]
+		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,cretia)
 		db_cursor.execute(cmd)
 		for existed in db_cursor:
 			if existed[0] > 0:
@@ -478,7 +491,7 @@ class Eut():
 						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 					return
 				else:
-					cmd = "delete from %s where PN like '%s'" % (self.table_name, self.field["PN"])
+					cmd = "delete from %s where PN like '%s'" % (self.table_name, cretia)
 					db_cursor.execute(cmd)
 					db_con.commit()
 			else:
@@ -486,14 +499,14 @@ class Eut():
 						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 					return
 			break
-		eut_b = ( self.field["PN"],
-			self.field["SN"],
-			self.field["model"],
-			self.field["thermo_PN"],
-			self.field["signal_num"],
-			self.field["X_unit"],
-			self.field["Y1_unit"],
-			self.field["Y2_unit"],
+		eut_b = ( self.field["PN"][_VALUE],
+			self.field["SN"][_VALUE],
+			self.field["model"][_VALUE],
+			self.field["thermo_PN"][_VALUE],
+			self.field["signal_num"][_VALUE],
+			self.field["X_unit"][_VALUE],
+			self.field["Y1_unit"][_VALUE],
+			self.field["Y2_unit"][_VALUE],
 			self.Refers2Blob(self.Refer_Table[0]),
 			self.Refers2Blob(self.Refer_Table[1])) 
 		db_cursor.execute("insert into %s values (?,?,?,?,?,?,?,?,?,?)"%self.table_name,eut_b)
@@ -520,11 +533,11 @@ class Eut():
 				data = struct.unpack_from('5f',block, offset)
 				offset += data_size
 				Refer_Table.append(Refer_Entry(
-						Xvalue	= data[0],
-						Xprecision = data[1],
-						Yvalue	= data[2],
-						Yprecision = data[3],
-						Yoffset	= data[4],))
+						Xvalue		= data[0],
+						Xprecision	= data[1],
+						Yvalue		= data[2],
+						Yprecision	= data[3],
+						Yoffset		= data[4],))
 			except:
 				break
 		return Refer_Table
@@ -534,7 +547,7 @@ class Eut():
 			return
 		field_name,value = line.split(',')[:2]
 		if self.field.has_key(field_name):
-			self.field[field_name] = value
+			self.field[field_name][_VALUE] = value
 		#as key for db access,
 	def SetRefer(self,line):
 		if line.startswith("#"):
@@ -542,18 +555,18 @@ class Eut():
 		
 		values = line.split(',')[:-1]#remove '\n'
 		refer_entry1 = Refer_Entry(
-				Xvalue=values[0],
-				Xprecision=values[1],
-				Yvalue=values[2],
-				Yprecision=values[3],
-				Yoffset=values[4])
+				Xvalue		=values[0],
+				Xprecision	=values[1],
+				Yvalue		=values[2],
+				Yprecision	=values[3],
+				Yoffset		=values[4])
 		self.AppendReferTable(0,refer_entry1)
 		refer_entry2 = Refer_Entry(
-				Xvalue=values[5],
-				Xprecision=values[6],
-				Yvalue=values[7],
-				Yprecision=values[8],
-				Yoffset=values[9])
+				Xvalue		=values[5],
+				Xprecision	=values[6],
+				Yvalue		=values[7],
+				Yprecision	=values[8],
+				Yoffset		=values[9])
 		self.AppendReferTable(1,refer_entry2)
 		
 	def Import(self,reader):
@@ -565,14 +578,12 @@ class Eut():
 				self.SetField(line)
 			except:
 				pass
-		self.ID  =  self.field["PN"] 
 		#
 		for line in reader.readlines():
 			try:
 				self.SetRefer(line)
 			except:
 				pass
-			#print line.split(',')[:-1]
 
 	
 	def SetReferTable(self,Refer_Table):
@@ -760,13 +771,12 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 	def UpdateField(self,field):
 		font_ = self.GetCellFont(0,0)
 		font_.SetPointSize(12)
-		col = 0
-		row = 0
 		for (name,value) in field.items():
-			if value == None:
-				value = ''
+			if value[_VALUE]== None:
+				value[_VALUE] = ''
+			row,col = value[_RC]
 			self.SetCellValue(row,col, str(name))
-			self.SetCellValue(row+1,col, str(value))
+			self.SetCellValue(row+1,col, str(value[_VALUE]))
 			self.SetReadOnly(row,col,True)
 			self.SetCellBackgroundColour(row,col,"Light Grey")
 			self.SetCellFont(row,col,font_)
@@ -774,13 +784,8 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 				editor =  wx.grid.GridCellChoiceEditor( [u"Ohm",u"V",u"mA"], False)
 				self.SetCellEditor( row+1, col, editor)
 			elif re.search(r"X.*unit",name):
-				editor =  wx.grid.GridCellChoiceEditor( [u"mm",u" °C"], False)
+				editor =  wx.grid.GridCellChoiceEditor( [u"mm",u"°C"], False)
 				self.SetCellEditor( row+1, col, editor)
-			col += 1
-			col %= 5
-			if col==0:
-				col = 0
-				row += 2
 
 	def UpdateNTCTable(self,row,col,table):
 		col_ = col
@@ -789,14 +794,16 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 			self.SetReadOnly(row,col_,True)
 			self.SetCellBackgroundColour(row,col_,"Grey")
 			col_ +=1
+		row_ = row
 		for refer_entry in table:
-			row += 1
+			row_ += 1
+			self.SetRowLabelValue(row_,str(row_-row))
 			(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
 			col_ = col
 			for value in (Xvalue,Ymin,Yvalue,Ymax):
-				self.SetCellValue(row,col_,str(value))
+				self.SetCellValue(row_,col_,str(value))
 				self.SetCellEditor(
-					row,
+					row_,
 					col_,
 					wx.grid.GridCellFloatEditor())
 				col_ += 1
@@ -808,15 +815,16 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 			self.SetReadOnly(row,col_,True)
 			self.SetCellBackgroundColour(row,col_,"Grey")
 			col_ +=1
+		row_ = row
 		for refer_entry in table[table_num]:
-			row += 1
+			row_ += 1
+			self.SetRowLabelValue(row_,str(row_-row))
 			(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
-			print Xvalue
 			col_ = col
 			for value in (Xvalue,Xprecision,Yvalue,Yprecision,Yoffset):
-				self.SetCellValue(row,col_,str(value))
+				self.SetCellValue(row_,col_,str(value))
 				self.SetCellEditor(
-					row,
+					row_,
 					col_,
 					wx.grid.GridCellFloatEditor())
 				col_ += 1
@@ -825,32 +833,67 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		if len(table) > 2:
 			self.UpdateNTCTable(row=5,col=0,table=table)
 		else:
-			self.UpdateSensorTable(row=5,col=0,table=table,table_num=0)
-			self.UpdateSensorTable(row=5,col=6,table=table,table_num=1)
+			self.UpdateSensorTable(row=REF_ROW,col=0,table=table,table_num=0)
+			self.UpdateSensorTable(row=REF_ROW,col=REF_COL,table=table,table_num=1)
 
 	def UpdateCell(self):
 		self.UpdateField(self.eut.field)
 		self.UpdateRefer(self.eut.Refer_Table)
+		#print "update_cell end ", self.eut.field
 
-#	def Update_Cell(self,eut):
-#		#print self.GetNumberRows()
-#		for cell in self.named_cells[0:5]:
-#			row,col=cell[_RC_VALUE]
-#			index = cell[_MAP]
-#			#print row,col,index
-#			#print index
-#			#print self.eut[index] 
-#			self.SetCellValue( row, col, str(self.eut[index]) )
-#		row,col_= self.named_cells[_REF_POS][_RC_VALUE]
-#		for ref_points in self.eut[_REF_PTS]:
-#			for col in range(col_, col_ + 3):
-#				self.SetCellValue( row, col, str(ref_points[col]) )
-#				_row,_col = self.named_cells[_UNIT][_RC_VALUE]
-#				if row == _row and col == _col:
-#					self.SetCellValue( row, col, ref_points[col] )
-#
-#			row +=1
+	def UpdateEut(self):
+		self.SaveField(self.eut.field)
+		self.SaveRefer(self.eut.Refer_Table)
+
+	def SaveSensorTable(self,row,col,table):
+		col_ = col
+		end = False
+		x= 0
+		while True:
+			row += 1
+			col_ = col
+			Xvalue,Xprecision,Yvalue,Yprecision,Yoffset=(0,0,0,0,0)
+			for value in (Xvalue,Xprecision,Yvalue,Yprecision,Yoffset):
+				value = self.GetCellValue(row,col_)
+				try:
+					float(value)
+				except ValueError,e:
+					print e
+					end = True
+					break
+				col_ += 1
+			if end != True:
+				table.append(Refer_Entry(Xvalue = Xvalue,
+							Xprecision = Xprecision,
+							Yvalue = Yvalue,
+							Yprecision = Yprecision,
+							Yoffset = Yoffset))
+			else:
+				break
+
+
+		table.sort(key=lambda x:x.GetYvalue())
+		print "after saver table",self.eut.ShowRefer()
+		print "end show .............................................................."
+
+	def SaveField(self,field):
+		#print "before save field ...",field
+		for (name,value) in field.items():
+			row,col = value[_RC]
+			row +=1
+			field[name][_VALUE]= self.GetCellValue(row,col)
+		#print "after save field ...",field
+	def SaveRefer(self,table):
+		if len(table) > 2:
+			self.SaveNTCTable(row=REF_ROW,col=0,table=table)
+		else:
+			self.SaveSensorTable(row=REF_ROW,col=0,table=table[0])
+			self.SaveSensorTable(row=REF_ROW,col=REF_COL,table=table[1])
+
 	def SaveEut(self):
+		self.eut = Eut()
+		self.SaveField(self.eut.field)
+		self.SaveRefer(self.eut.Refer_Table)
 		self.eut.Save2DB()
 		
 
@@ -1031,7 +1074,7 @@ class Refer_Editor(wx.Frame):
 		self.Relayout()
 		sys.stdout = self.debug_out
 		sys.stderr = self.debug_out
-		print "init ok...."
+		print "sheet init ok...."
 
 	def Init_Persist(self):#启动数据库持久化线程,通过队列进行保存与取出数据
 		self.persist = (Queue(0),Queue(0))
@@ -1052,7 +1095,6 @@ class Refer_Editor(wx.Frame):
 		reader =file(eut_name,"r")
 		reader.readline()#跳过第一行注释行
 		type_ = reader.readline().split(",")
-		print "type",type_
 		if type_[1].startswith("NTC"):
 			eut = Thermo_Sensor()
 		elif type_[1].startswith("sensor"):
@@ -1063,8 +1105,9 @@ class Refer_Editor(wx.Frame):
 		
 		self.InitSheet()
 		eut.Import(reader)
+		eut.ShowRefer()
 		self.refer_sheet.SetEut(eut)
-		print u"temp unit \xc2\xb0"
+		print u"temp unit\xb0"
 
 	def OnNew(self, event):
 		"""KeyDown event is sent first"""
@@ -1351,34 +1394,6 @@ class Refer_Editor(wx.Frame):
 		if  export_name != "":
 			tofile.close()
 
-	def run_(self):
-		origin_stdout = sys.stdout
-		sys.stdout= self.debug_out
-		self.db_con   =sqlite.connect(self.db_name)
-		self.db_con.text_factory = str #解决8bit string 问题
-		self.db_cursor=self.db_con.cursor()
-		self.db_cursor.execute("SELECT * FROM data ")
-		out = u"  序号结果:\t名字\t编号\t时间\n"
-		count = 0
-		while 1:
-			try:
-				count += 1
-				row = self.db_cursor.fetchone()
-				name,serial,data_valid,time,block = row
-				out += "%06d "%count
-				if data_valid == True:
-					out += "Pass:\t"
-				else:
-					out += "Fail:\t"
-				out += "%s\t"%name
-				out += "%s\t"%serial
-
-				out += "%s\t"%time
-				out += '\n'
-			except:
-				break
-		print out
-		sys.stdout = origin_stdout
 
 
 
