@@ -178,6 +178,7 @@ class Frame(wx.Frame):   #3
 		self.PopupMenu(self.popmenu1, pos)
 	
 	def OnSetPassword(self,event):
+
 		dlg= wx.PasswordEntryDialog(self, message=u"管理密码",
 				caption=u"input password/输入密码", 
 				value="", 

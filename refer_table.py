@@ -28,9 +28,9 @@ import sqlite3 as sqlite
 import wx.lib.scrolledpanel as scrolledpanel
 import codecs
 from data_point import Data_Point,Signal_Control_Basic
+from hashlib import md5
 
 #index for persist Queue
-
 _CMD = 0
 _DATA = 1
 
@@ -73,6 +73,30 @@ _RC	= int(1)
 #index for refer table RC
 REF_ROW = 6
 REF_COL = 6
+
+def md5sum(text):
+	m = md5()
+	m.update(text.encode('utf-8'))
+	return m.hexdigest()
+
+def Authenticate():
+	dlg= wx.PasswordEntryDialog(None, message=u"管理密码",
+			caption=u"input password/输入密码", 
+			value="", 
+			style=wx.TextEntryDialogStyle,
+			pos=wx.DefaultPosition)
+	dlg.ShowModal()
+	password  = dlg.GetValue()
+	dlg.Destroy()
+	pwd_ = md5sum(password)
+	print pwd_
+	f=open('ad01','r')
+	pwd_org=f.read()
+	f.close()
+	result = False
+	if str(pwd_org)[:32] == pwd_:
+		result = True
+	return result
 
 class Refer_Entry(object):
 #	__slots__ = {"Xvalue":float,"Xprecision":float,"Yvalue":float,"Yprecision":float,"Yoffset":float,"Ymin":float,"Ymax":float}
@@ -166,20 +190,59 @@ class Thermo_Sensor():
 	db_name = config_db.eut_db
 	def __init__(self,PN="",model="",value=0,precision=0,X_unit=u" °C",Y_unit=u"ohm\xc2\xb0",table=[]):
 		self.field = {}
-		self.field["PN"]= PN 
-		self.field["model"]= model
-		self.field["value"]= value
-		self.field["precision"]=precision
-		self.field["X_unit"] = X_unit 
-		self.field["Y_unit"] = Y_unit 
+		self.field["PN"]= [PN,(0,0)]
+		self.field["model"]= [model,(0,1)]
+		self.field["value"]= [value,(2,0)]
+		self.field["precision"]=[precision,(2,1)]
+		self.field["X_unit"] = [u"\xb0C",(REF_ROW-2,0)]
+		self.field["Y_unit"] = ["ohm",(REF_ROW-2,2)]
 		self.Refer_Table = []
 		if table:
 			self.SetTable(table)
 
 		#as key for db access,
 
-	def InitTable(self):
-		self.Refer_Table = []
+	def SaveField(self,window):
+		#print "before save field ...",field
+		for (name,value) in self.field.items():
+			row,col = value[_RC]
+			row +=1
+			self.field[name][_VALUE]= window.GetCellValue(row,col)
+		#print "after save field ...",field
+
+	def SaveRefer(self,window):
+		self.SetReferTable(self.SaveThermoTable(row=REF_ROW,col=0,window=window))
+
+	def SaveRefer_Table(self,table):
+		self.Refer_Table = table
+		self.Refer_Table.sort(key=lambda x:x.GetYvalue())
+		print	self.ShowRefer()
+
+	def SaveThermoTable(self,row,col,window):
+		table=[]
+		col_ = col
+		end = False
+		Xvalue,Ymin,Yvalue,Ymax=(0,0,0,0)
+		while True:
+			row += 1
+			col_ = col
+			Xvalue = window.GetCellValue(row,col_)
+			if len(Xvalue) == 0:
+				break
+			col_ += 1
+			Ymin = window.GetCellValue(row,col_)
+			col_ += 1
+			Yvalue = window.GetCellValue(row,col_)
+			col_ += 1
+			Ymax = window.GetCellValue(row,col_)
+			table.append(Refer_Entry(Xvalue = Xvalue,
+						Ymin = Ymin,
+						Yvalue = Yvalue,
+						Ymax = Ymax,
+						Yoffset = Yoffset))
+
+
+		return table
 
 	def CreateTable(self,db_cursor):
 		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
@@ -216,12 +279,12 @@ class Thermo_Sensor():
 		db_cursor.execute(cmd)
 		eut_b = db_cursor.fetchone()
 
-		self.field["PN"]	= eut_b[0]
-		self.field["model"]	= eut_b[1]
-		self.field["value"]	= eut_b[2]
-		self.field["precision"]	= eut_b[3]
-		self.field["X_unit"]	= eut_b[4]
-		self.field["Y_unit"]	= eut_b[5]
+		self.field["PN"][_VALUE]	= eut_b[0]
+		self.field["model"][_VALUE]	= eut_b[1]
+		self.field["value"][_VALUE]	= eut_b[2]
+		self.field["precision"][_VALUE]	= eut_b[3]
+		self.field["X_unit"][_VALUE]	= eut_b[4]
+		self.field["Y_unit"][_VALUE]	= eut_b[5]
 		self.Refer_Table = self.Blob2Refers(eut_b[6]) 
 		db_con.close()
 
@@ -246,12 +309,12 @@ class Thermo_Sensor():
 						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 					return
 			break
-		eut_b = (self.field["PN"],
-			self.field["model"],
-			self.field["value"],
-			self.field["precision"],
-			self.field["X_unit"],
-			self.field["Y_unit"],
+		eut_b = (self.field["PN"][_VALUE],
+			self.field["model"][_VALUE],
+			self.field["value"][_VALUE],
+			self.field["precision"][_VALUE],
+			self.field["X_unit"][_VALUE],
+			self.field["Y_unit"][_VALUE],
 			self.Refers2Blob(self.Refer_Table)) 
 		db_cursor.execute("insert into %s values (?,?,?,?,?,?,?)"%self.table_name,eut_b)
 		db_con.commit()
@@ -286,9 +349,6 @@ class Thermo_Sensor():
 				break
 		return Refer_Table
 
-	def ShowFields(self):
-		for (name,value) in self.field.items():
-			print name,value
 
 	def ShowRefer(self):
 		try:
@@ -302,7 +362,7 @@ class Thermo_Sensor():
 			return
 		field_name,value = line.split(',')[:2]
 		if self.field.has_key(field_name):
-			self.field[field_name] = value
+			self.field[field_name][_VALUE] = value
 		#as key for db access,
 
 	def SetRefer(self,line):
@@ -418,7 +478,49 @@ class Eut():
 		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
 		self.Refer_Table = Refer_Table
 
-		#as key for db access,
+	def SaveField(self,window):
+		#print "before save field ...",field
+		for (name,value) in self.field.items():
+			row,col = value[_RC]
+			row +=1
+			self.field[name][_VALUE]= window.GetCellValue(row,col)
+		#print "after save field ...",field
+	def SaveRefer(self,window):
+		table = []
+		table0 =  self.SaveSensorTable(row=REF_ROW,col=0,window=window)
+		table1 =  self.SaveSensorTable(row=REF_ROW,col=REF_COL,window=window)
+		table.append( table0)
+		table.append( table1)
+		self.SetReferTable(table)
+		print	self.ShowRefer()
+
+	def SaveSensorTable(self,row,col,window):
+		table=[]
+		col_ = col
+		end = False
+		Xvalue,Xprecision,Yvalue,Yprecision,Yoffset=(0,0,0,0,0)
+		while True:
+			row += 1
+			col_ = col
+			Xvalue = window.GetCellValue(row,col_)
+			if len(Xvalue) == 0:
+				break
+			col_ += 1
+			Xprecision = window.GetCellValue(row,col_)
+			col_ += 1
+			Yvalue = window.GetCellValue(row,col_)
+			col_ += 1
+			Yprecision = window.GetCellValue(row,col_)
+			col_ += 1
+			Yoffset = window.GetCellValue(row,col_)
+			table.append(Refer_Entry(Xvalue = Xvalue,
+						Xprecision = Xprecision,
+						Yvalue = Yvalue,
+						Yprecision = Yprecision,
+						Yoffset = Yoffset))
+
+
+		return table
 
 	def CreateTable(self,db_cursor):
 		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
@@ -617,9 +719,6 @@ class Eut():
 		except:
 			pass
 
-	def ShowFields(self):
-		for (name,value) in self.field.items():
-			print name,value
 
 	def ShowRefer(self):
 		try:
@@ -725,6 +824,9 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.SetDefaultColSize(100,True)
 		self.SetGridLineColour("RED")
 		self.SetDefaultCellAlignment(wx.ALIGN_CENTER,wx.ALIGN_CENTER)
+		self.SelectAll()
+		self.Clear()
+		self.ClearSelection()
 
 	def SetReadOnlyAll(self,read_only):
 		for row in range(0,self.number_rows ):
@@ -734,7 +836,11 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 	
 	def SetEditable(self,read_only):
 		# from row 7, editable
-		for row in range(7,self.GetNumberRows()):
+		for value in self.eut.field.values():
+			row,col = value[_RC]
+			row += 1
+			self.SetReadOnly(row,col,read_only)
+		for row in range(REF_ROW+1,self.GetNumberRows()):
 			for col in range(0,self.GetNumberCols()):
 				self.SetReadOnly(row,col,read_only)
 
@@ -782,12 +888,15 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 				editor =  wx.grid.GridCellChoiceEditor( [u"Ohm",u"V",u"mA"], False)
 				self.SetCellEditor( row+1, col, editor)
 			elif re.search(r"X.*unit",name):
-				editor =  wx.grid.GridCellChoiceEditor( [u"mm",u"°C"], False)
+				editor =  wx.grid.GridCellChoiceEditor( [u"mm",u"\xb0°C"], False)
+				self.SetCellEditor( row+1, col, editor)
+			elif re.search(r"num",name):
+				editor =  wx.grid.GridCellChoiceEditor( [u"1",u"2"], False)
 				self.SetCellEditor( row+1, col, editor)
 
 	def UpdateNTCTable(self,row,col,table):
 		col_ = col
-		for name in (u"温度/ °C",u"最小值/ohm",u"中间值/ohm",u"最大值/ohm"):
+		for name in (u"温度/ \xb0°C",u"最小值/ohm",u"中间值/ohm",u"最大值/ohm"):
 			self.SetCellValue(row,col_,name)
 			self.SetReadOnly(row,col_,True)
 			self.SetCellBackgroundColour(row,col_,"Grey")
@@ -807,6 +916,10 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 				col_ += 1
 
 	def UpdateSensorTable(self,row,col,table,table_num):
+		table_len = len(table[table_num])+10
+		print "table length>>>>>>>>>>>>>>",self.GetNumberRows(),table_len
+		if self.GetNumberRows() < table_len:
+			self.SetNumberRows(table_len)
 		col_ = col
 		for name in (u"位置/mm",u"位偏移/mm",u"Sensor%d值"%(table_num+1),u"精度",u"修正值"):
 			self.SetCellValue(row,col_,name)
@@ -839,9 +952,6 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.UpdateRefer(self.eut.Refer_Table)
 		#print "update_cell end ", self.eut.field
 
-	def UpdateEut(self):
-		self.SaveField(self.eut.field)
-		self.SaveRefer(self.eut.Refer_Table)
 
 	def SaveSensorTable(self,row,col):
 		table=[]
@@ -892,12 +1002,13 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		return table
 
 	def SaveEut(self):
-		self.SaveField(self.eut.field)
-		self.SaveRefer_Eut()
+		self.eut.SaveField(window=self)
+		self.eut.SaveRefer(window=self)
 		self.eut.Save2DB()
 		
 
 	def show(self,PN):
+		self.Init_Sheet()
 		self.eut.RestoreFromDB(PN)
 		self.UpdateCell()
 
@@ -960,6 +1071,7 @@ class Refer_Editor(wx.Frame):
 		self.btn_save = wx.Button(self,-1,u"save/保存")
 		self.btn_select = wx.Button(self,-1,u"select/选择")
 		self.btn_edit = buttons.GenToggleButton(self,-1,u"edit/编辑")
+		self.btn_edit.SetToggle(True)
 		self.sizer_btn_1.Add(self.btn_import)
 		self.sizer_btn_1.Add((10,10),1)
 		self.sizer_btn_1.Add(self.btn_new)
@@ -1074,6 +1186,7 @@ class Refer_Editor(wx.Frame):
 		self.Relayout()
 		sys.stdout = self.debug_out
 		sys.stderr = self.debug_out
+		self.UpdateToggle()
 		print "sheet init ok...."
 
 	def Init_Persist(self):#启动数据库持久化线程,通过队列进行保存与取出数据
@@ -1111,7 +1224,15 @@ class Refer_Editor(wx.Frame):
 
 	def OnNew(self, event):
 		"""KeyDown event is sent first"""
-		self.InitSheet()
+		dlg = wx.TextEntryDialog(None,u"请输入参考条目数:","  ","200")
+		if dlg.ShowModal() == wx.ID_OK:
+			num = int(dlg.GetValue())
+			self.refer_sheet.SetNumberRows(num)
+			if self.refer_sheet.table_name == Eut.table_name:
+				self.refer_sheet.SetEut(Eut())
+			else:
+				self.refer_sheet.SetEut(Thermo_Sensor())
+
 
 	def InitSheet(self):
 		self.refer_sheet.SelectAll()
@@ -1138,14 +1259,21 @@ class Refer_Editor(wx.Frame):
 
 	def OnToggleEdit(self, event):
 		"""KeyDown event is sent first"""
-		toggle = self.btn_edit.GetValue()
-		print "toggle edit to ",toggle
+		toggle = self.btn_edit.GetToggle()
 		if not toggle:
+			if not Authenticate():
+				self.btn_edit.SetToggle(not toggle)
+		self.UpdateToggle()
+	
+	def UpdateToggle(self):
+		toggle = self.btn_edit.GetToggle()
+		if not toggle:
+			self.btn_edit.SetBackgroundColour("green")
 			self.refer_sheet.SetEditable(False)
 		else:
+			self.btn_edit.SetBackgroundColour("red")
 			self.refer_sheet.SetEditable(True)
 
-		pass
 
 #eut looks like [model,PN,NTC,NTC_PRC,unit,ref_points[[pos,value,precision],,,]]
 	def Data_Persist(self):
@@ -1203,12 +1331,23 @@ class Refer_Editor(wx.Frame):
 
 	def OnSelectType(self,event):
 		"""select table file to query"""
-		if self.btn_selectType.GetCaption() == u"Thermo":
-			self.btn_selectType.SetCaption(u"Sensor")
+		if self.btn_selectType.GetLabelText() == u"Thermo":
+			if wx.NO ==	wx.MessageBox(u"确认更换到Sensor!",
+					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+				toggle = self.btn_selectType.GetToggle()
+				self.btn_selectType.SetToggle(not toggle)
+				return
+
+			self.btn_selectType.SetLabel(u"Sensor")
 			self.refer_sheet.SetTableName( Eut.table_name )
 		else:
+			if wx.NO ==	wx.MessageBox(u"确认更换到Thermo!",
+					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+				toggle = self.btn_selectType.GetToggle()
+				self.btn_selectType.SetToggle(not toggle)
+				return
 
-			self.btn_selectType.SetCaption(u"Thermo")
+			self.btn_selectType.SetLabel(u"Thermo")
 			self.refer_sheet.SetTableName( Thermo_Sensor.table_name )
 
 	def OnSelectDb(self,event):
@@ -1314,6 +1453,7 @@ class Refer_Editor(wx.Frame):
 		self.refer_sheet.show(PN)
 
 	def OnFilter(self,event):
+		self.UpdateToggle()
 		self.eut_list.ClearAll()         
 
 		entries = self.refer_sheet.query(
