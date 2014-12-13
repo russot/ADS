@@ -74,30 +74,42 @@ _RC	= int(1)
 REF_ROW = 6
 REF_COL = 6
 
-def md5sum(text):
-	m = md5()
-	m.update(text.encode('utf-8'))
-	return m.hexdigest()
 
-def Authenticate():
-	dlg= wx.PasswordEntryDialog(None, message=u"管理密码",
-			caption=u"input password/输入密码", 
-			value="", 
-			style=wx.TextEntryDialogStyle,
-			pos=wx.DefaultPosition)
-	dlg.ShowModal()
-	password  = dlg.GetValue()
-	dlg.Destroy()
-	pwd_ = md5sum(password)
-	print pwd_
-	f=open('ad01','r')
-	pwd_org=f.read()
-	f.close()
-	result = False
-	if str(pwd_org)[:32] == pwd_:
-		result = True
-	return result
+class Authen():
 
+	def md5sum(self,text):
+		m = md5()
+		m.update(text.encode('utf-8'))
+		return m.hexdigest()
+	
+	def Authenticate(self,role):
+	
+		if role == "Admin":
+			message = u"管理密码"
+			fname   = "ad01"
+		elif role == "User":
+			message = u"用户密码"
+			fname   = "ad02"
+
+		dlg= wx.PasswordEntryDialog(None, message=message,
+				caption=u"input password/输入密码", 
+				value="", 
+				style=wx.TextEntryDialogStyle,
+				pos=wx.DefaultPosition)
+		dlg.ShowModal()
+		password  = dlg.GetValue()
+		dlg.Destroy()
+		pwd_ = self.md5sum(password)
+		print pwd_,pwd_,pwd_
+		f=open(f_name,'r')
+		pwd_org=f.read()
+		f.close()
+		result = False
+		if str(pwd_org)[:32] == pwd_:
+			result = True
+		return result
+
+gAuthen = Authen()
 class Refer_Entry(object):
 #	__slots__ = {"Xvalue":float,"Xprecision":float,"Yvalue":float,"Yprecision":float,"Yoffset":float,"Ymin":float,"Ymax":float}
 	def __init__(self,Xvalue=0,Xprecision=0,Yvalue=0,Yprecision=0,Yoffset=0,Ymin=0,Ymax=0,valid_status=False):
@@ -188,14 +200,14 @@ class Thermo_Sensor():
 	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
 	table_name =config_db.thermo_table_name
 	db_name = config_db.eut_db
-	def __init__(self,PN="",model="",value=0,precision=0,X_unit=u" °C",Y_unit=u"ohm\xc2\xb0",table=[]):
+	def __init__(self,PN="",model="",value=0,precision=0,X_unit=u"\xb0C",Y_unit=u"ohm",table=[]):
 		self.field = {}
 		self.field["PN"]= [PN,(0,0)]
 		self.field["model"]= [model,(0,1)]
 		self.field["value"]= [value,(2,0)]
 		self.field["precision"]=[precision,(2,1)]
-		self.field["X_unit"] = [u"\xb0C",(REF_ROW-2,0)]
-		self.field["Y_unit"] = ["ohm",(REF_ROW-2,2)]
+		self.field["X_unit"] = [X_unit,(REF_ROW-2,0)]
+		self.field["Y_unit"] = [Y_unit,(REF_ROW-2,2)]
 		self.Refer_Table = []
 		if table:
 			self.SetTable(table)
@@ -792,7 +804,7 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.eut = Eut()
 		self.SetEut(eut)
 		self.db_name=config_db.eut_db
-		self.table_name=config_db.eut_table_name
+		self.SetTableName(config_db.eut_table_name)
 
 	def GetEut(self,eut):
 		return self.eut
@@ -880,7 +892,7 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 				value[_VALUE] = ''
 			row,col = value[_RC]
 			self.SetCellValue(row,col, str(name))
-			self.SetCellValue(row+1,col, str(value[_VALUE]))
+			self.SetCellValue(row+1,col, value[_VALUE])
 			self.SetReadOnly(row,col,True)
 			self.SetCellBackgroundColour(row,col,"Light Grey")
 			self.SetCellFont(row,col,font_)
@@ -896,7 +908,7 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 
 	def UpdateNTCTable(self,row,col,table):
 		col_ = col
-		for name in (u"温度/ \xb0°C",u"最小值/ohm",u"中间值/ohm",u"最大值/ohm"):
+		for name in (u"温度/ \xb0C",u"最小值/ohm",u"中间值/ohm",u"最大值/ohm"):
 			self.SetCellValue(row,col_,name)
 			self.SetReadOnly(row,col_,True)
 			self.SetCellBackgroundColour(row,col_,"Grey")
@@ -941,9 +953,9 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 				col_ += 1
 
 	def UpdateRefer(self,table):
-		if len(table) > 2:
+		if isinstance(self.eut,Thermo_Sensor):
 			self.UpdateNTCTable(row=5,col=0,table=table)
-		else:
+		elif isinstance(self.eut,Eut):
 			self.UpdateSensorTable(row=REF_ROW,col=0,table=table,table_num=0)
 			self.UpdateSensorTable(row=REF_ROW,col=REF_COL,table=table,table_num=1)
 
@@ -1036,7 +1048,6 @@ class Refer_Editor(wx.Frame):
 			entries=None):
 		super(Refer_Editor, self).__init__(parent, id, title,size=size)
 		self.db_name = Eut.db_name 
-		self.table_name = Eut.table_name
 		#self.SetBackgroundColour("light grey")
 		self.entries = entries
 
@@ -1123,8 +1134,6 @@ class Refer_Editor(wx.Frame):
 				id=-1,
 				style=wx.LC_REPORT,)
 		self.eut_list.Bind(wx.EVT_LEFT_DCLICK, self.OnViewOne,self.eut_list)
-		self.eut_list.Bind(wx.EVT_KEY_DOWN, self.OnModeOn,self.eut_list)
-		self.eut_list.Bind(wx.EVT_KEY_UP, self.OnModeOff,self.eut_list)
 		#~ pos=wx.DefaultPosition,
 							#~ size=wx.DefaultSize,
 							#~ style=wx.LC_REPORT,
@@ -1192,7 +1201,7 @@ class Refer_Editor(wx.Frame):
 	def Init_Persist(self):#启动数据库持久化线程,通过队列进行保存与取出数据
 		self.persist = (Queue(0),Queue(0))
 		sql = Thread_Sql(db_name=self.db_name,
-				table_name=self.table_name,
+				table_name=self.refer_sheet.table_name,
 				queue_in=self.persist[_CMD],
 				queue_out=self.persist[_DATA]) 
 		#sql.setDaemon(True)
@@ -1242,7 +1251,8 @@ class Refer_Editor(wx.Frame):
 		self.refer_sheet.Init_Sheet()
 
 	def OnSave(self, event):
-		"""KeyDown event is sent first"""
+		if not gAuthen.Authenticate("User"):
+			return
 		self.refer_sheet.SaveEut()
 		return 
 
@@ -1261,7 +1271,7 @@ class Refer_Editor(wx.Frame):
 		"""KeyDown event is sent first"""
 		toggle = self.btn_edit.GetToggle()
 		if not toggle:
-			if not Authenticate():
+			if not gAuthen.Authenticate("Admin"):
 				self.btn_edit.SetToggle(not toggle)
 		self.UpdateToggle()
 	
@@ -1349,6 +1359,7 @@ class Refer_Editor(wx.Frame):
 
 			self.btn_selectType.SetLabel(u"Thermo")
 			self.refer_sheet.SetTableName( Thermo_Sensor.table_name )
+		print "set DB table_name to  >>>>>>>>>>>>>>>>>>>>>>>>",self.refer_sheet.table_name
 
 	def OnSelectDb(self,event):
 		"""select db file to query"""
