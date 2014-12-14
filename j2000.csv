@@ -4,7 +4,7 @@ PN,2939-m0299,
 model,NTC10000_B3950,
 value,10000,
 precision,0.01,
-X_unit,°C,
+X_unit,°C ,
 Y_unit,ohm,
 
 ###下行为格式行
