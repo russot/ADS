@@ -28,7 +28,7 @@ import sqlite3 as sqlite
 import wx.lib.scrolledpanel as scrolledpanel
 import codecs
 from data_point import Data_Point,Signal_Control_Basic
-from hashlib import md5
+from authen import gAuthen
 
 #index for persist Queue
 _CMD = 0
@@ -75,41 +75,6 @@ REF_ROW = 6
 REF_COL = 6
 
 
-class Authen():
-
-	def md5sum(self,text):
-		m = md5()
-		m.update(text.encode('utf-8'))
-		return m.hexdigest()
-	
-	def Authenticate(self,role):
-	
-		if role == "Admin":
-			message = u"管理密码"
-			fname   = 'ad01'
-		elif role == "User":
-			message = u"用户密码"
-			fname   = 'ad02'
-
-		dlg= wx.PasswordEntryDialog(None, message=message,
-				caption=u"input password/输入密码", 
-				value="", 
-				style=wx.TextEntryDialogStyle,
-				pos=wx.DefaultPosition)
-		dlg.ShowModal()
-		password  = dlg.GetValue()
-		dlg.Destroy()
-		pwd_ = self.md5sum(password)
-		print pwd_,pwd_,pwd_
-		f=open(fname,'r')
-		pwd_org=f.read()
-		f.close()
-		result = False
-		if str(pwd_org)[:32] == pwd_:
-			result = True
-		return result
-
-gAuthen = Authen()
 class Refer_Entry(object):
 #	__slots__ = {"Xvalue":float,"Xprecision":float,"Yvalue":float,"Yprecision":float,"Yoffset":float,"Ymin":float,"Ymax":float}
 	def __init__(self,Xvalue=0,Xprecision=0,Yvalue=0,Yprecision=0,Yoffset=0,Ymin=0,Ymax=0,valid_status=False):
@@ -736,12 +701,13 @@ class Eut():
 			print "table length>>>>>>>>>>>>>>",window.GetNumberRows(),table_len
 			if window.GetNumberRows() < table_len:
 				window.SetNumberRows(table_len)
-			if table is self.Refer_Table[0]:
-				col_ = REF_COL
-				i    = 2
-			else:
-				col_ = col
+			if table == self.Refer_Table[0]:
+				col_start = col
 				i    = 1
+			else:
+				col_start = col + REF_COL
+				i    = 2
+			col_ = col_start
 			for name in (u"位置/mm",u"位偏移/mm",u"Sensor%d值"%(i),u"精度",u"修正值"):
 				window.SetCellValue(row,col_,name)
 				window.SetReadOnly(row,col_,True)
@@ -752,7 +718,7 @@ class Eut():
 				row_ += 1
 				window.SetRowLabelValue(row_,str(row_-row))
 				(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
-				col_ = col
+				col_ = col_start
 				for value in (Xvalue,Xprecision,Yvalue,Yprecision,Yoffset):
 					value_str = str(round(value,6))
 					window.SetCellValue(row_,col_,value_str)
@@ -773,7 +739,7 @@ class Eut():
 		if line.startswith("#"):
 			return
 		
-		values = line.split(',')[:-1]#remove '\n'
+		values = line.split(',')
 		refer_entry1 = Refer_Entry(
 				Xvalue		=values[0],
 				Xprecision	=values[1],
@@ -824,6 +790,9 @@ class Eut():
 					pass
 			if line.startswith('###'):
 				start = True
+		for table in self.Refer_Table:
+			table.sort(key=lambda x:x.GetYvalue())
+		print self.ShowRefer()
 	
 	def SetReferTable(self,Refer_Table):
 		self.Refer_Table = Refer_Table
@@ -845,8 +814,6 @@ class Eut():
 			return -1
 		try:
 			self.Refer_Table[table_num].append(refer_entry)
-			# use Yvalue as index, and table is sorted by Yvalue
-			self.Refer_Table[table_num].sort(key=lambda x:x.GetYvalue())
 			return 1
 		except:
 			return -2
@@ -864,7 +831,7 @@ class Eut():
 			out = ''
 			for table in self.Refer_Table:
 				for refer_entry in table:
-					out += refer_entry.ShowSensor()
+					out += refer_entry.ShowSensor() + '\n'
 		except:
 			pass
 		return out
@@ -1074,10 +1041,13 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 	def NewEut(self):
 		dlg = wx.TextEntryDialog(None,u"请输入参考条目数:","  ","200")
 		if dlg.ShowModal() == wx.ID_OK:
-			self.eut.SetDefault()
-			self.InitSheet()
 			num = int(dlg.GetValue())
 			self.SetNumberRows(num)
+			self.SetDefault()
+
+	def SetDefault(self):
+			self.eut.SetDefault()
+			self.InitSheet()
 			self.UpdateCell()
 
 
@@ -1263,6 +1233,8 @@ class Refer_Editor(wx.Frame):
 		if not gAuthen.Authenticate("User"):
 			return
 		self.refer_sheet.SaveEut()
+		self.btn_edit.SetToggle(True)
+		self.UpdateToggle()
 		return 
 
 	def OnSelect(self, event):
@@ -1360,7 +1332,8 @@ class Refer_Editor(wx.Frame):
 				return
 
 			self.btn_selectType.SetLabel(u"Sensor")
-			self.refer_sheet.SetEut( Eut())
+			self.refer_sheet.SetEut(Eut())
+			self.refer_sheet.SetDefault( )
 		else:
 			if wx.NO ==	wx.MessageBox(u"确认更换到Thermo!",
 					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
@@ -1369,7 +1342,8 @@ class Refer_Editor(wx.Frame):
 				return
 
 			self.btn_selectType.SetLabel(u"Thermo")
-			self.refer_sheet.SetEut( Thermo_Sensor())
+			self.refer_sheet.SetEut(Thermo_Sensor())
+			self.refer_sheet.SetDefault( )
 		self.btn_selectType.Refresh()
 		print "set DB table to  >>>> ",self.refer_sheet.eut.table_name
 

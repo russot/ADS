@@ -15,15 +15,10 @@ from Queue import Queue
 import sqlite3 as sqlite
 import config_db
 from time import sleep
+from authen import gAuthen
 
-from hashlib import md5
 
 from thread_sqlite import Thread_Sqlite
-
-def md5sum(text):
-	m = md5()
-	m.update(text.encode('utf-8'))
-	return m.hexdigest()
 
 
 
@@ -179,47 +174,10 @@ class Frame(wx.Frame):   #3
 	
 	def OnSetPassword(self,event):
 
-		dlg= wx.PasswordEntryDialog(self, message=u"管理密码",
-				caption=u"input password/输入密码", 
-				value="", 
-				style=wx.TextEntryDialogStyle,
-				pos=wx.DefaultPosition)
-		dlg.ShowModal()
-		password  = dlg.GetValue()
-		pwd_ = md5sum(password)
-		print pwd_
-		f=open('ad01','r')
-		pwd_org=f.read()
-		f.close()
-		if str(pwd_org)[:32] == pwd_:
-			print u"可以开始了..."
-		elif password == "wxpython":
-			print u"初次设置..."
-		else:
-			print u"管理密码错"
-			msg = wx.MessageDialog(self,message=u"错误:",
-					caption=u"管理密码错")
-			msg.ShowModal()
-			return 
 		if event.GetId() == self.menu_setUPSW.GetId():
-			psw_file = open('ad02','w')
-			message_ = u'新用户密码'
+			gAuthen.AuthenSetup('user')
 		else:
-			psw_file = open('ad01','w')
-			message_ = u'新管理密码'
-
-		dlg= wx.PasswordEntryDialog(self, message=message_,
-				caption=u"input password/输入密码", 
-				value="", 
-				style=wx.TextEntryDialogStyle,
-				pos=wx.DefaultPosition)
-		dlg.ShowModal()
-		password  = dlg.GetValue()
-		pwd_ = md5sum(password)
-		psw_file.write(pwd_)
-		psw_file.close()
-
-
+			gAuthen.AuthenSetup('Admin')
 
 	
 	def OnAbout(self, event):
@@ -430,6 +388,7 @@ class Frame(wx.Frame):   #3
 if __name__=='__main__':
 	app = wx.App()
 	frm = Frame(None, -1)
+
 	frm.SetSize((1400,800))
 	frm.Show()
 	app.SetTopWindow(frm)
