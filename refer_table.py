@@ -57,12 +57,7 @@ _YVALUE	= 1
 _PRECISION = 2
 
 
-#index for named cells
-_RC_LABEL	= 0
-_LABEL		= 1
-_RC_VALUE	= 2
-_TYPE		= 3
-_MAP		= 4
+
 
 #index for refer_entry status
 
@@ -504,7 +499,7 @@ class Eut():
 	def __init__(self,model='',PN='',SN='',Refer_Table=[[],[]],thermo_PN=''):
 		self.field={}
 		self.field["PN"] = [PN,(0,0)]
-		self.field["SN"] = [SN,(0,1)]
+		self.field["VN"] = [SN,(0,1)]
 		self.field["model"]=[model,(0,2)]
 		self.field["thermo_PN"] = [thermo_PN,(2,0)]
 		self.field["signal_num"] =[ 2,(2,1)]
@@ -515,7 +510,7 @@ class Eut():
 
 	def SetDefault(self):
 		self.field["PN"][_VALUE]	= ''
-		self.field["SN"][_VALUE]	= ''
+		self.field["VN"][_VALUE]	= ''
 		self.field["model"][_VALUE]	= ''
 		self.field["thermo_PN"][_VALUE]	= ''
 		self.field["signal_num"][_VALUE]= ''
@@ -581,7 +576,7 @@ class Eut():
 			if x[0] <=0 :
 				SELECT   = "CREATE TABLE %s ("%(self.table_name)
 				SELECT += " PN TEXT,"
-				SELECT += " SN TEXT,"
+				SELECT += " VN TEXT,"
 				SELECT += " model TEXT,"
 				SELECT += " thermo_PN TEXT,"
 				SELECT += " signal_num int,"
@@ -615,7 +610,7 @@ class Eut():
 		#print eut_b
 
 		self.field["PN"][_VALUE]	= eut_b[0]
-		self.field["SN"][_VALUE]	= eut_b[1]
+		self.field["VN"][_VALUE]	= eut_b[1]
 		self.field["model"][_VALUE]	= eut_b[2]
 		self.field["thermo_PN"][_VALUE]	= eut_b[3]
 		self.field["signal_num"][_VALUE]= eut_b[4]
@@ -653,7 +648,7 @@ class Eut():
 					return
 			break
 		eut_b = ( self.field["PN"][_VALUE],
-			self.field["SN"][_VALUE],
+			self.field["VN"][_VALUE],
 			self.field["model"][_VALUE],
 			self.field["thermo_PN"][_VALUE],
 			self.field["signal_num"][_VALUE],
@@ -666,9 +661,11 @@ class Eut():
 		db_con.commit()
 		db_con.close()
 
-	def Refers2Blob(self,Refer_Table):
+	def Refers2Blob(self,table):
+		if not table:
+			return ''
 		bytes_block = ''
-		for refer_entry in Refer_Table:
+		for refer_entry in table:
 			bytes_block += struct.pack('5f',
 					refer_entry.GetXvalue(),
 					refer_entry.GetXprecision(),
@@ -836,7 +833,9 @@ class Eut():
 			pass
 		return out
 
-	def GetY(self,Xvalue,Yvalue,table_num=0):
+	def GetYrefer(self,Xvalue,Yvalue,table_num=0):
+		'''Xvalue should be None for using Yvalue as index,
+		or integer for using itself as index '''
 		yi =None
 		if Xvalue != None:# use Xvalue as index
 			p0 = self.Refer_Table[table_num][0]
@@ -886,6 +885,49 @@ class Eut():
 					break
 
 		return yi # if not found, return None object
+
+
+
+	def Save2DB(self):
+		#print "before save2db...", self.field
+		db_con = sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor = db_con.cursor()
+		self.CreateTable(db_cursor)
+		cretia = self.PN
+		cmd = "select count(*) from %s where PN like '%s' and SN like '%s'"%(self.table_name,self.PN,self.SN)
+		db_cursor.execute(cmd)
+		for existed in db_cursor:
+			if existed[0] > 0:
+				if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+				else:
+					cmd = "delete from %s where PN like '%s'" % (self.table_name, cretia)
+					db_cursor.execute(cmd)
+					db_con.commit()
+			else:
+				if  wx.NO == wx.MessageBox(u"确认要保存？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+			break
+		eut_b = ( self.field["PN"][_VALUE],
+			self.field["VN"][_VALUE],
+			self.field["model"][_VALUE],
+			self.field["thermo_PN"][_VALUE],
+			self.field["signal_num"][_VALUE],
+			self.field["X_unit"][_VALUE],
+			self.field["Y1_unit"][_VALUE],
+			self.field["Y2_unit"][_VALUE],
+			self.Refers2Blob(self.Refer_Table[0]),
+			self.Refers2Blob(self.Refer_Table[1])) 
+		db_cursor.execute("insert into %s values (?,?,?,?,?,?,?,?,?,?)"%self.table_name,eut_b)
+		db_con.commit()
+		db_con.close()
+
+
+
+
 
 
 
