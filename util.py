@@ -2,77 +2,17 @@
 #!python
 """Signal UI component .""" 
 import sys
+import wx
 import glob
-import wx 
-import wx.grid 
-import wx.lib.sheet 
 import os 
 import string
 import threading
 import time
 from socket import *
-import const
-from Queue import Queue
-import math
-import csv
-import minidb
-from data_point import Data_Point,Data_Real,Data_Validated
-from data_validator import Data_Validator_Linear
-import wx.lib.buttons as buttons 
-import re
-import wx.lib.agw.balloontip as btip
-import struct 
-from thread_sqlite import Thread_Sql
-import config_db
-import sqlite3 as sqlite
-import wx.lib.scrolledpanel as scrolledpanel
-import codecs
-from data_point import Data_Point,Signal_Control_Basic
 from hashlib import md5
-
-#index for persist Queue
-_CMD = 0
-_DATA = 1
-
-
-#index for eut and named_cells
-_MODEL	= 0
-_PN	= 1
-_NTC	= 2
-_NTC_PRC= 3
-_UNIT	= 4
-#eut only below
-_RANGE	= 5#eut only
-_REF_PTS= 6#eut only
-#named cells only below
-_REF_POS= 5#named_cells only
-_REF_VAL= 6#named_cells only
-_REF_PRC= 7#named_cells only
-NAMED_CELLS_NUM= 7+1#named_cells number
-
-
-#index for refer point
-_XVALUE	= 0
-_YVALUE	= 1
-_PRECISION = 2
-
-
-#index for named cells
-_RC_LABEL	= 0
-_LABEL		= 1
-_RC_VALUE	= 2
-_TYPE		= 3
-_MAP		= 4
-
-#index for refer_entry status
-
-#index for named cells
-_VALUE	= int(0)
-_RC	= int(1)
-
-#index for refer table RC
-REF_ROW = 6
-REF_COL = 6
+from StringIO import StringIO
+import gzip
+import cPickle as pickle
 
 
 class Authen():
@@ -151,3 +91,37 @@ class Authen():
 		psw_file.close()
 
 gAuthen = Authen()
+
+
+class Zips():
+	def zip(self,data):
+		buf = StringIO()
+		f   = gzip.GzipFile(mode='wb',fileobj=buf)
+		try:
+			f.write(data)
+		finally:
+			f.close()
+		return buf.getvalue()#压缩后的数据块
+
+	def unzip(self,cdata):
+		buf = StringIO(cdata)
+		f   = gzip.GzipFile(mode='rb',fileobj=buf)
+		try:
+			data=f.read()
+		finally:
+			f.close()
+		return data
+
+gZip = Zips()
+
+class PickleZip():
+	def dumps(self,obj):
+		obj_pickle = pickle.dumps(obj)
+		return  gZip.zip(obj_pickle)
+
+	def loads(self,obj_picklez):
+		obj_pickle = gZip.unzip(obj_picklez)
+		return pickle.loads(obj_pickle )
+
+gZpickle = PickleZip()
+

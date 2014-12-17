@@ -28,33 +28,14 @@ import sqlite3 as sqlite
 import wx.lib.scrolledpanel as scrolledpanel
 import codecs
 from data_point import Data_Point,Signal_Control_Basic
-from authen import gAuthen
+from util import gAuthen,gZip,gZpickle 
+#for zip function
 
 #index for persist Queue
 _CMD = 0
 _DATA = 1
 
 
-#index for eut and named_cells
-_MODEL	= 0
-_PN	= 1
-_NTC	= 2
-_NTC_PRC= 3
-_UNIT	= 4
-#eut only below
-_RANGE	= 5#eut only
-_REF_PTS= 6#eut only
-#named cells only below
-_REF_POS= 5#named_cells only
-_REF_VAL= 6#named_cells only
-_REF_PRC= 7#named_cells only
-NAMED_CELLS_NUM= 7+1#named_cells number
-
-
-#index for refer point
-_XVALUE	= 0
-_YVALUE	= 1
-_PRECISION = 2
 
 
 
@@ -190,7 +171,7 @@ class Thermo_Sensor():
 	def Save(self,window):	
 		self.SaveField(window)
 		self.SaveRefer(window)
-		self.Save2DB()
+		self.Save2DBZ()
 
 	def SaveField(self,window):
 		#print "before save field ...",field
@@ -232,17 +213,22 @@ class Thermo_Sensor():
 		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
 		for x in db_cursor:
 			if x[0] <=0 :
+				#SELECT   = "CREATE TABLE %s ("%(self.table_name)
+				#SELECT += " PN TEXT,"
+				#SELECT += " model TEXT,"
+				#SELECT += " value FLOAT,"
+				#SELECT += " precision FLOAT,"
+				#SELECT += " X_unit TEXT,"
+				#SELECT += " Y_unit TEXT,"
+				##SELECT += " create_time TimeStamp NOT NULL DEFAULT(datetime('now','localtime')),"
+				#SELECT += " Refer_Table BLOB)"
+				#db_cursor.execute(SELECT)
+				#self.db_con.commit()
 				SELECT   = "CREATE TABLE %s ("%(self.table_name)
 				SELECT += " PN TEXT,"
 				SELECT += " model TEXT,"
-				SELECT += " value FLOAT,"
-				SELECT += " precision FLOAT,"
-				SELECT += " X_unit TEXT,"
-				SELECT += " Y_unit TEXT,"
-				#SELECT += " create_time TimeStamp NOT NULL DEFAULT(datetime('now','localtime')),"
-				SELECT += " Refer_Table BLOB)"
+				SELECT += " obj_self BLOB)"
 				db_cursor.execute(SELECT)
-				#self.db_con.commit()
 			else:
 				print "table thermo existed already."
 
@@ -270,6 +256,28 @@ class Thermo_Sensor():
 		self.field["X_unit"][_VALUE]	= eut_b[4]
 		self.field["Y_unit"][_VALUE]	= eut_b[5]
 		self.Refer_Table = self.Blob2Refers(eut_b[6]) 
+		db_con.close()
+
+	def RestoreFromDBZ(self,PN):
+		db_con = sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor = db_con.cursor()
+		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,PN)
+		db_cursor.execute(cmd)
+		for existed in db_cursor:
+			if existed[0] <= 0:
+				wx.MessageBox(u"抱歉！此记录不存在!",
+					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+				return
+			else:
+				break
+		cmd = "select * from %s where PN like '%s'" % (self.table_name, PN)
+		db_cursor.execute(cmd)
+		eut_b = db_cursor.fetchone()
+
+		obj_x = gZpickle.loads(eut_b[2]) 
+		self.field = obj_x.field
+		self.Refer_Table = obj_x.Refer_Table 
 		db_con.close()
 
 	def Save2DB(self):
@@ -304,6 +312,35 @@ class Thermo_Sensor():
 		db_con.commit()
 		db_con.close()
 
+	def Save2DBZ(self):
+		db_con = sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor = db_con.cursor()
+		self.CreateTable(db_cursor)
+		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,self.field["PN"][_VALUE])
+		db_cursor.execute(cmd)
+		for existed in db_cursor:
+			if existed[0] > 0:
+				if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+				else:
+					cmd = "delete from %s where PN like '%s'" % (self.table_name, self.field["PN"][_VALUE])
+					db_cursor.execute(cmd)
+					db_con.commit()
+			else:
+				if  wx.NO == wx.MessageBox(u"确认要保存？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+			break
+		print "obj len ......",len(gZpickle.dumps(self))
+		eut_bz = (self.field["PN"][_VALUE],
+				self.field["model"][_VALUE],
+				gZpickle.dumps(self)) 
+		db_cursor.execute("insert into %s values (?,?,?)"%(self.table_name),eut_bz)
+		db_con.commit()
+		db_con.close()
+
 	def Refers2Blob(self,Refer_Table):
 		bytes_block = ''
 		for refer_entry in Refer_Table:
@@ -312,9 +349,10 @@ class Thermo_Sensor():
 					refer_entry.GetYmin(),
 					refer_entry.GetYvalue(),
 					refer_entry.GetYmax())	
-		return bytes_block
+		return gZip.zip(bytes_block)#压缩后的数据块
 	
-	def Blob2Refers(self,block):
+	def Blob2Refers(self,cblock):#压缩后的数据块
+		block=gZip.unzip(cblock)#先解压缩
 		data_size = struct.calcsize('4f')
 		offset = 0
 		Refer_Table=[]
@@ -499,7 +537,7 @@ class Eut():
 	def __init__(self,model='',PN='',SN='',Refer_Table=[[],[]],thermo_PN=''):
 		self.field={}
 		self.field["PN"] = [PN,(0,0)]
-		self.field["VN"] = [SN,(0,1)]
+		self.field["Ver"] = [SN,(0,1)]
 		self.field["model"]=[model,(0,2)]
 		self.field["thermo_PN"] = [thermo_PN,(2,0)]
 		self.field["signal_num"] =[ 2,(2,1)]
@@ -510,7 +548,7 @@ class Eut():
 
 	def SetDefault(self):
 		self.field["PN"][_VALUE]	= ''
-		self.field["VN"][_VALUE]	= ''
+		self.field["Ver"][_VALUE]	= ''
 		self.field["model"][_VALUE]	= ''
 		self.field["thermo_PN"][_VALUE]	= ''
 		self.field["signal_num"][_VALUE]= ''
@@ -523,7 +561,7 @@ class Eut():
 	def Save(self,window):	
 		self.SaveField(window)
 		self.SaveRefer(window)
-		self.Save2DB()
+		self.Save2DBZ()
 
 
 	def SaveField(self,window):
@@ -574,23 +612,28 @@ class Eut():
 		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
 		for x in db_cursor:
 			if x[0] <=0 :
+			#	SELECT   = "CREATE TABLE %s ("%(self.table_name)
+			#	SELECT += " PN TEXT,"
+			#	SELECT += " VN TEXT,"
+			#	SELECT += " model TEXT,"
+			#	SELECT += " thermo_PN TEXT,"
+			#	SELECT += " signal_num int,"
+			#	SELECT += " X_unit TEXT,"
+			#	SELECT += " Y1_unit TEXT,"
+			#	SELECT += " Y2_unit TEXT,"
+			#	#SELECT += " create_time TimeStamp NOT NULL DEFAULT(datetime('now','localtime')),"
+			#	SELECT += " Refer_Table1 BLOB,"
+			#	SELECT += " Refer_Table2 BLOB)"
+			#	db_cursor.execute(SELECT)
+				#self.db_con.commit()
 				SELECT   = "CREATE TABLE %s ("%(self.table_name)
 				SELECT += " PN TEXT,"
-				SELECT += " VN TEXT,"
+				SELECT += " Ver TEXT,"
 				SELECT += " model TEXT,"
-				SELECT += " thermo_PN TEXT,"
-				SELECT += " signal_num int,"
-				SELECT += " X_unit TEXT,"
-				SELECT += " Y1_unit TEXT,"
-				SELECT += " Y2_unit TEXT,"
-				#SELECT += " create_time TimeStamp NOT NULL DEFAULT(datetime('now','localtime')),"
-				SELECT += " Refer_Table1 BLOB,"
-				SELECT += " Refer_Table2 BLOB)"
+				SELECT += " obj_self BLOB)"
 				db_cursor.execute(SELECT)
-				#self.db_con.commit()
 			else:
 				print "table eut existed already."
-
 	def RestoreFromDB(self,PN):
 		db_con = sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
@@ -610,7 +653,7 @@ class Eut():
 		#print eut_b
 
 		self.field["PN"][_VALUE]	= eut_b[0]
-		self.field["VN"][_VALUE]	= eut_b[1]
+		self.field["Ver"][_VALUE]	= eut_b[1]
 		self.field["model"][_VALUE]	= eut_b[2]
 		self.field["thermo_PN"][_VALUE]	= eut_b[3]
 		self.field["signal_num"][_VALUE]= eut_b[4]
@@ -622,7 +665,62 @@ class Eut():
 		self.Refer_Table.append(self.Blob2Refers(eut_b[8]))
 		self.Refer_Table.append(self.Blob2Refers(eut_b[9]))
 		db_con.close()
+
+	def RestoreFromDBZ(self,PN):
+		db_con = sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor = db_con.cursor()
+		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,PN)
+		db_cursor.execute(cmd)
+		for existed in db_cursor:
+			if existed[0] <= 0:
+				wx.MessageBox(u"抱歉！此记录不存在!",
+					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+				return
+			else:
+				break
+		cmd = "select * from %s where PN like '%s'" % (self.table_name, PN)
+		db_cursor.execute(cmd)
+		eut_b = db_cursor.fetchone()
+		#print eut_b
+
+		obj_x = gZpickle.loads(eut_b[3]) 
+		self.field = obj_x.field
+		self.Refer_Table = obj_x.Refer_Table 
+		db_con.close()
 		#print "field after restore from DB",self.field
+
+	def Save2DBZ(self):
+		#print "before save2db...", self.field
+		db_con = sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor = db_con.cursor()
+		self.CreateTable(db_cursor)
+		cretia = self.field["PN"][_VALUE]
+		cmd = "select count(*) from %s where PN like '%s'"%(self.table_name,cretia)
+		db_cursor.execute(cmd)
+		for existed in db_cursor:
+			if existed[0] > 0:
+				if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+				else:
+					cmd = "delete from %s where PN like '%s'" % (self.table_name, cretia)
+					db_cursor.execute(cmd)
+					db_con.commit()
+			else:
+				if  wx.NO == wx.MessageBox(u"确认要保存？",
+						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+					return
+			break
+		print "obj len ......",len(gZpickle.dumps(self))
+		eut_bz = (self.field["PN"][_VALUE],
+				self.field["Ver"][_VALUE],
+				self.field["model"][_VALUE],
+				gZpickle.dumps(self)) 
+		db_cursor.execute("insert into %s values (?,?,?,?)"%(self.table_name),eut_bz)
+		db_con.commit()
+		db_con.close()
 
 	def Save2DB(self):
 		#print "before save2db...", self.field
@@ -648,7 +746,7 @@ class Eut():
 					return
 			break
 		eut_b = ( self.field["PN"][_VALUE],
-			self.field["VN"][_VALUE],
+			self.field["Ver"][_VALUE],
 			self.field["model"][_VALUE],
 			self.field["thermo_PN"][_VALUE],
 			self.field["signal_num"][_VALUE],
@@ -912,7 +1010,7 @@ class Eut():
 					return
 			break
 		eut_b = ( self.field["PN"][_VALUE],
-			self.field["VN"][_VALUE],
+			self.field["Ver"][_VALUE],
 			self.field["model"][_VALUE],
 			self.field["thermo_PN"][_VALUE],
 			self.field["signal_num"][_VALUE],
@@ -1059,7 +1157,7 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 
 	def show(self,PN):
 		self.InitSheet()
-		self.eut.RestoreFromDB(PN)
+		self.eut.RestoreFromDBZ(PN)
 		self.UpdateCell()
 
 	def QueryDB(self,model_pattern,PN_pattern):
