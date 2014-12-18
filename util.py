@@ -14,6 +14,7 @@ from StringIO import StringIO
 import gzip
 import cPickle as pickle
 
+#from refer_entry import Refer_Entry
 
 class Authen():
 

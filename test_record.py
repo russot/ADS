@@ -14,7 +14,7 @@ import re
 import struct 
 import config_db
 import sqlite3 as sqlite
-from refer_table import Refer_Entry
+from refer_entry import Refer_Entry
 import pickle
 
 #index for refer table RC
@@ -49,20 +49,20 @@ class Record_Entry():
 		else:
 			raise ValueError
 
-class TestRecord():
+class Test_Record():
 	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
 	table_name = config_db.eut_record_TBname
 	db_name = config_db.eut_db
 
 	def __init__(self,PN='',SN='',Record_Table=[[],[]]):
-		self.create_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
+		create_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
 		self.Record_Table = Record_Table
 		self.result = 'pass'
 		self.field = {}
 		self.field["PN"] = [PN,(0,0)]
 		self.field["SN"] = [SN,(0,1)]
 		self.field["model"]=['',(0,2)]
-		self.field["time"]=['',(0,3)]
+		self.field["time"]=[create_time,(0,3)]
 		self.field["tempr"] = ['',(2,0)]
 		self.field["NTCvalue"] =['',(2,1)]
 		self.field["NTCrefer"] =['',(2,2)]
@@ -78,6 +78,19 @@ class TestRecord():
 			self.field["SN"][_VALUE]='ABCD-0000001'
 			return
 		self.field["SN"][_VALUE]=SN
+	def SetDefault(self):
+				self.field["PN"] = [PN,(0,0)]
+		self.field["SN"] = ['',(0,1)]
+		self.field["model"]=['',(0,2)]
+		self.field["time"]=['',(0,3)]
+		self.field["tempr"] = ['',(2,0)]
+		self.field["NTCvalue"] =['',(2,1)]
+		self.field["NTCrefer"] =['',(2,2)]
+		self.field["NTCresult"] =['',(2,3)]
+		self.field["X_unit"] = ["mm",(REF_ROW-2,0)]
+		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2)]
+		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
+		self.Record_Table = [[],[]]
 
 	def AdjustSN(self,x):
 		index = -1
@@ -99,21 +112,6 @@ class TestRecord():
 		else:
 			raise ValueError
 
-	def Save2DB(self):
-		#print "before save2db...", self.field
-		db_con = sqlite.connect(self.db_name)
-		db_con.text_factory = str #解决8bit string 问题
-		db_cursor = db_con.cursor()
-		self.CreateTable(db_cursor)
-		cmd = "select count(*) from %s where PN like '%s' and SN like '%s'"%(self.table_name,self.field["PN"][_VALUE],self.field["SN"][_VALUE])
-		db_cursor.execute(cmd)
-		for existed in db_cursor:
-			if existed[0] > 0:
-				if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
-						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-					return
-				else:
-					cmd = "delete from %s where  PN like '%s' and SN like '%s'"%(self.table_name,self.field["PN"][_VALUE],self.field["SN"][_VALUE])
 
 	def CreateTable(self,db_cursor):
 		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
@@ -122,7 +120,7 @@ class TestRecord():
 				SELECT   = "CREATE TABLE %s ("%(self.table_name)
 				SELECT += " PN TEXT,"
 				SELECT += " SN TEXT,"
-				SELECT += " CreateTime TEXT,"
+				SELECT += " time TEXT,"
 				SELECT += " result TEXT,"
 				SELECT += " obj_self BLOB)"
 				db_cursor.execute(SELECT)
@@ -153,6 +151,7 @@ class TestRecord():
 		self.Record_Table = obj_x.Record_Table 
 		self.result = objx.result
 		db_con.close()
+		return obj_x
 		#print "field after restore from DB",self.field
 
 	def Save2DBZ(self):
@@ -161,7 +160,7 @@ class TestRecord():
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor = db_con.cursor()
 		self.CreateTable(db_cursor)
-		cmd = "select count(*) from %s where SN like '%s'"%(self.table_name,self.SN)
+		cmd = "select count(*) from %s where SN like '%s'"%(self.table_name,self.field["SN"][_VALUE])
 		db_cursor.execute(cmd)
 		for existed in db_cursor:
 			if existed[0] > 0:
@@ -169,7 +168,7 @@ class TestRecord():
 						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 					return
 				else:
-					cmd = "delete from %s where SN like '%s'" % (self.table_name, self.SN)
+					cmd = "delete from %s where SN like '%s'" % (self.table_name, self.field["SN"][_VALUE])
 					db_cursor.execute(cmd)
 					db_con.commit()
 			else:
@@ -178,9 +177,9 @@ class TestRecord():
 					return
 			break
 		print "obj len ......",len(gZpickle.dumps(self))
-		record_bz = (self.PN,
-				self.SN,
-				self.create_time,
+		record_bz = (self.field["PN"][_VALUE],
+				self.field["SN"][_VALUE],
+				self.field["time"][_VALUE],
 				self.result,
 				gZpickle.dumps(self)) 
 		db_cursor.execute("insert into %s values (?,?,?,?,?)"%(self.table_name),record_bz)
@@ -188,66 +187,90 @@ class TestRecord():
 		db_con.close()
 
 
+
 	def UpdateTable(self,row,col,window):
-		for table in self.Refer_Table:
-			table_len = len(table)+10
-			print "table length>>>>>>>>>>>>>>",window.GetNumberRows(),table_len
+		if not  self.field["PN"][_VALUE]:
+			print "Error:invlid PN!"
+			return 
+		eut = Eut()
+		eut.RestoreFromDBZ(self.field["PN"][_VALUE])
+		
+		if eut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
+			thermo_sensor = Thermo_Sensor()
+			thermo_sensor.RestoreFromDBZ( eut.field["thermo_PN"])
+
+		for table in self.Record_Table:
+			table_len = len(table)*2+10
 			if window.GetNumberRows() < table_len:
 				window.SetNumberRows(table_len)
-			if table == self.Refer_Table[0]:
+				print "Table rows changed! %d>>>>>%d",window.GetNumberRows(),table_len
+			if table is self.Record_Table[0]:
 				col_start = col
 				i    = 1
 			else:
 				col_start = col + REF_COL
 				i    = 2
 			col_ = col_start
-			for name in (u"位置/mm",u"位偏移/mm",u"Sensor%d值"%(i),u"精度",u"修正值"):
+			for name in (u"位置/mm",u"位偏移/mm",u"Sensor%d值"%(i),u"精度",u"结果"):
 				window.SetCellValue(row,col_,name)
 				window.SetReadOnly(row,col_,True)
 				window.SetCellBackgroundColour(row,col_,"Grey")
-				col_ +=1
-			row_ = row
-			for refer_entry in table:
-				row_ += 1
+				col_ += 1
+			row_ = row-1
+			for record_entry in table:
+				row_ += 2
 				window.SetRowLabelValue(row_,str(row_-row))
+				record = record_entry.GetRecord()
+				index  = record_entry.GetReferIndex()#index is  a tuple of (index_num,table_num)
+				refer_entry  = eut.GetRefer(index)
+
 				(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
+				(Xvalue_,Xprecision_,Yvalue_,Yprecision_,Yoffset_,Ymin_,Ymax_)=record.Values()
+				#show refer values
 				col_ = col_start
-				for value in (Xvalue,Xprecision,Yvalue,Yprecision,Yoffset):
+				for value in (Xvalue,Xprecision,Yvalue,Yprecision):
 					value_str = str(round(value,6))
 					window.SetCellValue(row_,col_,value_str)
-					window.SetCellEditor(
-						row_,
-						col_,
-						wx.grid.GridCellFloatEditor())
+					window.SetReadOnly(row,col_,True)
 					col_ += 1
+				#show real values
+				col_ = col_start
+				for value in (Xvalue_,Xprecision_,Yvalue_,Yprecision_):
+					value_str = str(round(value,6))
+					window.SetCellValue(row_+1,col_,value_str)
+					window.SetReadOnly(row_+1,col_,True)
+					col_ += 1
+				result = ''
+				if (Xprecision_ > Xprecision) :
+					result += u"X轴(位移)超差\n"
+				if (Xprecision_ > Xprecision) :
+					result += u"Y轴(测量值)超差"
+				if not result:
+					result  = u"PASS"
+					color = "red"
+				else:
+					color = "green"
+				window.SetCellBackgroundColour(row,col_,color)
+				window.SetCellValue(row_+1,col_,result)
+				window.SetReadOnly(row_+1,col_,True)
 
-	def SetField(self,line):
-		if line.startswith("#"):
-			return
-		field_name,value = line.split(',')[:2]
-		if self.field.has_key(field_name):
-			self.field[field_name][_VALUE] = value
-		#as key for db access,
-	def SetRefer(self,line):
-		if line.startswith("#"):
-			return
+	def QueryDB(self, time_pattern,PN_pattern):
+		db_con   =sqlite.connect(self.db_name)
+		db_con.text_factory = str #解决8bit string 问题
+		db_cursor=db_con.cursor()
 		
-		values = line.split(',')
-		refer_entry1 = Refer_Entry(
-				Xvalue		=values[0],
-				Xprecision	=values[1],
-				Yvalue		=values[2],
-				Yprecision	=values[3],
-				Yoffset		=values[4])
-		self.AppendReferTable(0,refer_entry1)
-		refer_entry2 = Refer_Entry(
-				Xvalue		=values[5],
-				Xprecision	=values[6],
-				Yvalue		=values[7],
-				Yprecision	=values[8],
-				Yoffset		=values[9])
-		self.AppendReferTable(1,refer_entry2)
-		
+		SELECT = "SELECT PN,SN,time FROM %s WHERE time LIKE '%%%s%%' and PN LIKE '%%%s%%'" %( 
+			self.table_name,time_pattern,PN_pattern)
+		db_cursor.execute(SELECT)
+	
+		entries =db_cursor.fetchall()
+		db_con.close()
+		column_format = (
+				(1,u"序号",50),#column_num,view_text,width
+				(2,u"PN/\n料号",180),
+				(3,u"SN/流水号",120), 
+				(4,u"time/时间",120),) 
+		return (entries,column_format) # fields of each should be matched
 
 
 
