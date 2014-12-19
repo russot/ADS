@@ -79,7 +79,7 @@ class Test_Record():
 			return
 		self.field["SN"][_VALUE]=SN
 	def SetDefault(self):
-				self.field["PN"] = [PN,(0,0)]
+		self.field["PN"] = [PN,(0,0)]
 		self.field["SN"] = ['',(0,1)]
 		self.field["model"]=['',(0,2)]
 		self.field["time"]=['',(0,3)]
@@ -203,7 +203,7 @@ class Test_Record():
 			table_len = len(table)*2+10
 			if window.GetNumberRows() < table_len:
 				window.SetNumberRows(table_len)
-				print "Table rows changed! %d>>>>>%d",window.GetNumberRows(),table_len
+				print "table length %d >>>>>> %d"%(window.GetNumberRows(),table_len)
 			if table is self.Record_Table[0]:
 				col_start = col
 				i    = 1

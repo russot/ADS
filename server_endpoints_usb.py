@@ -15,11 +15,14 @@ import re
 from Queue import Queue
 #import serial
 import struct 
+import eut 
+import refer_entry 
 #import usb.core
 #import usb.util
 
 PORT=8088
 IP_ADDRESS = '127.0.0.1'
+DEMO_PN    = 'R939-55'
 
 			
 			
@@ -29,6 +32,34 @@ class Serial_reader(threading.Thread):
 		self.queue_out= data_queue
 		self.serial = serial_in
 		
+		self.eut_demo=eut.Eut()
+		self.eut_demo.RestoreFromDBZ(DEMO_PN)
+		table0,table1 = self.eut_demo.GetReferTable()
+		x0 = table0[0].GetXvalue()
+		xn = table0[-1].GetXvalue()
+		if x0 > xn:
+			self.xmax = x0
+			self.xmin = xn
+		else:
+			self.xmax = xn
+			self.xmin = x0
+		refer_entry1 = self.eut_demo.GetReferEntry(Xvalue=self.xmin)
+		refer_entry2 = self.eut_demo.GetReferEntry(Xvalue=self.xmax)
+		y1 = refer_entry1.GetYvalue()
+		y2 = refer_entry2.GetYvalue()
+		if y1> y2:
+			self.ymax = y1
+			self.ymin = y2
+		else:
+			self.ymax = y2
+			self.ymin = y1
+		self.count = 0 
+		self.out = ''
+		print self.xmin,'\t',self.xmax,'\t',self.ymin,'\t',self.ymax,'\t',
+
+
+
+
 	def run(self):
 		#Serial_Writer(self.serial).start()
 		print "read thread start....\n",self.serial
@@ -38,157 +69,102 @@ class Serial_reader(threading.Thread):
 			time.sleep(0.001)
 
 	def get_usb_data(self):
-		out = ''
+		self.out = ''
 		try:
 			for byte__ in self.serial.read(size=64):
 				if byte__  != 0:
-					out += chr(byte__)
-			self.queue_out.put(out)
+					self.out += chr(byte__)
+			self.queue_out.put(self.out)
 
 		except:
 			pass
 
 	def get_debug_data(self):
+		self.up_()
+		self.max_()
+		self.down_()
+		self.min_()
+		self.pull_()
+		self.null_()
+		self.pull_()
+		self.min_()
+
+	def up_(self):
 		rand_value_all = 0 
 		value_ = 0
-		#step up
-		out='0x:'
-		count = 0
-		for valueX in range (1,1200):
-			base = (int(valueX)/int(100)*100) + 50
-			if valueX%100 < 10: 
-				rand_value_once= random.random()* base / 99.99
-				valueY= rand_value_once + base 
+		self.out='0x:'
+		self.count = 0
+		for X in range (int(self.xmin*10),int(self.xmax*10+10)):
+			if X%50 < 10: 
+				print 0.1*X
+				refer_entry= self.eut_demo.GetReferEntry(Xvalue=0.1*X)
+				refer_valueY= refer_entry.GetYvalue()
+				rand_value_once= random.random()* refer_valueY*0.1
+				Y = refer_valueY*1.05 + rand_value_once
 			else:
-				if valueX%100 ==10:
-					rand_value_all = random.random() * base /99.90
-					value_= rand_value_all + base 
-				valueY = value_
-			out += '%04x%04x'%(valueX,valueY)
-			count +=1
-			if count%7 ==0:
-				self.queue_out.put(out)
-				out='0x:'
+				if X%50 ==10:
+					rand_value_once= random.random()* refer_valueY*0.03
+					Y = refer_valueY*1.01 - rand_value_once
+			self.out += '%04x%04x'%(X,Y)
+			self.count +=1
+			if self.count%7 ==0:
+				self.queue_out.put(self.out)
+				self.out='0x:'
 				time.sleep(0.001)
+	def max_(self):
 		#remain high for sometime
-		for valueX in range (1,1200):
-			out += '%04x%04x'%(1200,4095)
-			count +=1
-			if count%7 ==0:
-				self.queue_out.put(out)
-				out='0x:'
+
+		for X in range (1,800):
+			self.out += '%04x%04x'%(self.xmax*10,self.ymax)
+			self.count +=1
+			if self.count%7 ==0:
+				self.queue_out.put(self.out)
+				self.out='0x:'
 				time.sleep(0.001)
-		#step down
-		for valueX in range (1,1200):
-			base = (int(valueX)/int(100)*100) + 50
-			if valueX%100 < 10: 
-				rand_value_once= random.random()* base / 99.99
-				valueY= 1200-(rand_value_once + base)
+	def min_(self):
+		#remain high for sometime
+		for X in range (1,800):
+			self.out += '%04x%04x'%(self.xmin*10,self.ymin)
+			self.count +=1
+			if self.count%7 ==0:
+				self.queue_out.put(self.out)
+				self.out='0x:'
+				time.sleep(0.001)
+	def down_(self):
+		for X in range (int(self.xmin*10),int(self.xmax*10+10)):
+			if X%50 < 10: 
+				refer_entry= self.eut_demo.GetReferEntry(Xvalue=(self.xmax-self.xmin-0.1*X))
+				refer_valueY= refer_entry.GetYvalue()
+				rand_value= random.random()* refer_valueY*0.1
+				Y = refer_valueY *1.05-rand_value
 			else:
-				if valueX%100 ==10:
-					rand_value_all = random.random() * base /99.90
-					value_= rand_value_all + base 
-				valueY = 1200-value_
-			out += '%04x%04x'%(valueX,valueY)
-			count +=1
-			if count%7 ==0:
-				self.queue_out.put(out)
-				out='0x:'
+				if X%50 ==10:
+					rand_value= random.random()* refer_valueY*0.03
+					Y = refer_valueY*1.01 - rand_value
+			self.out += '%04x%04x'%(X,Y)
+			self.count +=1
+			if self.count%7 ==0:
+				self.queue_out.put(self.out)
+				self.out='0x:'
 				time.sleep(0.001)
-		#remain low for sometime
-		for valueX in range (1,1200):
-			out += '%04x%04x'%(0,0.001)
-			count +=1
-			if count%7 ==0:
-				self.queue_out.put(out)
-				out='0x:'
-				time.sleep(0.001)
+	def pull_(self):
 		#pull out eut and remain high
-		for valueX in range (1,100):
-			rand_value_once= random.random()* 1299
-			out += '%04x%04x'%(0,rand_value_once)
-			count +=1
-			if count%7 ==0:
-				self.queue_out.put(out)
-				out='0x:'
+		for X in range (1,100):
+			rand_value_once= random.random()* 4095
+			self.out += '%04x%04x'%(self.xmin*10,rand_value_once)
+			self.count +=1
+			if self.count%7 ==0:
+				self.queue_out.put(self.out)
+				self.out='0x:'
 				time.sleep(0.001)
-		for valueX in range (1,1200):
-			out += '%04x%04x'%(0,4095)
-			count +=1
-			if count%7 ==0:
-				self.queue_out.put(out)
-				out='0x:'
+	def null_(self):
+		for X in range (1,1200):
+			self.out += '%04x%04x'%(self.xmin*10,4095)
+			self.count +=1
+			if self.count%7 ==0:
+				self.queue_out.put(self.out)
+				self.out='0x:'
 				time.sleep(0.001)
-		#pull in eut and remain low
-		for valueX in range (1,100):
-			rand_value_once= random.random()* 1299
-			out += '%04x%04x'%(0,rand_value_once)
-			count +=1
-			if count%7 ==0:
-				self.queue_out.put(out)
-				out='0x:'
-				time.sleep(0.001)
-		for valueX in range (1,1200):
-			out += '%04x%04x'%(0,0.001)
-			count +=1
-			if count%7 ==0:
-				self.queue_out.put(out)
-				out='0x:'
-				time.sleep(0.001)
-#		pos = 0
-#		base_ = 100
-#		#now begin initialize signal
-#		for x in range(1,2000):
-#			out +="%04x%04x" % (pos,base_*16+32768)
-#			if x%7 == 0:
-#				self.data_queue_.put(out+'\0')
-#				out='0x:'
-#				time.sleep(0.001)
-#		#now begin populate signal
-#		rand_value_all = 0 
-#		value_ = 0
-#		out = '0x:'
-#		for x in range (1,1000):
-#			base = 4*(int(x)/int(100)*100) + base_
-#			if x%100 < 10: 
-#				rand_value_once= random.random()* base / 99.91
-#				value= rand_value_once + base 
-#			else:
-#				if x%100 ==10:
-#					rand_value_all = random.random() * base /99.90
-#					value_= rand_value_all + base 
-#				value = value_
-#			if value < 256:
-#				value = value*16+32768
-#			out +="%04x%04x" % (pos,value)
-#			if x%7 == 0:
-#				self.data_queue_.put(out+'\0')
-#				out='0x:'
-#			time.sleep(0.001)
-#
-#		for x in range(1,1000):
-#			out +="%04x%04x" % (pos,base_+4000)
-#			if x%7 == 0:
-#				self.data_queue_.put(out+'\0')
-#				out='0x:'
-#				time.sleep(0.001)
-#		for x in range (1,1000):
-#			base = 4*(int(x)/int(100)*100) + base_
-#			if x%100 < 10: 
-#				rand_value_once= random.random()* base / 99.91
-#				value= 4000-rand_value_once - base 
-#			else:
-#				if x%100 ==10:
-#					rand_value_all = random.random() * base /99.90
-#					value_= 4000-rand_value_all - base 
-#				value = value_
-#			if value < 256:
-#				value = value*16+32768
-#			out +="%04x%04x" % (pos,value)
-#			if x%7 == 0:
-#				self.data_queue_.put(out+'\0')
-#				out='0x:'
-#				time.sleep(0.001)
 
 
 
@@ -281,7 +257,7 @@ class Endpoint(threading.Thread):
 		threading.Timer(5,self.Watchdog).start()
 		print "endpoint start...\n"
 		self.CliSock.setblocking(0)
-		count = 0
+		self.count = 0
 		while True:
 			if self.quit_flag == True:
 				print "ep quiting....\n"

@@ -1,47 +1,16 @@
 # -*- coding: utf-8 -*-
 #!python
 """Signal UI component .""" 
-import sys
-import glob
 import wx 
 import wx.grid 
 import wx.lib.sheet 
-import os 
-import string
-import threading
-import time
-from socket import *
-import const
-from Queue import Queue
-import math
-import csv
-import minidb
-from data_point import Data_Point,Data_Real,Data_Validated
-from data_validator import Data_Validator_Linear
-import wx.lib.buttons as buttons 
 import re
-import wx.lib.agw.balloontip as btip
-import struct 
-from thread_sqlite import Thread_Sql
+import time
 import config_db
 import sqlite3 as sqlite
-import wx.lib.scrolledpanel as scrolledpanel
-import codecs
-from data_point import Data_Point,Signal_Control_Basic
 from util import gAuthen,gZip,gZpickle 
-#for zip function
-
 from refer_entry import Refer_Entry
-#index for persist Queue
-_CMD = 0
-_DATA = 1
 
-
-
-
-
-
-#index for refer_entry status
 
 #index for named cells
 _VALUE	= int(0)
@@ -50,9 +19,6 @@ _RC	= int(1)
 #index for refer table RC
 REF_ROW = 6
 REF_COL = 6
-
-
-
 
 class Eut():
 	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
@@ -106,7 +72,7 @@ class Eut():
 		table.append( table0)
 		table.append( table1)
 		self.SetReferTable(table)
-		print	self.ShowRefer()
+		#print	self.ShowRefer()
 
 	def SaveSensorTable(self,row,col,window):
 		table=[]
@@ -150,7 +116,7 @@ class Eut():
 				print "table eut existed already."
 
 	def RestoreFromDBZ(self,PN):
-		print "PN is ",PN
+		print "queried PN is ",PN
 		db_con = sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor = db_con.cursor()
@@ -166,7 +132,7 @@ class Eut():
 		cmd = "select * from %s where PN like '%s'" % (self.table_name, PN)
 		db_cursor.execute(cmd)
 		eut_b = db_cursor.fetchone()
-		print eut_b
+		#print eut_b
 
 		obj_x = gZpickle.loads(eut_b[3]) 
 		self.field = obj_x.field
@@ -209,9 +175,9 @@ class Eut():
 	def UpdateTable(self,row,col,window):
 		for table in self.Refer_Table:
 			table_len = len(table)+10
-			print "table length>>>>>>>>>>>>>>",window.GetNumberRows(),table_len
 			if window.GetNumberRows() < table_len:
 				window.SetNumberRows(table_len)
+				print "table length %d >>>>>> %d"%(window.GetNumberRows(),table_len)
 			if table is self.Refer_Table[0]:
 				col_start = col
 				i    = 1
@@ -258,14 +224,17 @@ class Eut():
 				Yprecision	=values[3],
 				Yoffset		=values[4])
 		self.AppendReferTable(0,refer_entry1)
-		refer_entry2 = Refer_Entry(
-				Xvalue		=values[5],
-				Xprecision	=values[6],
-				Yvalue		=values[7],
-				Yprecision	=values[8],
-				Yoffset		=values[9])
-		self.AppendReferTable(1,refer_entry2)
-		
+		try:
+			refer_entry2 = Refer_Entry(
+					Xvalue		=values[5],
+					Xprecision	=values[6],
+					Yvalue		=values[7],
+					Yprecision	=values[8],
+					Yoffset		=values[9])
+			self.AppendReferTable(1,refer_entry2)
+		except Exception,e:
+			print e
+			pass
 
 	def Import(self):
 		dlg = wx.FileDialog(None,u"选择csv文件",wildcard="*.csv")
@@ -280,7 +249,8 @@ class Eut():
 		if not type_.startswith("type,sensor"):
 			wx.MessageDialog(None,u"导入文件中的type行值错误，必须是'type,sensor'",u"警告",wx.YES_DEFAULT).ShowModal()
 			return 
-		print "import now"
+		print "import now...................."
+		time_start = time.time()
 		lines =  reader.readlines()
 		for line in lines[0:15]:
 			if line.startswith('###'):#表格起始标志
@@ -295,15 +265,13 @@ class Eut():
 		start = False
 		for line in lines:
 			if start == True:
-				try:
-					self.SetRefer(line)
-				except:
-					pass
+				self.SetRefer(line)
 			if line.startswith('###'):
 				start = True
 		for table in self.Refer_Table:
 			table.sort(key=lambda x:x.GetYvalue())
-		print self.ShowRefer()
+		print "import end in %ds...................."%(time.time()-time_start)
+		#print self.ShowRefer()
 	
 	def SetReferTable(self,Refer_Table):
 		self.Refer_Table = Refer_Table
@@ -347,33 +315,39 @@ class Eut():
 			pass
 		return out
 
-	def GetReferEntry(self,Xvalue,Yvalue,table_num=0):
+	def GetReferEntry(self,Xvalue=0,Yvalue=0,table_num=0):
 		'''Xvalue should be None for using Yvalue as index,
 		or integer for using itself as index '''
-		entry =None
+		refer_entry =None
 		if Xvalue != None:# use Xvalue as index
-			p0 = self.Refer_Table[table_num][0]
-			for p1 in self.Refer_Table[table_num]:
-				x0 = p0.GetXvalue()
-				x1 = p1.GetXvalue()
-				delta0 = abs(Xvalue - x0)
-				delta1 = abs(Xvalue - x1)
-				#judge being within by comparing delta_sum 
-				if (delta0 + delta1) > abs(x1 - x0):
-					p0 = p1
-					continue
-				#use nearby Yvalue
-				if abs(delta0) < abs(delta1): 
-					entry =  p0
-				else:
-					entry =  p1
-				break
+			self.Refer_Table[table_num].sort(key=lambda x:x.GetXvalue())
+			if Xvalue > self.Refer_Table[table_num][-1].GetXvalue():
+				refer_entry = self.Refer_Table[table_num][-1]
+			elif Xvalue < self.Refer_Table[table_num][0].GetXvalue():
+				refer_entry = self.Refer_Table[table_num][0]
+			else:
+				p0 = self.Refer_Table[table_num][0]
+				for p1 in self.Refer_Table[table_num]:
+					x0 = p0.GetXvalue()
+					x1 = p1.GetXvalue()
+					delta0 = abs(Xvalue - x0)
+					delta1 = abs(Xvalue - x1)
+					#judge being within by comparing delta_sum 
+					if (delta0 + delta1) > abs(x1 - x0):
+						p0 = p1
+						continue
+					#use nearby Yvalue
+					if abs(delta0) < abs(delta1): 
+						refer_entry =  p0
+					else:
+						refer_entry =  p1
+					break
 		else:# use Yvalue as index, and table is sorted by Yvalue
 			if Yvalue <= self.Refer_Table[table_num][0].GetYvalue():#outof range
-					entry =  self.Refer_Table[table_num][0].GetYvalue()
+					refer_entry =  self.Refer_Table[table_num][0].GetYvalue()
 					self.Refer_Table[table_num][0].SetValidStatus(True)
 			elif Yvalue >= self.Refer_Table[table_num][-1].GetYvalue():#outof range
-					entry =  self.Refer_Table[table_num][-1].GetYvalue()
+					refer_entry =  self.Refer_Table[table_num][-1].GetYvalue()
 					self.Refer_Table[table_num][-1].SetValidStatus(True)
 			else:
 				p0 = self.Refer_Table[table_num][0]
@@ -391,14 +365,14 @@ class Eut():
 						continue
 					#use nearby Yvalue
 					if abs(delta0) < abs(delta1): 
-						entry =  p0
+						refer_entry =  p0
 						p0.SetValidStatus(True)
 					else:
-						entry =  p1
+						refer_entry =  p1
 						p1.SetValidStatus(True)
 					break
 
-		return entry # if not found, return None object
+		return refer_entry # if not found, return None object
 
 	def QueryDB(self, model_pattern,PN_pattern):
 		db_con   =sqlite.connect(self.db_name)
@@ -413,7 +387,7 @@ class Eut():
 		db_con.close()
 		column_format = (
 				(1,u"序号",50),#column_num,view_text,width
-				(2,u"Model/\n传感器型号",180),
+				(2,u"Model/\n型号",180),
 				(3,u"PN/料号",120),) 
 		return (entries,column_format) # fields of each should be matched
 

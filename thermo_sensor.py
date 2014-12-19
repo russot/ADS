@@ -1,47 +1,23 @@
 # -*- coding: utf-8 -*-
 #!python
 """Signal UI component .""" 
-import sys
-import glob
 import wx 
 import wx.grid 
 import wx.lib.sheet 
-import os 
-import string
-import threading
-import time
 from socket import *
-import const
-from Queue import Queue
 import math
-import csv
-import minidb
-from data_point import Data_Point,Data_Real,Data_Validated
-from data_validator import Data_Validator_Linear
-import wx.lib.buttons as buttons 
 import re
-import wx.lib.agw.balloontip as btip
-import struct 
 from thread_sqlite import Thread_Sql
 import config_db
 import sqlite3 as sqlite
-import wx.lib.scrolledpanel as scrolledpanel
-import codecs
-from data_point import Data_Point,Signal_Control_Basic
 from util import gAuthen,gZip,gZpickle 
-#for zip function
-
 from refer_entry import Refer_Entry
-#index for persist Queue
-_CMD = 0
-_DATA = 1
 
 
 
 
 
 
-#index for refer_entry status
 
 #index for named cells
 _VALUE	= int(0)
@@ -203,9 +179,9 @@ class Thermo_Sensor():
 
 	def UpdateTable(self,row,col,window):
 		table_len = len(self.Refer_Table)+10
-		print "table length>>>>>>>>>>>>>>",window.GetNumberRows(),table_len
 		if window.GetNumberRows() < table_len:
 			window.SetNumberRows(table_len)
+			print "table length %d >>>>>> %d"%(window.GetNumberRows(),table_len)
 		col_ = col
 		for name in (u"温度/ \xb0C",u"最小值/ohm",u"中间值/ohm",u"最大值/ohm"):
 			window.SetCellValue(row,col_,name)

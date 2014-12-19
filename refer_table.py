@@ -67,7 +67,7 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.SetEut(eut)
 		self.db_name=config_db.eut_db
 
-	def GetEut(self,eut):
+	def GetEut(self):
 		return self.eut
 
 	def SetEut(self,eut):
@@ -149,16 +149,17 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 				value_str = value[_VALUE]
 
 			row,col = value[_RC]
-			print value_str,'.....................................................................................................'
+			#print value_str,'.....................................................................................................'
 			self.SetCellValue(row,col, str(name))
 			self.SetCellValue(row+1,col, value_str)
 			self.SetReadOnly(row,col,True)
+			self.SetReadOnly(row+1, col,True)
 			self.SetCellBackgroundColour(row,col,"Light Grey")
 			if re.search(r"Y.*unit",name):
 				editor =  wx.grid.GridCellChoiceEditor( [u"Ohm",u"V",u"mA"], False)
 				self.SetCellEditor( row+1, col, editor)
 			elif re.search(r"X.*unit",name):
-				editor =  wx.grid.GridCellChoiceEditor( [u"mm",u"\xb0°C"], False)
+				editor =  wx.grid.GridCellChoiceEditor( [u"mm",u"\xb0C"], False)
 				self.SetCellEditor( row+1, col, editor)
 			elif re.search(r"num",name):
 				editor =  wx.grid.GridCellChoiceEditor( [u"1",u"2"], False)
@@ -376,12 +377,16 @@ class Refer_Editor(wx.Frame):
 
 	def OnImport(self, event):
 		self.refer_sheet.Import()
+		self.refer_sheet.SetEditable(True)
 
 	def OnNew(self, event):
 		"""clear sheet and create new eut"""
 		self.eut_list.ClearAll()         
 		self.refer_sheet.NewEut()
 
+
+	def GetEut(self):
+		return self.refer_sheet.GetEut()
 
 	def OnSave(self, event):
 		if not gAuthen.Authenticate("User"):
@@ -400,7 +405,8 @@ class Refer_Editor(wx.Frame):
 			wx.MessageBox(u"您选的不是传感器\n  请选择传感器!!!",
 				style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
 			return 
-		self.eut = self.refer_sheet.GetEut()
+		else:
+			self.Show(False)
 
 	def OnToggleEdit(self, event):
 		"""KeyDown event is sent first"""
@@ -422,28 +428,28 @@ class Refer_Editor(wx.Frame):
 		self.btn_edit.Refresh()
 
 #eut looks like [model,PN,NTC,NTC_PRC,unit,ref_points[[pos,value,precision],,,]]
-	def Data_Persist(self):
-		self.refer_sheet.Update_Value()
-		bytes_block = ''
-		#for cell in self.refer_sheet.named_cells:
-		#row_,col_ = self.named_cells[_REF_POS][_RC_VALUE]
-		for data in self.refer_sheet.eut[_REF_PTS]:
-			bytes_block += struct.pack('3f',
-					data[_XVALUE],
-					data[_YVALUE],
-					data[_PRECISION],)	
-		print self.refer_sheet.eut[_REF_PTS]
-		range_ = "%.0f-%.0f"%(self.refer_sheet.eut[_REF_PTS][0][_YVALUE],
-				self.refer_sheet.eut[_REF_PTS][-1][_YVALUE])
-		print range_
-		cmd =  ("data:",("save:",(self.refer_sheet.eut[_MODEL],
-					self.refer_sheet.eut[_PN],
-					self.refer_sheet.eut[_NTC],
-					self.refer_sheet.eut[_NTC_PRC],
-					self.refer_sheet.eut[_UNIT],
-					range_,
-					bytes_block))) 
-		self.persist[_CMD].put( cmd)
+#	def Data_Persist(self):
+#		self.refer_sheet.Update_Value()
+#		bytes_block = ''
+#		#for cell in self.refer_sheet.named_cells:
+#		#row_,col_ = self.named_cells[_REF_POS][_RC_VALUE]
+#		for data in self.refer_sheet.eut[_REF_PTS]:
+#			bytes_block += struct.pack('3f',
+#					data[_XVALUE],
+#					data[_YVALUE],
+#					data[_PRECISION],)	
+#		print self.refer_sheet.eut[_REF_PTS]
+#		range_ = "%.0f-%.0f"%(self.refer_sheet.eut[_REF_PTS][0][_YVALUE],
+#				self.refer_sheet.eut[_REF_PTS][-1][_YVALUE])
+#		print range_
+#		cmd =  ("data:",("save:",(self.refer_sheet.eut[_MODEL],
+#					self.refer_sheet.eut[_PN],
+#					self.refer_sheet.eut[_NTC],
+#					self.refer_sheet.eut[_NTC_PRC],
+#					self.refer_sheet.eut[_UNIT],
+#					range_,
+#					bytes_block))) 
+#		self.persist[_CMD].put( cmd)
 
 
 	def OnPopup(self, event):
@@ -602,8 +608,9 @@ class Refer_Editor(wx.Frame):
 	def OnViewOne(self,event):
 		item = self.eut_list.GetFocusedItem()
 		PN =  self.eut_list.GetItem(item,2).GetText()
-		print "view one",PN
+		#print "view one",PN
 		self.refer_sheet.show(PN)
+		self.UpdateToggle()
 
 	def OnFilter(self,event):
 		self.UpdateToggle()

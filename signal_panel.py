@@ -28,7 +28,7 @@ import data_point
 from data_source import Data_Source 
 from data_source import MyEvent, EVT_MY_EVENT
 
-from refer_table import Refer_Entry
+from refer_entry import Refer_Entry
 
 class Signal(wx.Object):
 	def __init__(self,ok_colour="green",bad_colour="red",data=[], url="127.0.0.1:8088"):

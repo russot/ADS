@@ -196,7 +196,7 @@ class Signal_Control(wx.Panel):   #3
 		self.topsizer.Add(self.sp_window,15,wx.EXPAND|wx.ALL)
 		self.topsizer.Add(self.sizer_info,2)
 
-		self.Eut_editor = Refer_Editor()
+		self.Eut_editor = Refer_Editor(self)
 
 
 
@@ -529,6 +529,8 @@ class Signal_Control(wx.Panel):   #3
 
 	def OnSelectEut(self,evt):
 		self.Eut_editor.Show()
+		eut = self.Eut_editor.GetEut()
+		self.signal_panel.SetEut(eut)
 
 	def OnOptions(self,event):
 
