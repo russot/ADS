@@ -64,9 +64,14 @@ class Signal(wx.Object):
 		return self.url
 
 	def SetRefers(self,table):
-		self.Refers = table
-		self.Refers.sort(key=lambda x:x.GetYvalue())
-		self.SetMaxValue(self.Refers[-1].GetYvalue())
+		try:
+			self.Refers = table
+			self.Refers.sort(key=lambda x:x.GetYvalue())
+			#print "signal max value",self.Refers[-1].GetYvalue()
+			self.SetMaxValue(self.Refers[-1].GetYvalue())
+		except Exception,e:
+			print e
+			pass
 
 	def SetMaxValue(self,value):
 		self.max_value = float(value)
@@ -230,6 +235,8 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.refer_tables = refer_tables
 		for table in self.refer_tables:
 			table.sort(key=lambda x:x.GetYvalue())
+			for refer_entry in table:
+				print ">>>>>>>>>>>>>>>>>>>>>>>>>",refer_entry.ShowSensor()
 		i=0
 		for signal in self.signals:#map refer_tables to signals as 1:1
 			signal.SetRefers(self.refer_tables[i])
@@ -263,6 +270,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.SHORT_DASH))
 		if  self.refer_tables == None:
 			return
+		#return
 		dc.SetPen(wx.Pen(self.grid_colour,1,style = wx.DOT))
 		dc.SetTextForeground(self.grid_colour)
 		refer_num = len(self.refer_tables[0])
@@ -395,7 +403,7 @@ if __name__=='__main__':
 	signals.append(Signal())
 	signals.append(Signal())
 	panel = Signal_Panel(parent=frm,id=-1,size=(1400,600),signals=signals)
-	panel.SetRefer([pupulate_refer_table(),pupulate_refer_table()])
+	#panel.SetRefer([pupulate_refer_table(),pupulate_refer_table()])
 	panel.SetGridColour(wx.Colour(0,250,250,200))
 	panel.SetBackgroundColour(wx.Colour(150,50,90,200))
 	panel.SetBadColour(wx.Colour(200,0,200))

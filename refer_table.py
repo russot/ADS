@@ -206,7 +206,7 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 			self.UpdateCell()
 
 
-class Refer_Editor(wx.Frame):
+class Refer_Editor(wx.Dialog):
 	def __init__(self, 
 			parent=None, 
 			id=-1,
@@ -344,12 +344,12 @@ class Refer_Editor(wx.Frame):
 		self.sizer_top.Add(self.splitter,20,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 
-		self.status_bar = self.CreateStatusBar()
-
-		self.gauge = wx.Gauge(self.status_bar, -1, 100000, (100, 60), (250, 25), style = wx.GA_PROGRESSBAR)
-		self.gauge.SetBezelFace(3)
-		self.gauge.SetShadowWidth(3)
-
+#		self.status_bar = self.CreateStatusBar()
+#
+#		self.gauge = wx.Gauge(self.status_bar, -1, 100000, (100, 60), (250, 25), style = wx.GA_PROGRESSBAR)
+#		self.gauge.SetBezelFace(3)
+#		self.gauge.SetShadowWidth(3)
+#
 
 		self.popmenu1 = wx.Menu()
 		self.menu_export = self.popmenu1.Append(wx.NewId(), u"导出", u"导出到文本框")

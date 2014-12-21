@@ -22,7 +22,7 @@ import refer_entry
 
 PORT=8088
 IP_ADDRESS = '127.0.0.1'
-DEMO_PN    = 'R939-55'
+DEMO_PN    = 'R939-57'
 
 			
 			
@@ -89,14 +89,22 @@ class Serial_reader(threading.Thread):
 		self.pull_()
 		self.min_()
 
+	def out_(self):
+		if self.count%7 ==0:
+			self.queue_out.put(self.out)
+			print self.out
+			self.out='0x:'
+			time.sleep(0.001)
+
 	def up_(self):
 		rand_value_all = 0 
 		value_ = 0
 		self.out='0x:'
 		self.count = 0
+		refer_valueY= 0.00001
 		for X in range (int(self.xmin*10),int(self.xmax*10+10)):
 			if X%50 < 10: 
-				print 0.1*X
+				#print 0.1*X
 				refer_entry= self.eut_demo.GetReferEntry(Xvalue=0.1*X)
 				refer_valueY= refer_entry.GetYvalue()
 				rand_value_once= random.random()* refer_valueY*0.1
@@ -107,29 +115,23 @@ class Serial_reader(threading.Thread):
 					Y = refer_valueY*1.01 - rand_value_once
 			self.out += '%04x%04x'%(X,Y)
 			self.count +=1
-			if self.count%7 ==0:
-				self.queue_out.put(self.out)
-				self.out='0x:'
-				time.sleep(0.001)
+			self.out_()
+
 	def max_(self):
 		#remain high for sometime
 
 		for X in range (1,800):
 			self.out += '%04x%04x'%(self.xmax*10,self.ymax)
 			self.count +=1
-			if self.count%7 ==0:
-				self.queue_out.put(self.out)
-				self.out='0x:'
-				time.sleep(0.001)
+			self.out_()
+
 	def min_(self):
 		#remain high for sometime
 		for X in range (1,800):
 			self.out += '%04x%04x'%(self.xmin*10,self.ymin)
 			self.count +=1
-			if self.count%7 ==0:
-				self.queue_out.put(self.out)
-				self.out='0x:'
-				time.sleep(0.001)
+			self.out_()
+
 	def down_(self):
 		for X in range (int(self.xmin*10),int(self.xmax*10+10)):
 			if X%50 < 10: 
@@ -143,28 +145,21 @@ class Serial_reader(threading.Thread):
 					Y = refer_valueY*1.01 - rand_value
 			self.out += '%04x%04x'%(X,Y)
 			self.count +=1
-			if self.count%7 ==0:
-				self.queue_out.put(self.out)
-				self.out='0x:'
-				time.sleep(0.001)
+			self.out_()
+
 	def pull_(self):
 		#pull out eut and remain high
 		for X in range (1,100):
 			rand_value_once= random.random()* 4095
 			self.out += '%04x%04x'%(self.xmin*10,rand_value_once)
 			self.count +=1
-			if self.count%7 ==0:
-				self.queue_out.put(self.out)
-				self.out='0x:'
-				time.sleep(0.001)
+			self.out_()
+	
 	def null_(self):
 		for X in range (1,1200):
 			self.out += '%04x%04x'%(self.xmin*10,4095)
 			self.count +=1
-			if self.count%7 ==0:
-				self.queue_out.put(self.out)
-				self.out='0x:'
-				time.sleep(0.001)
+			self.out_()
 
 
 

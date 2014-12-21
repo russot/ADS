@@ -22,7 +22,7 @@ import struct
 class Grouping_Filter(threading.Thread):
 	x10_magic = 0x10000# 0x1000, means data x10 in mcu
 	A1_to_A2 = 10
-	sleep_trig_level = 300
+	sleep_trig_level = 500
 	step_trig_level = 30
 	err= -999999
 	def __init__(self,queue_cmd_in,queue_cmd_out,queue_data_in,queue_out):
@@ -150,6 +150,10 @@ class Grouping_Filter(threading.Thread):
 	
 			if self.buffer_group[-1]["length"] >= self.step_trig_level and self.buffer_group[-1]["flag"] == "new":
 				self.buffer_group[-1]["flag"] = "step"
+				try:
+					print "step value<<<<<<<<<<<<<<<<<<<<",self.buffer_group[-1]["value"][-1]
+				except:
+					pass
 				#print "stepping........."
 				
 

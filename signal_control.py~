@@ -108,7 +108,7 @@ class Signal_Control(wx.Panel):   #3
 		
 
 
-		print "sig ctrl init1"
+		#print "sig ctrl init1"
 		self.queue_cmd =  Queue(-1) # 创建一个无限长队列,用于输入命令
 		self.queue_data=  Queue(-1)# 创建一个无限长队列,用于输出结果
 		self.thread_source = Data_Source(self,self.url_name,self.queue_cmd,self.queue_data)
@@ -125,7 +125,7 @@ class Signal_Control(wx.Panel):   #3
 		font = self.GetFont()
 		font.SetPointSize(13)
 		
-		print "sig ctrl init2"
+		#print "sig ctrl init2"
 		self.topsizer = wx.BoxSizer(wx.HORIZONTAL)
 
 		# 创建主分割窗
@@ -143,7 +143,7 @@ class Signal_Control(wx.Panel):   #3
 		self.sizer_debug.Add(self.debug_out,1,wx.EXPAND|wx.ALL)
 
 		#创建信息栏
-		print "sig ctrl init3"
+		#print "sig ctrl init3"
 		self.info_lane  = wx.ScrolledWindow(self.data_window,-1)
 		self.info_lane.SetScrollbars(1,1,100,100)
 		self.sizer_sheet  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
@@ -215,7 +215,7 @@ class Signal_Control(wx.Panel):   #3
 
 		
 
-		print "sig ctrl init4"
+		#print "sig ctrl init4"
 		#弹出菜单创建
 		self.popmenu1 = wx.Menu()
 		self.menu_save = self.popmenu1.Append(wx.NewId(), u"保存数据", u"保存数据到数据库" )
@@ -235,7 +235,7 @@ class Signal_Control(wx.Panel):   #3
 		self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
 
 
-		print "sig ctrl init5"
+		#print "sig ctrl init5"
 		#self.Bind(wx.EVT_TIMER, self.OnPopulateTimer,self.populate_timer)
 		#self.Bind(wx.EVT_TIMER, self.OnNewData,self.populate_timer)
 
@@ -528,8 +528,13 @@ class Signal_Control(wx.Panel):   #3
 		self.signal_panel.Setup()
 
 	def OnSelectEut(self,evt):
-		self.Eut_editor.Show()
-		self.eut = self.Eut_editor.GetEut()
+		self.Eut_editor.ShowModal()
+		eut = self.Eut_editor.GetEut()
+
+		print eut.ShowRefer()
+		print "end eut show refer...................................................................................................."
+		self.signal_panel.SetEut(eut)
+		self.signal_panel.Refresh(True)
 
 	def OnOptions(self,event):
 
@@ -634,14 +639,14 @@ if __name__=='__main__':
 	frm.SetSize((1400,800))
 	persist =(Queue(-1),Queue(-1))
 	
-	sql = Thread_Sqlite(db_name="sqlite3_all.db",queue_in=persist[0], queue_out=persist[1]) 
-	sql.setDaemon(True)
-	sql.start()
-
+#	sql = Thread_Sqlite(db_name="sqlite3_all.db",queue_in=persist[0], queue_out=persist[1]) 
+#	sql.setDaemon(True)
+#	sql.start()
+#
 	port = '%d'%(server_endpoints_usb.PORT)
 	ip = '%s'%(server_endpoints_usb.IP_ADDRESS)
 	URL = ip+':'+port+'/'+'usb1'
-	print URL
+	#print URL
 	
 	
 	panel = Signal_Control(parent=frm,
