@@ -27,7 +27,7 @@ import wx.lib.newevent
 from signal_panel import Signal_Panel,Signal
 import signal_panel
 
-import server_endpoints_usb
+import server_endpoints
 
 from refer_table import *
 from data_source import Data_Source 
@@ -643,8 +643,8 @@ if __name__=='__main__':
 #	sql.setDaemon(True)
 #	sql.start()
 #
-	port = '%d'%(server_endpoints_usb.PORT)
-	ip = '%s'%(server_endpoints_usb.IP_ADDRESS)
+	port = '%d'%(server_endpoints.PORT)
+	ip = '%s'%(server_endpoints.IP_ADDRESS)
 	URL = ip+':'+port+'/'+'usb1'
 	#print URL
 	
