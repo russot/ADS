@@ -20,10 +20,10 @@ import wx.lib.newevent
 MyEvent, EVT_MY_EVENT = wx.lib.newevent.NewCommandEvent()
 
 class Endpoint():
-	def __init__(self, url="127.0.0.1:8088/ep1"):
+	def __init__(self, url="127.0.0.1:8088/com1"):
 		self.ip=self.SetUrlIP(url) # example string "127.0.0.1"
 		self.port =self.SetUrlPort(url) # example integer 8088
-		self.ep_index =self.SetUrlEpIndex(url)# example string "ep1" , "ep2" ...
+		self.ep_index =self.SetUrlEpIndex(url)# example string "com1" , "com2" ...
 		
 	def SetUrlIP(self,url):
 		parts = url.split(':')
@@ -55,7 +55,7 @@ class Endpoint():
 
 ############################################################################################################################################
 class Data_Source(threading.Thread,wx.Object):
-	def __init__(self,window,url,queue_in,queue_out_):
+	def __init__(self,window=None,url='',queue_in=None,queue_out_=None):
 		threading.Thread.__init__(self)
 		self.window = window
 		self.url = url 
@@ -188,49 +188,6 @@ class Data_Source(threading.Thread,wx.Object):
 		
 		except Exception, e:
 			pass 
-
-
-#	def calibrate_append(self,value):
-#		real_value = float(value)
-#		sample_value = self.sample()[1]  #  return (pos,value)
-#		self.cailbrate_table.append((real_value,sample_value))
-#		self.cailbrate_table.sort()
-#		wx.PostEvent(self.window,MyEvent(60001)) #tell front to update
-#
-#	def calibrate_delete(self,index):
-#		del self.cailbrate_table[int(index)]
-#		self.cailbrate_table.sort()
-#		wx.PostEvent(self.window,MyEvent(60001)) #tell front to update
-#
-#	def calibrate_save(self,filename):
-#		self.cailbrate_table.sort()
-#		calib_file = open(filename,'w')
-#		for x in self.cailbrate_table:
-#			calib_file.write('%5.3f \t %5.3f\n' %(x[0],x[1]))
-#		calib_file.close()
-#
-#	def calibrate_load(self,filename):
-#		self.cailbrate_table=[]
-#		calib_file = open(filename,'r')
-#		for line in calib_file.readlines():
-#			real_value = float(line[:line.find('\t')])
-#			sample_value = float(line[line.find('\t')+1:])
-#			self.cailbrate_table.append((real_value,sample_value))
-#		self.cailbrate_table.sort()
-#		wx.PostEvent(self.window,MyEvent(60001)) #tell front to update
-#		calib_file.close()
-#
-#	def calibrate(self,command):
-#		if command.startswith("append:"):
-#			self.calibrate_append(command[len("append:"):])
-#		elif command.startswith("delete:"):
-#			self.calibrate_delete(command[len("delete:"):])
-#		elif command.startswith("save:"):
-#			self.calibrate_save(command[len("save:"):])
-#		elif command.startswith("load:"):
-#			self.calibrate_load(command[len("load:"):])
-#
-#
 
 
 
