@@ -36,7 +36,7 @@ class Data_Validated(wx.Object):
 		self.value_refer     = value_refer
 		self.precision_refer= precision_refer
 		self.precision         = precision
-		self.length = int(0)
+		self.length = int(1)
 		
 	def GetValid(self):
 		if self.valid:
@@ -44,11 +44,11 @@ class Data_Validated(wx.Object):
 		else:
 			return False
 
-	def GetPos(self):
+	def GetXvalue(self):
 		return self.pos
 
 
-	def GetValue(self):
+	def GetYvalue(self):
 		return self.value
 			
 	def GetValue_refer(self):

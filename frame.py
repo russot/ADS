@@ -15,7 +15,7 @@ from Queue import Queue
 import sqlite3 as sqlite
 import config_db
 from time import sleep
-from authen import gAuthen
+from util import *
 
 
 from thread_sqlite import Thread_Sqlite

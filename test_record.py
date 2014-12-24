@@ -26,7 +26,7 @@ _VALUE	= int(0)
 _RC	= int(1)
 
 class Record_Entry():
-	def __init__(self,refer=None,record=None):
+	def __init__(self,refer_index=None,record=None):
 		# refer_index format: (index_num,table_num)
 		# record format: Refer_Entry
 		self.refer_index = refer_index

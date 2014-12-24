@@ -206,7 +206,7 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 			self.UpdateCell()
 
 
-class Refer_Editor(wx.Dialog):
+class Eut_Editor(wx.Dialog):
 	def __init__(self, 
 			parent=None, 
 			id=-1,
@@ -214,7 +214,7 @@ class Refer_Editor(wx.Dialog):
 			pos=wx.DefaultPosition,
 			title='model editor',
 			entries=None):
-		super(Refer_Editor, self).__init__(parent, id, title,size=size)
+		super(Eut_Editor, self).__init__(parent, id, title,size=size)
 		self.db_name = Eut.db_name 
 		#self.SetBackgroundColour("light grey")
 		self.entries = entries
@@ -361,8 +361,8 @@ class Refer_Editor(wx.Dialog):
 		self.Bind(wx.EVT_CONTEXT_MENU, self.OnPopup,self.refer_sheet)
 
 		self.Relayout()
-		sys.stdout = self.debug_out
-		sys.stderr = self.debug_out
+	#	sys.stdout = self.debug_out
+	#	sys.stderr = self.debug_out
 		self.UpdateToggle()
 		print "sheet init ok...."
 
@@ -704,7 +704,7 @@ class Refer_Editor(wx.Dialog):
 
 if __name__=='__main__':
 	app = wx.App()
-	frm = Refer_Editor()
+	frm = Eut_Editor()
 	frm.SetSize((1280,800))
 
 	frm.Show()

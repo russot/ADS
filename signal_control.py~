@@ -158,9 +158,9 @@ class Signal_Control(wx.Panel):   #3
 		self.signal_panel_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_panel_lane.SetSizer(self.signal_panel_sizer)
 		signals=[]
-		signals.append(Signal())
-		signals.append(Signal())
-		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=signals)
+		s1 =Signal(url="127.0.0.1:8088/com1/1")
+		s2 =Signal(url="127.0.0.1:8088/com1/2")
+		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=[s1,s2])
 		self.signal_panel_sizer.Add(self.signal_panel,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		#加入信号栏/信息栏 分割窗
@@ -196,7 +196,7 @@ class Signal_Control(wx.Panel):   #3
 		self.topsizer.Add(self.sp_window,15,wx.EXPAND|wx.ALL)
 		self.topsizer.Add(self.sizer_info,2)
 
-		self.Eut_editor = Refer_Editor(self)
+		#self.Eut_editor = Refer_Editor(self)
 
 
 
@@ -207,51 +207,21 @@ class Signal_Control(wx.Panel):   #3
 		self.text_serial.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_serial)
 		self.text_serial.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 		self.text_serial.Bind(wx.EVT_KEY_UP, self.OnKeyUp)
+		self.sp_window.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.OnSplit)
+		self.data_window.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.OnSplit)
 		
 		#self.Bind(wx.EVT_LEFT_DCLICK, self.OnShowCurrent)
-		self.Bind(EVT_MY_EVENT, self.OnNewData)
+		#self.Bind(EVT_MY_EVENT, self.OnNewData)
 
-		
-
-		
-
-		#print "sig ctrl init4"
-		#弹出菜单创建
-		self.popmenu1 = wx.Menu()
-		self.menu_save = self.popmenu1.Append(wx.NewId(), u"保存数据", u"保存数据到数据库" )
-		self.menu_run = self.popmenu1.Append(wx.NewId(), u"运行.当前点", u"运行与暂停", kind=wx.ITEM_CHECK)
-		self.popmenu1.AppendSeparator()
-		self.menu_query_ui = self.popmenu1.Append(wx.NewId(), u"数据库查询", u"组合查询已存储数据")
-		self.menu_query_current = self.popmenu1.Append(wx.NewId(), u"当前数据查询", u"查询正在测试的数据")
-		self.popmenu1.AppendSeparator()
-		self.menu_eut = self.popmenu1.Append(wx.NewId(), u"Sensor选择", u"被测件选择")
-		self.menu_setup = self.popmenu1.Append(wx.NewId(), u"配置", u"测试参数配置")
-		self.Bind(wx.EVT_CONTEXT_MENU, self.OnRightDown)
-		self.Bind(wx.EVT_MENU, self.OnRunStop,self.menu_run)
-		self.Bind(wx.EVT_MENU, self.OnShowCurrent,self.menu_query_current)
-		self.Bind(wx.EVT_MENU, self.OnQuery_UI,self.menu_query_ui)
-		self.Bind(wx.EVT_MENU, self.OnSetup,self.menu_setup)
-		self.Bind(wx.EVT_MENU, self.OnSelectEut,self.menu_eut)
-		self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
-
-
-		#print "sig ctrl init5"
-		#self.Bind(wx.EVT_TIMER, self.OnPopulateTimer,self.populate_timer)
-		#self.Bind(wx.EVT_TIMER, self.OnNewData,self.populate_timer)
-
+	
 		#指定 DEBUG 窗口
 		sys.stdout = self.debug_out
 		sys.stderr = self.debug_out
 
-	def OnPopulateTimer(self,event):
-		#print "repopulate timer"
-		self.toggle_clear = not self.toggle_clear
-		if self.toggle_clear == True:
-			self.signal_panel.InitValue()
-		else:
-			self.populate_data()	
-		self.signal_panel.Refresh(True)
 
+	def OnSplit(self,event):
+		#print "splitter changed!  ))))))))))))))))))))))))"
+		self.signal_panel.Refresh(True)
 
 	def OnPass(self,event):
 		try:
@@ -266,11 +236,7 @@ class Signal_Control(wx.Panel):   #3
 			pass
 
 
-	def OnQuery_UI(self,event):
-		try:
-			print os.startfile('dialog_query.py') 
-		except:
-			pass
+
 
 	def OnClearDebug(self,event):
 		"""KeyDown event is sent first"""
@@ -428,113 +394,10 @@ class Signal_Control(wx.Panel):   #3
 			#~ self.AdjustSerial( -100 )
 
 
-	def OnNewData(self, event):
-		out = ''
-		pos = 0
-		value = 0
-		while not self.queue_data.empty():
-			item = self.queue_data.get()
-			if isinstance(item,str):
-				if item.startswith("trigger"):
-					self.data_count = 0
-					self.signal_panel.InitValue()
-					self.signal_panel.Refresh()
-			if isinstance(item,dict):
-				self.data_count += 1
-				valueX,valueY = item["value"]
-				length = item["length"]
-				if length > 1000:
-					length = 50
-				data_v = Data_Validated(valid= True,
-					pos=valueX,
-					value= valueY,
-					value_refer=0.0,
-					precision_refer=0.0,
-					precision=0.0,
-					)
-				data_v.SetLength(length)
-				self.signal_panel.SetValue(self.data_count,data_v)
-				self.signal_panel.DrawData()
-				#self.signal_panel.Refresh()
-	
-
-	def set_fault_color(self):
-		self.signal_panel.SetBackgroundColour(self.color_bad)
-				
-	def Data_Persist(self,data_block):
-		bytes_block = ''
-		data_valid = True
-		for data in data_block:
-			bytes_block += struct.pack('I5f',
-								data.GetValid(),
-								data.GetPos(),
-								data.GetValue(),
-								data.GetValue_refer(),
-								data.GetPrecision_refer(),
-								data.GetPrecision()
-								)
-			if  data.GetValid()==0:
-				data_valid = False
-			
-		cmd =  ("data:",("save:",(self.eut_name,self.eut_serial,data_valid, bytes_block))) 
-		self.persist[0].put( cmd)
 
 
-		
-
-		
-	def OnRunStop(self, evt):
-		if self.running_flag != True:
-			self.Run()
-			
-		else:
-			self.Pause()
-			
-			
-	def Run(self):
-		print "run.....\n"
-		if self.started_flag != True:
-			self.thread_source = Data_Source(self,self.url_name,self.queue_cmd,self.queue_data)
-			self.thread_source.setDaemon(True)
-			self.thread_source.start() #启动后台线程, 与endpoint server进行连接与通信
-			self.started_flag = True
-			#self.menu_setup.Enable(False)#已运行，再不能设置
-			pos_slash = self.url_name.find('/')
-			serial_name = self.url_name[pos_slash+1:]
-			open_cmd = "open:%s:%s"%(serial_name,'115200')
-			print open_cmd
-			self.queue_cmd.put(open_cmd)
-		while not self.queue_data.empty(): # 消除输出队列中的过期数据
-			self.queue_data.get()
-		self.queue_cmd.put("run:")
-		self.running_flag = True
-		self.text_name.SetBackgroundColour("green")
-		self.text_name.Refresh(True)
-
-		#self.populate_timer.Start(20)
-
-	def Pause(self):
-		print "pause.....\n"
-		self.queue_cmd.put("stop:")
-		while not self.queue_data.empty(): # 消除输出队列中的过期数据
-			self.queue_data.get()
-		self.running_flag = False	
-		self.text_name.SetBackgroundColour( self.GetBackgroundColour())
-		self.text_name.Refresh(True)
-		self.init_data()
 
 
-	def OnSetup(self,evt):
-		self.signal_panel.Setup()
-
-	def OnSelectEut(self,evt):
-		self.Eut_editor.ShowModal()
-		eut = self.Eut_editor.GetEut()
-
-		print eut.ShowRefer()
-		print "end eut show refer...................................................................................................."
-		self.signal_panel.SetEut(eut)
-		self.signal_panel.Refresh(True)
 
 	def OnOptions(self,event):
 
@@ -544,27 +407,6 @@ class Signal_Control(wx.Panel):   #3
 
 		self.signal_panel.SetMaxValue(1200)
 
-	def SetupRefer(self,refer_file): # format as "D,V,e",  202,44.8,1
-		ref_cfg = open(refer_file,'r')
-		if  not ref_cfg.readline().startswith("#signal refer table"):
-			print "refer file format not right!\
-			\nThe first line should be \"#signal refer table\", and \"displacement,value,error\" each following line"
-			return 
-			
-		refer_table = []
-		for line in ref_cfg.readlines():
-			line = line.replace(" ","").replace("\t","")# 
-			element = line.split(',')
-			key   = string.atoi(element[0])
-			value = string.atof(element[1])
-			precision = string.atof(element[2])
-			refer_table.append ([key,value,precision])
-		#self.data_validator.SetupTable(refer_table=refer_table)
-		#~ for x in self.refer_table.values():
-			#~ print x.GetValue(),'\n'
-			#~ self.data_1 = Data_Point(parent=self,id =-1,size=(5,45), data=x[1],pos=x[0],max_value=100,ok_color=self.color_ok,bad_color=self.color_bad)
-			#~ self.data_store.append(self.data_1 )
-			#~ self.sizer_data.Add(self.data_1 ,2,wx.EXPAND|wx.RIGHT,2)
 
 
 	def OnDclick_name(self, evt):
@@ -579,8 +421,6 @@ class Signal_Control(wx.Panel):   #3
 		if dlg.ShowModal() == wx.ID_OK :
 			self.Set_Serial(dlg.GetValue())
 		dlg.Destroy()
-		self.result.SetFail()
-		self.result.Refresh()
 
 	def Set_Name(self, name):
 		self.eut_name = name 

@@ -21,21 +21,18 @@ MyEvent, EVT_MY_EVENT = wx.lib.newevent.NewCommandEvent()
 
 class Endpoint():
 	def __init__(self, url="127.0.0.1:8088/com1"):
-		self.ip=self.SetUrlIP(url) # example string "127.0.0.1"
-		self.port =self.SetUrlPort(url) # example integer 8088
-		self.ep_index =self.SetUrlEpIndex(url)# example string "com1" , "com2" ...
+		self.SetUrl(url)
 		
-	def SetUrlIP(self,url):
-		parts = url.split(':')
-		return parts[0]
+	def SetIP(self,url):
+		return url.split(':')[0]
 		
 
-	def SetUrlPort(self,url):
+	def SetPort(self,url):
 		__parts = url.split(':')
 		parts = __parts[1].split('/')
 		return string.atoi(parts[0])
 
-	def SetUrlEpIndex(self,url):
+	def SetEpIndex(self,url):
 		__parts = url.split(':')
 		parts = __parts[1].split('/')
 		return parts[1]
@@ -51,6 +48,10 @@ class Endpoint():
 	def GetEpIndex(self):# example string "com1" , "com2" ...
 		return self.ep_index
 
+	def SetUrl(self,url):
+		self.ip=self.SetIP(url) # example string "127.0.0.1"
+		self.port =self.SetPort(url) # example integer 8088
+		self.ep_index =self.SetEpIndex(url)# example string "com1" , "com2" ...
 
 
 ############################################################################################################################################
@@ -105,9 +106,8 @@ class Data_Source(threading.Thread,wx.Object):
 					pass
 
 	def SetEndpoint(self,url):
-		self.endpoint.SetUrlIP(url)
-		self.endpoint.SetUrlPort(url)
-		self.endpoint.SetUrlEpIndex(url)
+		self.endpoint.SetUrl(url)
+
 	def run_adc(self):
 		self.tcpCliSock.send("adc:cfg:manual:Y\n")
 		time.sleep(0.01)

@@ -28,18 +28,28 @@ import data_point
 from data_source import Data_Source 
 from data_source import MyEvent, EVT_MY_EVENT
 
-from refer_entry import Refer_Entry
+from refer_entry import *
+from refer_table import *
 
-class Signal(wx.Object):
-	def __init__(self,ok_colour="green",bad_colour="red",data=[], url="127.0.0.1:8088"):
+class Signal(wx.Dialog):
+	def __init__(self,window=None,ok_colour="green",bad_colour="red",data=[], url="127.0.0.1:8088"):
+		super(Signal, self).__init__(parent=None)
+		self.window = window
 		self.ok_colour = ok_colour
 		self.old_ok_colour = ok_colour
 		self.bad_colour= bad_colour
 		self.old_bad_colour = bad_colour
 		self.url = url
-		self.old_url = url
 		self.data = data
-		self.in_data_queue=Queue(-1)
+		self.cmd_queue=Queue(-1)
+		self.data_queue=Queue(-1)
+		self.started_flag = False
+		self.thread_source = None
+		self.data_count = 0
+		self.Bind(EVT_MY_EVENT, self.OnNewData)
+
+	def SetWindow(self,window):
+		self.window = window
 
 	def GetData(self):
 		return self.data
@@ -79,7 +89,64 @@ class Signal(wx.Object):
 	def GetMaxValue(self,value):
 		return self.max_value
 
+	def Run(self):
+		print "signal running.....\n"
+		if self.started_flag != True:
+			self.thread_source = Data_Source(self,self.url,self.cmd_queue,self.data_queue)
+			self.thread_source.setDaemon(True)
+			self.thread_source.start() #启动后台线程, 与endpoint server进行连接与通信
+			self.started_flag = True
+			#self.menu_setup.Enable(False)#已运行，再不能设置
+			pos_slash = self.url.find('/')
+			serial_name = self.url[pos_slash+1:].split("/")[0]
+			open_cmd = "open:%s:%s"%(serial_name,'115200')
+			print open_cmd
+			self.cmd_queue.put(open_cmd)
+		while not self.data_queue.empty(): # 消除输出队列中的过期数据
+			self.data_queue.get()
+		self.cmd_queue.put("run:")
 
+	def Init_Data(self):
+		self.data_count = 0
+		del self.data
+		self.data = []
+		self.window.Refresh()
+
+	def Pause(self):
+		print "signal pause.....\n"
+		self.cmd_queue.put("stop:")
+		while not self.data_queue.empty(): # 消除输出队列中的过期数据
+			self.data_queue.get()
+		self.Init_Data()
+
+	def OnNewData(self, event):
+		out = ''
+		pos = 0
+		value = 0
+		while not self.data_queue.empty():
+			item = self.data_queue.get()
+			if isinstance(item,str):
+				if item.startswith("trigger"):
+					self.Init_Data()
+			if isinstance(item,dict):
+				self.data_count += 1
+				valueX,valueY = item["value"]
+				print "new data .............",valueX,valueY
+				length = item["length"]
+				if length > 1000:
+					length = 50
+				data_v = Data_Validated(valid= True,
+					pos=valueX,
+					value= valueY,
+					value_refer=0.0,
+					precision_refer=0.0,
+					precision=0.0,
+					)
+				data_v.SetLength(length)
+				self.data.append (data_v)
+				self.window.DrawData()
+				#self.signal_panel.Refresh()
+	
 
 class signal_cfgUI(wx.Panel):
 	def __init__(self,  parent=None, id=-1, signal=None) :
@@ -176,17 +243,6 @@ class Dialog_Setup(wx.Dialog):
 		self.SetSizer(self.topsizer)
 		self.Fit()
 
-#	def OnOk(self,event):
-#		print "dlg OK"
-#		if event.GetId == wx.ID_OK:
-#			for i in range(0,len(self.signals)):
-#				self.signals[i].SetUrl(self.cfg_panels[i].GetUrl())
-#				self.signals[i].SetOkColour(self.cfg_panels[i].GetOkColour())
-#				self.signals[i].SetBadColour(self.cfg_panels[i].GetBadColour())
-#
-#		self.Show(False)	
-
-
 
 ############################################################################################################################################
 class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
@@ -199,18 +255,65 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#panel 创建
 		self.SetupScrolling(scroll_x=True, scroll_y=True, rate_x=20, rate_y=20)
 		self.SetupScrolling() 
-		self.signals = signals 
+		if signals:
+			self.SetSignals(signals)
 		self.SetBackgroundColour(back_color)
 		self.grid_colour= wx.Colour(250,0,250,200)
 		self.ok_colour= wx.Colour(0,0,250,200)
 		self.bad_colour= wx.Colour(250,0,0,200)
 		self.refer_tables = None
 		self.eut = None
+		self.running_flag = False
 
 		self.Bind(wx.EVT_PAINT, self.OnPaint)
 		self.Bind(wx.EVT_LEFT_DCLICK, self.OnShowCurrent)
 		self.Bind(wx.EVT_MIDDLE_DCLICK, self.OnSetup)
 
+		self.popmenu1 = wx.Menu()
+		self.menu_save = self.popmenu1.Append(wx.NewId(), u"保存数据", u"保存数据到数据库" )
+		self.menu_run = self.popmenu1.Append(wx.NewId(), u"运行.当前点", u"运行与暂停", kind=wx.ITEM_CHECK)
+		self.popmenu1.AppendSeparator()
+		self.menu_query_ui = self.popmenu1.Append(wx.NewId(), u"数据库查询", u"组合查询已存储数据")
+		self.menu_query_current = self.popmenu1.Append(wx.NewId(), u"当前数据查询", u"查询正在测试的数据")
+		self.popmenu1.AppendSeparator()
+		self.menu_eut = self.popmenu1.Append(wx.NewId(), u"Sensor选择", u"被测件选择")
+		self.menu_setup = self.popmenu1.Append(wx.NewId(), u"配置", u"测试参数配置")
+		self.Bind(wx.EVT_CONTEXT_MENU, self.OnRightDown)
+		self.Bind(wx.EVT_MENU, self.OnRunStop,self.menu_run)
+		self.Bind(wx.EVT_MENU, self.OnShowCurrent,self.menu_query_current)
+		#self.Bind(wx.EVT_MENU, self.OnQuery_UI,self.menu_query_ui)
+		self.Bind(wx.EVT_MENU, self.OnSetup,self.menu_setup)
+		self.Bind(wx.EVT_MENU, self.OnSelectEut,self.menu_eut)
+		#self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
+
+	def OnRightDown(self,event):
+		pos = self.ScreenToClient(event.GetPosition())
+		self.PopupMenu(self.popmenu1, pos)
+
+	def OnRunStop(self, evt):
+		if self.running_flag != True:
+			self.running_flag = True
+			print "running..........."
+			self.Run()
+		else:
+			print "pausing..........."
+			self.running_flag = False
+			self.Pause()
+	def Run(self):
+		for signal in self.signals:
+			signal.Run()
+			
+	def Pause(self):
+		for signal in self.signals:
+			signal.Pause()
+			
+
+	def SetSignals(self,signals):
+		self.signals = signals 
+		for signal in signals:
+			if isinstance(signal,Signal):
+				signal.SetWindow(self)
+	
 	def OnSetup(self,evt):
 		self.Setup()
 	
@@ -318,26 +421,6 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 				dc.DrawLine(x0,Y0,x1,Y0)
 				last_Y0 =  Y0
 				x0 = x1
-
-
-	def SetPointValue(self,point,data_v_obj,sig_num=0):
-		try:
-			self.signals[sig_num].data[point]=data_v_obj
-		except:
-			pass
-
-	def AppendValue(self,data_v_obj,sig_num=0):
-		try:
-			self.signals[sig_num].data.append(data_v_obj)
-		except:
-			pass
-
-	
-	def SetValue(self,index,data_v_obj,sig_num=0):
-		try:
-			self.signals[sig_num].data[index] = data_v_obj
-		except:
-			self.signals[sig_num].data.append(data_v_obj)
 	
 	def InitValue(self):
 		for signal in self.signals:
@@ -361,7 +444,18 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 			print u"位置\t数值\t参考值\t参考精度\t实际精度\t结果"
 			if value!= -100:
 				print "%d\t%5.2f\t%5.2f\t%5.4f\t%5.4f\t"%(position, value,value_refer, precision_refer, precision),valid
-	
+
+	def OnSelectEut(self,evt):
+		Eut_editor = Eut_Editor(self)
+		Eut_editor.ShowModal()
+		eut = Eut_editor.GetEut()
+
+		print "start eut show refer...................................................................................................."
+		print eut.ShowRefer()
+		print "end eut show refer...................................................................................................."
+		self.SetEut(eut)
+		self.Refresh(True)
+
 ############################################################################################################################################
 def populate_data(data_panel):
 	for pos in range (1,1200):
@@ -400,8 +494,10 @@ if __name__=='__main__':
 	frm.SetSize((1400,600))
 
 	signals=[]
-	signals.append(Signal())
-	signals.append(Signal())
+	s1 = Signal()
+	s2 = Signal()
+	signals.append(s1)
+	signals.append(s2)
 	panel = Signal_Panel(parent=frm,id=-1,size=(1400,600),signals=signals)
 	#panel.SetRefer([pupulate_refer_table(),pupulate_refer_table()])
 	panel.SetGridColour(wx.Colour(0,250,250,200))

@@ -44,11 +44,11 @@ class Data_Validated(wx.Object):
 		else:
 			return False
 
-	def GetPos(self):
+	def GetXvalue(self):
 		return self.pos
 
 
-	def GetValue(self):
+	def GetYvalue(self):
 		return self.value
 			
 	def GetValue_refer(self):
