@@ -90,8 +90,8 @@ class Data_Source(threading.Thread,wx.Object):
 
 	def run(self):#运行一个线程
 		threading.Timer(5,self.FeedDog).start()
-		print self.endpoint.GetIP()
-		print self.endpoint.GetPort()
+	#	print self.endpoint.GetIP()
+	#	print self.endpoint.GetPort()
 		self.tcpCliSock.connect( ( self.endpoint.GetIP(), self.endpoint.GetPort() ) )
 		self.tcpCliSock.setblocking(0)
 		while True:
@@ -207,7 +207,7 @@ if __name__=='__main__':
 
 	dsource.start()
 	time.sleep(0.5)
-	queue_cmd_in.put("open:com3:38400\n")
+	queue_cmd_in.put("open:com1:38400\n")
 	time.sleep(0.5)
 	queue_cmd_in.put("run\n")
 	while (True):

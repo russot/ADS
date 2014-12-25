@@ -7,7 +7,7 @@ import string
 
 class Refer_Entry(object):
 #	__slots__ = {"Xvalue":float,"Xprecision":float,"Yvalue":float,"Yprecision":float,"Yoffset":float,"Ymin":float,"Ymax":float}
-	def __init__(self,Xvalue=0,Xprecision=0,Yvalue=0,Yprecision=0,Yoffset=0,Ymin=0,Ymax=0,valid_status=False):
+	def __init__(self,Xvalue=0,Xprecision=0,Yvalue=0,Yprecision=0,Yoffset=0,Ymin=0,Ymax=0,valid_status=None):
 		self.valid_status = valid_status
 		self.Xvalue	= self.ToFloat( Xvalue)
 		self.Xprecision = self.ToFloat( Xprecision)
@@ -16,6 +16,7 @@ class Refer_Entry(object):
 		self.Yoffset	= self.ToFloat(Yoffset)
 		self.Ymin = self.ToFloat(Ymin)
 		self.Ymax = self.ToFloat(Ymax)
+		self.length = 0
 
 	def ToFloat(self,value):
 		if not value:
@@ -42,10 +43,16 @@ class Refer_Entry(object):
 		out += "Ymax:%.3f,"%(self.Ymax)
 		return out
 	
-	def GetValidStatus(self):
+	def GetLength(self):
+		return self.length
+
+	def SetLength(self,length):#status= True/False
+		self.length= length
+
+	def GetValid(self):
 		return self.valid_status
 
-	def SetValidStatus(self,status):#status= True/False
+	def SetValid(self,status):#status= True/False
 		self.valid_status = status
 
 
@@ -90,4 +97,25 @@ class Refer_Entry(object):
 
 	def SetYoffset(self,value):
 		self.Yoffset= float(value)
+
+	def Validate(self,Xvalue=None,Yvalue=0):
+		xstatus = True
+		ystatus = False
+		Xprecision = 0.0
+		if Xvalue != None:
+			Xprecision = Xvalue -self.Xvalue
+			if Xprecision > self.Xprecision:
+				xstatus = False 
+		Yprecision = (Yvalue -self.Yvalue)/self.Yvalue*100
+		if Yprecision <= self.Yprecision:
+			ystatus = True 
+		return (Xprecision,Yprecision,xstatus,ystatus)
+
+	def SetXY_Valid(self,xvalue,yvalue,xprecision,yprecision,valid_status):
+		self.Xvalue=xvalue
+		self.Yvalue=yvalue
+		self.Xprecision=xprecision
+		self.Yprecision=yprecision
+		self.valid_status = valid_status
+
 

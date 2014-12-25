@@ -97,8 +97,7 @@ class Signal(wx.Dialog):
 			self.thread_source.start() #启动后台线程, 与endpoint server进行连接与通信
 			self.started_flag = True
 			#self.menu_setup.Enable(False)#已运行，再不能设置
-			pos_slash = self.url.find('/')
-			serial_name = self.url[pos_slash+1:].split("/")[0]
+			serial_name = self.url.split("/")[1]
 			open_cmd = "open:%s:%s"%(serial_name,'115200')
 			print open_cmd
 			self.cmd_queue.put(open_cmd)
@@ -130,23 +129,103 @@ class Signal(wx.Dialog):
 					self.Init_Data()
 			if isinstance(item,dict):
 				self.data_count += 1
-				valueX,valueY = item["value"]
-				print "new data .............",valueX,valueY
+				Xvalue,Yvalue = item["value"]
 				length = item["length"]
+				print "new data .............",Xvalue,Yvalue,length
 				if length > 1000:
 					length = 50
-				data_v = Data_Validated(valid= True,
-					pos=valueX,
-					value= valueY,
-					value_refer=0.0,
-					precision_refer=0.0,
-					precision=0.0,
-					)
-				data_v.SetLength(length)
-				self.data.append (data_v)
+				refer_entry  = self.GetReferEntry(Xvalue,Yvalue)
+				record_entry = Refer_Entry()
+				Xprecision,Yprecision,xstatus,ystatus = refer_entry.Validate(Xvalue,Yvalue)
+				if xstatus==True and ystatus==True:
+					status = True
+				else:
+					status = False
+				record_entry = Refer_Entry(
+						Xvalue=Xvalue,
+						Yvalue=Yvalue,
+						Xprecision=Xprecision,
+						Yprecision=Yprecision,
+						valid_status=status)
+				record_entry.SetLength(length)
+				self.data.append(record_entry)
 				self.window.DrawData()
+				self.window.Refresh()
 				#self.signal_panel.Refresh()
-	
+
+	def GetRefer_X(self,Xvalue=0,Yvalue=0):
+		refer_entry= None
+		self.Refers.sort(key=lambda x:x.GetXvalue())
+		if Xvalue > self.Refers[-1].GetXvalue():
+			refer_entry = self.Refers[-1]
+		elif Xvalue < self.Refers[0].GetXvalue():
+			refer_entry = self.Refers[0]
+		else:
+			p0 = self.Refers[0]
+			for p1 in self.Refers:
+				x0 = p0.GetXvalue()
+				x1 = p1.GetXvalue()
+				delta0 = abs(Xvalue - x0)
+				delta1 = abs(Xvalue - x1)
+				#judge being within by comparing delta_sum 
+				if (delta0 + delta1) > abs(x1 - x0):
+					p0 = p1
+					continue
+				#use nearby Yvalue
+				y0 = p0.GetYvalue()
+				y1 = p1.GetYvalue()
+				delta0 = abs(Yvalue - y0)
+				delta1 = abs(Yvalue - y1)
+				if abs(delta0) < abs(delta1): 
+					refer_entry =  p0
+				else:
+					refer_entry =  p1
+				break
+		return refer_entry
+
+	def GetRefer_Y(self,Xvalue=0,Yvalue=0):
+		refer_entry= None
+		self.Refers.sort(key=lambda x:x.GetYvalue())
+		if Yvalue <= self.Refers[0].GetYvalue():#outof range
+				refer_entry =  self.Refers[0].GetYvalue()
+				self.Refers[0].SetValidStatus(True)
+		elif Yvalue >= self.Refers[-1].GetYvalue():#outof range
+				refer_entry =  self.Refers[-1].GetYvalue()
+				self.Refers[-1].SetValidStatus(True)
+		else:
+			p0 = self.Refers[0]
+			for p1 in self.Refers:
+				if p1.GetValidStatus == True:
+					p0 = p1
+					continue
+				y0 = p0.GetYvalue()
+				y1 = p1.GetYvalue()
+				delta0 = Yvalue - y0
+				delta1 = Yvalue - y1
+				#judge being within by comparing delta_sum 
+				if (delta0 + delta1) > abs(y1 - y0):
+					p0 = p1
+					continue
+				#use nearby Yvalue
+				if abs(delta0) < abs(delta1): 
+					refer_entry =  p0
+					p0.SetValidStatus(True)
+				else:
+					refer_entry =  p1
+					p1.SetValidStatus(True)
+				break
+
+		return refer_entry # if not found, return None object
+
+	def GetReferEntry(self,Xvalue=0,Yvalue=0):
+		'''Xvalue should be None for using Yvalue as index,
+		or integer for using itself as index '''
+		refer_entry =None
+		if Xvalue != None:# use Xvalue as index
+			refer_entry = self.GetRefer_X(Xvalue,Yvalue)
+		else:# use Yvalue as index, and table is sorted by Yvalue
+			refer_entry = self.GetRefer_Y(Xvalue,Yvalue)
+		return refer_entry # if not found, return None object
 
 class signal_cfgUI(wx.Panel):
 	def __init__(self,  parent=None, id=-1, signal=None) :
