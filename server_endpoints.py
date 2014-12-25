@@ -37,7 +37,7 @@ COM	= 1
 
 PORT=8088
 IP_ADDRESS = '127.0.0.1'
-DEMO_PN    = 'R939-55'
+DEMO_PN    = 'R939-5y'
 
 USB_IDVendor=0x0483
 USB_IDProduct=0x5750
@@ -138,9 +138,9 @@ class Serial_Reader(threading.Thread):
 			if X%50 < 10: 
 				#print 0.1*X
 				refer_entry= self.eut_demo.GetReferEntry(Xvalue=0.1*X)
-				refer_valueY= refer_entry.GetYvalue()
+				refer_valueY= refer_entry.GetYvalue()*4096/self.ymax
 				rand_value_once= random.random()* refer_valueY*0.1
-				Y = refer_valueY*1.05 + rand_value_once
+				Y = refer_valueY*1.05 - rand_value_once
 			else:
 				if X%50 ==10:
 					rand_value_once= random.random()* refer_valueY*0.03
@@ -153,14 +153,14 @@ class Serial_Reader(threading.Thread):
 		#remain high for sometime
 
 		for X in range (1,800):
-			self.out += '%04x%04x'%(self.xmax*10,self.ymax)
+			self.out += '%04x%04x'%(self.xmax*10,self.ymax*4096/self.ymax)
 			self.count +=1
 			self.out_()
 
 	def min_(self):
 		#remain high for sometime
 		for X in range (1,800):
-			self.out += '%04x%04x'%(self.xmin*10,self.ymin)
+			self.out += '%04x%04x'%(self.xmin*10,self.ymin*4096/self.ymax)
 			self.count +=1
 			self.out_()
 
@@ -168,7 +168,7 @@ class Serial_Reader(threading.Thread):
 		for X in range (int(self.xmin*10),int(self.xmax*10+10)):
 			if X%50 < 10: 
 				refer_entry= self.eut_demo.GetReferEntry(Xvalue=(self.xmax-self.xmin-0.1*X))
-				refer_valueY= refer_entry.GetYvalue()
+				refer_valueY= refer_entry.GetYvalue()*4096/self.ymax
 				rand_value= random.random()* refer_valueY*0.1
 				Y = refer_valueY *1.05-rand_value
 			else:
@@ -182,14 +182,14 @@ class Serial_Reader(threading.Thread):
 	def pull_(self):
 		#pull out eut and remain high
 		for X in range (1,100):
-			rand_value_once= random.random()* 4095
+			rand_value_once= random.random()* 4096
 			self.out += '%04x%04x'%(self.xmin*10,rand_value_once)
 			self.count +=1
 			self.out_()
 	
 	def null_(self):
 		for X in range (1,1200):
-			self.out += '%04x%04x'%(self.xmin*10,4095)
+			self.out += '%04x%04x'%(self.xmin*10,4096)
 			self.count +=1
 			self.out_()
 		
@@ -415,6 +415,7 @@ class Device_Proxy():
 	def Open(self,dev_name_all):#open device Interface
 		dev_name = dev_name_all.split(":")[0]
 		if not dev_name in self.routes.keys():
+			print "dev_name in open()....................",dev_name
 			ep =  self.OpenDevice(dev_name_all)
 			if not ep:
 				return None
@@ -425,6 +426,7 @@ class Device_Proxy():
 			self.routes[dev_name] = Device_Serial(ep,[cmd_queues,data_queues])
 			self.routes[dev_name].setDaemon(True) 
 			self.routes[dev_name].start() 
+			print "routes.keys()",self.routes.keys()
 		else:
 			cmd_queue = Queue(-1)
 			data_queue =Queue(-1)
@@ -502,7 +504,7 @@ class Server_Endpoints(threading.Thread):
 			time.sleep(0.01)
 		
 class Client_Endpoints(threading.Thread):
-	def __init__(self,host='127.0.0.1',port=20001):
+	def __init__(self,host='127.0.0.1',port=20001,name=''):
 		threading.Thread.__init__(self)
 		self.host = host
 		self.port = port
@@ -512,6 +514,7 @@ class Client_Endpoints(threading.Thread):
 		self.timer = threading.Timer(1,self.FeedDog).start()
 		self.buffer_cmd=[]
 		self.queue_ep = Queue(0)
+		self.name = name
 
 	def FeedDog(self):
 		self.CliSock.send("feed:dog\n")
@@ -550,15 +553,18 @@ class Client_Endpoints(threading.Thread):
 			except:
 				pass
 			while not self.queue_ep.empty():
-				print "ep_client reads:%s" % self.queue_ep.get()
+				print "ep_client %s :%s" % (self.name, self.queue_ep.get())
 
 
 
 if __name__=='__main__':
 	server = Server_Endpoints(host=IP_ADDRESS,port=PORT)
 	server.start()
-	client = Client_Endpoints(host='127.0.0.1',port=PORT)
-	client.start()
+	client1 = Client_Endpoints(host='127.0.0.1',port=PORT,name='c1')
+	client1.start()
+	client2= Client_Endpoints(host='127.0.0.1',port=PORT,name='c2')
+	time.sleep(1.2)
+	client2.start()
 
 
 	
