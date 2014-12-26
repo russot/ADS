@@ -23,7 +23,7 @@ class Grouping_Filter(threading.Thread):
 	x10_magic = 0x10000# 0x1000, means data x10 in mcu
 	A1_to_A2 = 10
 	sleep_trig_level = 500
-	step_trig_level = 30
+	step_trig_level = 10
 	err= -999999
 	def __init__(self,queue_cmd_in,queue_cmd_out,queue_data_in,queue_out):
 		threading.Thread.__init__(self)

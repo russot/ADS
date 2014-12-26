@@ -134,18 +134,23 @@ class Serial_Reader(threading.Thread):
 		self.out='0x:'
 		self.count = 0
 		refer_valueY= 0.00001
-		for X in range (int(self.xmin*10),int(self.xmax*10+10)):
-			if X%50 < 10: 
+		for X in range (int(self.xmin),int(self.xmax)):
 				#print 0.1*X
-				refer_entry= self.eut_demo.GetReferEntry(Xvalue=0.1*X)
-				refer_valueY= refer_entry.GetYvalue()*4096/self.ymax
-				rand_value_once= random.random()* refer_valueY*0.1
-				Y = refer_valueY*1.05 - rand_value_once
-			else:
-				if X%50 ==10:
-					rand_value_once= random.random()* refer_valueY*0.03
-					Y = refer_valueY*1.01 - rand_value_once
+			refer_entry= self.eut_demo.GetReferEntry(Xvalue=X)
+			refer_valueY= refer_entry.GetYvalue()*4096/self.ymax
+			print "get Yvalue is ........",int(refer_entry.GetYvalue())
+			Y = int(refer_valueY)
 			self.out += '%04x%04x'%(X,Y)
+			self.count +=1
+			self.out_()
+
+	def down_(self):
+		for X in range (int(self.xmin),int(self.xmax)):
+			refer_entry= self.eut_demo.GetReferEntry(Xvalue=(self.xmax+self.xmin-X))
+			refer_valueY= refer_entry.GetYvalue()*4096/self.ymax
+			print "get Yvalue is ........",int(refer_entry.GetYvalue())
+			Y = int(refer_valueY)
+			self.out += '%04x%04x'%(self.xmax+self.xmin-X,Y)
 			self.count +=1
 			self.out_()
 
@@ -153,43 +158,31 @@ class Serial_Reader(threading.Thread):
 		#remain high for sometime
 
 		for X in range (1,800):
-			self.out += '%04x%04x'%(self.xmax*10,self.ymax*4096/self.ymax)
+			Y = self.eut_demo.GetReferEntry(Xvalue=self.xmax).GetYvalue()
+			self.out += '%04x%04x'%(self.xmax,Y*4096/self.ymax)
 			self.count +=1
 			self.out_()
 
 	def min_(self):
 		#remain high for sometime
 		for X in range (1,800):
-			self.out += '%04x%04x'%(self.xmin*10,self.ymin*4096/self.ymax)
+			Y = self.eut_demo.GetReferEntry(Xvalue=self.xmin).GetYvalue()
+			self.out += '%04x%04x'%(self.xmin,Y*4096/self.ymax)
 			self.count +=1
 			self.out_()
 
-	def down_(self):
-		for X in range (int(self.xmin*10),int(self.xmax*10+10)):
-			if X%50 < 10: 
-				refer_entry= self.eut_demo.GetReferEntry(Xvalue=(self.xmax-self.xmin-0.1*X))
-				refer_valueY= refer_entry.GetYvalue()*4096/self.ymax
-				rand_value= random.random()* refer_valueY*0.1
-				Y = refer_valueY *1.05-rand_value
-			else:
-				if X%50 ==10:
-					rand_value= random.random()* refer_valueY*0.03
-					Y = refer_valueY*1.01 - rand_value
-			self.out += '%04x%04x'%(X,Y)
-			self.count +=1
-			self.out_()
 
 	def pull_(self):
 		#pull out eut and remain high
 		for X in range (1,100):
 			rand_value_once= random.random()* 4096
-			self.out += '%04x%04x'%(self.xmin*10,rand_value_once)
+			self.out += '%04x%04x'%(self.xmin,rand_value_once)
 			self.count +=1
 			self.out_()
 	
 	def null_(self):
 		for X in range (1,1200):
-			self.out += '%04x%04x'%(self.xmin*10,4096)
+			self.out += '%04x%04x'%(self.xmin,4096)
 			self.count +=1
 			self.out_()
 		
@@ -521,7 +514,7 @@ class Client_Endpoints(threading.Thread):
 		self.timer = threading.Timer(1,self.FeedDog).start()
 
 	def run(self):
-		self.CliSock.send("open:com3:115200\n")
+		self.CliSock.send("open:com1:115200\n")
 		time.sleep(1.01)
 		self.CliSock.send("run:\n")
 		time.sleep(1.01)
@@ -553,7 +546,25 @@ class Client_Endpoints(threading.Thread):
 			except:
 				pass
 			while not self.queue_ep.empty():
-				print "ep_client %s :%s" % (self.name, self.queue_ep.get())
+				raw_data =  self.queue_ep.get()
+				if not raw_data.startswith("0x:"):
+					continue
+				try:
+					i=0
+					data = []
+					while(True):
+						x = int(raw_data[i*8+3:i*8+7],16)
+						y = int(raw_data[i*8+7:i*8+11],16)
+						
+						if y > 65536:
+							y -=65536
+							y /=10
+						data.append((x,y))
+						i += 1
+				except:
+					pass
+						
+				print "ep_client %s :%s" % (self.name, data)
 
 
 
@@ -562,9 +573,9 @@ if __name__=='__main__':
 	server.start()
 	client1 = Client_Endpoints(host='127.0.0.1',port=PORT,name='c1')
 	client1.start()
-	client2= Client_Endpoints(host='127.0.0.1',port=PORT,name='c2')
-	time.sleep(1.2)
-	client2.start()
+	#client2= Client_Endpoints(host='127.0.0.1',port=PORT,name='c2')
+	#time.sleep(1.2)
+	#client2.start()
 
 
 	

@@ -315,63 +315,90 @@ class Eut():
 			pass
 		return out
 
-	def GetReferEntry(self,Xvalue=0,Yvalue=0,table_num=0):
-		'''Xvalue should be None for using Yvalue as index,
-		or integer for using itself as index '''
+
+	def GetReferEntry_X(self,Xvalue=None,Yvalue=None,table_num=0):
 		refer_entry =None
-		if Xvalue != None:# use Xvalue as index
-			self.Refer_Table[table_num].sort(key=lambda x:x.GetXvalue())
-			if Xvalue > self.Refer_Table[table_num][-1].GetXvalue():
-				refer_entry = self.Refer_Table[table_num][-1]
-			elif Xvalue < self.Refer_Table[table_num][0].GetXvalue():
-				refer_entry = self.Refer_Table[table_num][0]
-			else:
-				p0 = self.Refer_Table[table_num][0]
-				for p1 in self.Refer_Table[table_num]:
-					x0 = p0.GetXvalue()
-					x1 = p1.GetXvalue()
-					delta0 = abs(Xvalue - x0)
-					delta1 = abs(Xvalue - x1)
-					#judge being within by comparing delta_sum 
-					if (delta0 + delta1) > abs(x1 - x0):
-						p0 = p1
-						continue
-					#use nearby Yvalue
-					if abs(delta0) < abs(delta1): 
-						refer_entry =  p0
-					else:
-						refer_entry =  p1
-					break
-		else:# use Yvalue as index, and table is sorted by Yvalue
-			if Yvalue <= self.Refer_Table[table_num][0].GetYvalue():#outof range
-					refer_entry =  self.Refer_Table[table_num][0].GetYvalue()
-					self.Refer_Table[table_num][0].SetValidStatus(True)
-			elif Yvalue >= self.Refer_Table[table_num][-1].GetYvalue():#outof range
-					refer_entry =  self.Refer_Table[table_num][-1].GetYvalue()
-					self.Refer_Table[table_num][-1].SetValidStatus(True)
-			else:
-				p0 = self.Refer_Table[table_num][0]
-				for p1 in self.Refer_Table[table_num]:
-					if p1.GetValidStatus == True:
-						p0 = p1
-						continue
+		x0 = self.Refer_Table[table_num][0].GetXvalue()
+		xn = self.Refer_Table[table_num][-1].GetXvalue()
+		if x0 > xn:
+			Xmax =self.Refer_Table[table_num][0]
+			Xmin =self.Refer_Table[table_num][-1]
+		else:
+			Xmax =self.Refer_Table[table_num][-1]
+			Xmin =self.Refer_Table[table_num][0]
+
+		if Xvalue >= Xmax.GetXvalue():
+			refer_entry = Xmax
+		elif Xvalue <= Xmin.GetXvalue():
+			refer_entry = Xmin
+		else:
+			p0 = self.Refer_Table[table_num][0]
+			for p1 in self.Refer_Table[table_num]:
+				x0 = p0.GetXvalue()
+				x1 = p1.GetXvalue()
+				delta0 = abs(Xvalue - x0)
+				delta1 = abs(Xvalue - x1)
+				#judge being within by comparing delta_sum 
+				if (delta0 + delta1) > abs(x1 - x0):
+					p0 = p1
+					continue
+				if Yvalue != None:
 					y0 = p0.GetYvalue()
 					y1 = p1.GetYvalue()
 					delta0 = Yvalue - y0
 					delta1 = Yvalue - y1
-					#judge being within by comparing delta_sum 
-					if (delta0 + delta1) > abs(y1 - y0):
-						p0 = p1
-						continue
 					#use nearby Yvalue
 					if abs(delta0) < abs(delta1): 
 						refer_entry =  p0
-						p0.SetValidStatus(True)
 					else:
 						refer_entry =  p1
-						p1.SetValidStatus(True)
+				else:
+					if x0 > x1:
+						refer_entry =  p1
+					else:
+						refer_entry =  p0
+
+
 					break
 
+		return refer_entry
+
+
+	def GetReferEntry_Y(self,Xvalue=None,Yvalue=None,table_num=0):
+		refer_entry =None
+		if Yvalue <= self.Refer_Table[table_num][0].GetYvalue():#outof range
+				refer_entry =  self.Refer_Table[table_num][0]
+		elif Yvalue >= self.Refer_Table[table_num][-1].GetYvalue():#outof range
+				refer_entry =  self.Refer_Table[table_num][-1]
+		else:
+			p0 = self.Refer_Table[table_num][0]
+			for p1 in self.Refer_Table[table_num]:
+				y0 = p0.GetYvalue()
+				y1 = p1.GetYvalue()
+				delta0 = Yvalue - y0
+				delta1 = Yvalue - y1
+				#judge being within by comparing delta_sum 
+				if (delta0 + delta1) > abs(y1 - y0):
+					p0 = p1
+					continue
+				#use nearby Yvalue
+				if abs(delta0) < abs(delta1): 
+					refer_entry =  p0
+					p0.SetValidStatus(True)
+				else:
+					refer_entry =  p1
+					p1.SetValidStatus(True)
+				break
+		return refer_entry
+
+	def GetReferEntry(self,Xvalue=None,Yvalue=None,table_num=0):
+		'''Xvalue should be None for using Yvalue as index,
+		or integer for using itself as index '''
+		refer_entry =None
+		if Xvalue != None:# use Xvalue as index
+			refer_entry = self.GetReferEntry_X(Xvalue,Yvalue,table_num)
+		else:# use Yvalue as index, and table is sorted by Yvalue
+			refer_entry = self.GetReferEntry_Y(Xvalue,Yvalue,table_num)
 		return refer_entry # if not found, return None object
 
 	def QueryDB(self, model_pattern,PN_pattern):
