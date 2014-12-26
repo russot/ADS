@@ -150,10 +150,10 @@ class Grouping_Filter(threading.Thread):
 	
 			if self.buffer_group[-1]["length"] >= self.step_trig_level and self.buffer_group[-1]["flag"] == "new":
 				self.buffer_group[-1]["flag"] = "step"
-				try:
-					print "step value<<<<<<<<<<<<<<<<<<<<",self.buffer_group[-1]["value"][-1]
-				except:
-					pass
+			#	try:
+			#		print "step value<<<<<<<<<<<<<<<<<<<<",self.buffer_group[-1]["value"][-1]
+			#	except:
+			#		pass
 				#print "stepping........."
 				
 

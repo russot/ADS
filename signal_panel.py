@@ -32,7 +32,7 @@ from refer_entry import *
 from refer_table import *
 
 class Signal(wx.Dialog):
-	def __init__(self,window=None,ok_colour="green",bad_colour="red",data=[], url="127.0.0.1:8088"):
+	def __init__(self,window=None,ok_colour="green",bad_colour="red",data=[], url="127.0.0.1:8088",table=None):
 		super(Signal, self).__init__(parent=None)
 		self.window = window
 		self.ok_colour = ok_colour
@@ -46,6 +46,7 @@ class Signal(wx.Dialog):
 		self.started_flag = False
 		self.thread_source = None
 		self.data_count = 0
+		self.SetRefers(table)
 		self.Bind(EVT_MY_EVENT, self.OnNewData)
 
 	def SetWindow(self,window):
@@ -79,9 +80,11 @@ class Signal(wx.Dialog):
 			self.Refers.sort(key=lambda x:x.GetYvalue())
 			#print "signal max value",self.Refers[-1].GetYvalue()
 			self.SetMaxValue(self.Refers[-1].GetYvalue())
+			for x in self.Refers:
+				print "signal refers value X,Y",x.GetXvalue(),x.GetYvalue()
 		except Exception,e:
-			print e
 			pass
+
 
 	def SetMaxValue(self,value):
 		self.max_value = float(value)
@@ -131,10 +134,11 @@ class Signal(wx.Dialog):
 				self.data_count += 1
 				Xvalue,Yvalue = item["value"]
 				length = item["length"]
-				print "new data .............",Xvalue,Yvalue,length
+				#print "new data .............",Xvalue,Yvalue,length
 				if length > 1000:
 					length = 50
 				refer_entry  = self.GetReferEntry(Xvalue,Yvalue)
+				print "searched refer_entry X,Y:",refer_entry.GetXvalue(),refer_entry.GetYvalue()
 				record_entry = Refer_Entry()
 				Xprecision,Yprecision,xstatus,ystatus = refer_entry.Validate(Xvalue,Yvalue)
 				if xstatus==True and ystatus==True:
@@ -154,12 +158,21 @@ class Signal(wx.Dialog):
 				#self.signal_panel.Refresh()
 
 	def GetRefer_X(self,Xvalue=0,Yvalue=0):
-		refer_entry= None
-		self.Refers.sort(key=lambda x:x.GetXvalue())
-		if Xvalue > self.Refers[-1].GetXvalue():
-			refer_entry = self.Refers[-1]
-		elif Xvalue < self.Refers[0].GetXvalue():
-			refer_entry = self.Refers[0]
+		refer_entry =None
+
+		print len(self.Refers),self.Refers
+		x0 = self.Refers[0].GetXvalue()
+		xn = self.Refers[-1].GetXvalue()
+		if x0 > xn:
+			Xmax =self.Refers[0]
+			Xmin =self.Refers[-1]
+		else:
+			Xmax =self.Refers[-1]
+			Xmin =self.Refers[0]
+		if Xvalue >=   Xmax.GetXvalue():
+			refer_entry = Xmax
+		elif Xvalue <= Xmin:
+			refer_entry = Xmin
 		else:
 			p0 = self.Refers[0]
 			for p1 in self.Refers:
@@ -185,7 +198,6 @@ class Signal(wx.Dialog):
 
 	def GetRefer_Y(self,Xvalue=0,Yvalue=0):
 		refer_entry= None
-		self.Refers.sort(key=lambda x:x.GetYvalue())
 		if Yvalue <= self.Refers[0].GetYvalue():#outof range
 				refer_entry =  self.Refers[0].GetYvalue()
 				self.Refers[0].SetValidStatus(True)
@@ -224,7 +236,7 @@ class Signal(wx.Dialog):
 		if Xvalue != None:# use Xvalue as index
 			refer_entry = self.GetRefer_X(Xvalue,Yvalue)
 		else:# use Yvalue as index, and table is sorted by Yvalue
-			refer_entry = self.GetRefer_Y(Xvalue,Yvalue)
+			refer_entry = self.GetRefer_Y(None,Yvalue)
 		return refer_entry # if not found, return None object
 
 class signal_cfgUI(wx.Panel):
@@ -417,12 +429,15 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.refer_tables = refer_tables
 		for table in self.refer_tables:
 			table.sort(key=lambda x:x.GetYvalue())
-			for refer_entry in table:
-				print ">>>>>>>>>>>>>>>>>>>>>>>>>",refer_entry.ShowSensor()
+			#for refer_entry in table:
+			#	print ">>>>>>>>>>>>>>>>>>>>>>>>>",refer_entry.ShowSensor()
 		i=0
 		for signal in self.signals:#map refer_tables to signals as 1:1
-			signal.SetRefers(self.refer_tables[i])
-			i += 1
+			try:
+				signal.SetRefers(self.refer_tables[i])
+				i += 1
+			except:
+				pass
 
 	def SetGridColour(self,colour):
 		self.grid_colour= colour
@@ -482,6 +497,8 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 				pass
 
 	def DrawSignal(self,signal,dc,clientRect):
+		if not signal.Refers:
+			return
 		#print "render data....."
 		x0 = 1
 		x1 = 1
