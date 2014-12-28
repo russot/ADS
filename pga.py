@@ -338,21 +338,37 @@ class  Pga():
 		Ri = Volt_Rout/Vref*RR - RR 
 		return Ri
 
-	def find_result4R(self,value_hex):
-		print self.config
-		RH = float(self.Rs[_RH][0])
-		RL = float(self.Rs[_RL][0])
-		Vref = self.Vrefs[_VR]*RL/(RH + RL)
+#	def find_result4R(self,value_hex):
+#		print self.config
+#		RH = float(self.Rs[_RH][0])
+#		RL = float(self.Rs[_RL][0])
+#		Vref = self.Vrefs[_VR]*RL/(RH + RL)
+#
+#		Volt_A2out= self.Vrefs[_VADC]*value_hex/pow(2,ADC_BITS)
+#		A2_gain   = self.config[_RA2_][_R_]
+#		Volt_A1out  = Volt_A2out/A2_gain
+#		A1_gain   = self.config[_RA1_][_R_]
+#		Volt_Rout  = Volt_A1out/A1_gain
+#		RR = self.config[_RR_][_R_]
+#		Ri = Volt_Rout/Vref*RR - RR 
+#		return Ri
+RA1_series = (0.200,0.511,1.2,2.4,3.3,3.3+3.9,18,47)
+#RA1_series = (2,4,8,16,32,180,220,250)
+RA2_series = (0,3,15,30+30,210+30)
+RR_series = (10/2,22/2,22*2,300/2,300*2,3900/2,3900*2,18000)
+RH_series = (18000,)
+RL_series = (200,)
+Rs = [None,None,None,None,None]
+Rs[_RA1] = RA1_series
+Rs[_RA2] = RA2_series
+Rs[_RR]  = RR_series
+Rs[_RH]  = RH_series
+Rs[_RL]  = RL_series
 
-		Volt_A2out= self.Vrefs[_VADC]*value_hex/pow(2,ADC_BITS)
-		A2_gain   = self.config[_RA2_][_R_]
-		Volt_A1out  = Volt_A2out/A2_gain
-		A1_gain   = self.config[_RA1_][_R_]
-		Volt_Rout  = Volt_A1out/A1_gain
-		RR = self.config[_RR_][_R_]
-		Ri = Volt_Rout/Vref*RR - RR 
-		return Ri
-
+Vrefs = [None,None]
+Vrefs[_VR]=2.483
+Vrefs[_VADC]=3.3
+gPGA = Pga(Rs=Rs,Vrefs=Vrefs)
 
 
 if __name__=='__main__':

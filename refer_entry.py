@@ -103,10 +103,10 @@ class Refer_Entry(object):
 		ystatus = False
 		Xprecision = 0.0
 		if Xvalue != None:
-			Xprecision = Xvalue -self.Xvalue
+			Xprecision = abs(Xvalue -self.Xvalue)
 			if Xprecision > self.Xprecision:
 				xstatus = False 
-		Yprecision = (Yvalue -self.Yvalue)/self.Yvalue*100
+		Yprecision = abs((Yvalue -self.Yvalue)/self.Yvalue*100)
 		if Yprecision <= self.Yprecision:
 			ystatus = True 
 		return (Xprecision,Yprecision,xstatus,ystatus)

@@ -130,7 +130,7 @@ class Data_Source(threading.Thread,wx.Object):
 		if self.queue_cmd_in.empty():
 			return
 		command = self.queue_cmd_in.get() #get command (from self.queue_cmd_in), then process it and response(to  self.queue_out)
-		print "thread_source command: %s" % command
+		#print "thread_source command: %s" % command
 		if command.startswith("stop"): #excute
 			self.run_flag =  False
 			while not self.queue_out.empty(): # 清除输出队列中的过期数据

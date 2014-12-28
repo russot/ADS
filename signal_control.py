@@ -158,8 +158,9 @@ class Signal_Control(wx.Panel):   #3
 		self.signal_panel_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_panel_lane.SetSizer(self.signal_panel_sizer)
 		signals=[]
-		s1 =Signal(url="127.0.0.1:8088/com1/1")
-		s2 =Signal(url="127.0.0.1:8088/com1/2")
+		s1 =Signal(url="127.0.0.1:8088/com3/1")
+		s2 =Signal()
+		s2 = None
 		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=[s1,s2])
 		self.signal_panel_sizer.Add(self.signal_panel,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 

@@ -30,23 +30,24 @@ from data_source import MyEvent, EVT_MY_EVENT
 
 from refer_entry import *
 from refer_table import *
+from pga import gPGA
 
 class Signal(wx.Dialog):
-	def __init__(self,window=None,ok_colour="green",bad_colour="red",data=[], url="127.0.0.1:8088",table=None):
+	def __init__(self,window=None,ok_colour="green",bad_colour="red",url=None,table=None):
 		super(Signal, self).__init__(parent=None)
 		self.window = window
 		self.ok_colour = ok_colour
 		self.old_ok_colour = ok_colour
 		self.bad_colour= bad_colour
 		self.old_bad_colour = bad_colour
-		self.url = url
-		self.data = data
+		self.data = []
 		self.cmd_queue=Queue(-1)
 		self.data_queue=Queue(-1)
 		self.started_flag = False
 		self.thread_source = None
 		self.data_count = 0
-		self.SetRefers(table)
+		self.SetRefer_entries(table)
+		self.SetUrl(url)
 		self.Bind(EVT_MY_EVENT, self.OnNewData)
 
 	def SetWindow(self,window):
@@ -69,31 +70,9 @@ class Signal(wx.Dialog):
 		return self.bad_colour
 
 	def SetUrl(self,url):
+		if not url:
+			return
 		self.url = url
-
-	def GetUrl(self):
-		return self.url
-
-	def SetRefers(self,table):
-		try:
-			self.Refers = table
-			self.Refers.sort(key=lambda x:x.GetYvalue())
-			#print "signal max value",self.Refers[-1].GetYvalue()
-			self.SetMaxValue(self.Refers[-1].GetYvalue())
-			for x in self.Refers:
-				print "signal refers value X,Y",x.GetXvalue(),x.GetYvalue()
-		except Exception,e:
-			pass
-
-
-	def SetMaxValue(self,value):
-		self.max_value = float(value)
-
-	def GetMaxValue(self,value):
-		return self.max_value
-
-	def Run(self):
-		print "signal running.....\n"
 		if self.started_flag != True:
 			self.thread_source = Data_Source(self,self.url,self.cmd_queue,self.data_queue)
 			self.thread_source.setDaemon(True)
@@ -104,13 +83,39 @@ class Signal(wx.Dialog):
 			open_cmd = "open:%s:%s"%(serial_name,'115200')
 			print open_cmd
 			self.cmd_queue.put(open_cmd)
+
+	def GetUrl(self):
+		return self.url
+
+	def SetRefer_entries(self,table):
+		if table and isinstance(table,list):
+			self.refer_entries = table
+			self.refer_entries.sort(key=lambda x:x.GetYvalue())
+			#print "signal max value",self.refer_entries[-1].GetYvalue()
+			ymax = self.refer_entries[-1].GetYvalue()
+			ymin = self.refer_entries[ 0].GetYvalue()
+			self.SetMaxValue(ymax)
+			gPGA.find_solution(range_=(ymin,ymax),unit="Ohm")
+			for x in self.refer_entries:
+				print "signal refers value X,Y",x.GetXvalue(),x.GetYvalue()
+		else:
+			self.refer_entries = None
+
+
+	def SetMaxValue(self,value):
+		self.max_value = float(value)
+
+	def GetMaxValue(self):
+		return self.max_value
+
+	def Run(self):
+		print "signal running.....\n"
+		self.cmd_queue.put("run:")
 		while not self.data_queue.empty(): # 消除输出队列中的过期数据
 			self.data_queue.get()
-		self.cmd_queue.put("run:")
 
 	def Init_Data(self):
 		self.data_count = 0
-		del self.data
 		self.data = []
 		self.window.Refresh()
 
@@ -119,9 +124,11 @@ class Signal(wx.Dialog):
 		self.cmd_queue.put("stop:")
 		while not self.data_queue.empty(): # 消除输出队列中的过期数据
 			self.data_queue.get()
-		self.Init_Data()
+		#self.Init_Data()
 
 	def OnNewData(self, event):
+		if not self.refer_entries:
+			return
 		out = ''
 		pos = 0
 		value = 0
@@ -132,14 +139,15 @@ class Signal(wx.Dialog):
 					self.Init_Data()
 			if isinstance(item,dict):
 				self.data_count += 1
-				Xvalue,Yvalue = item["value"]
+				Xvalue,Yvalue_ = item["value"]
+				Yvalue = gPGA.find_result4R(Yvalue_)
+				#print "Yvalue of R:",Yvalue
 				length = item["length"]
 				#print "new data .............",Xvalue,Yvalue,length
-				if length > 1000:
+				if length > 200:
 					length = 50
 				refer_entry  = self.GetReferEntry(Xvalue,Yvalue)
 				print "searched refer_entry X,Y:",refer_entry.GetXvalue(),refer_entry.GetYvalue()
-				record_entry = Refer_Entry()
 				Xprecision,Yprecision,xstatus,ystatus = refer_entry.Validate(Xvalue,Yvalue)
 				if xstatus==True and ystatus==True:
 					status = True
@@ -153,42 +161,42 @@ class Signal(wx.Dialog):
 						valid_status=status)
 				record_entry.SetLength(length)
 				self.data.append(record_entry)
-				self.window.DrawData()
+				#self.window.DrawData()
 				self.window.Refresh()
-				#self.signal_panel.Refresh()
 
 	def GetRefer_X(self,Xvalue=0,Yvalue=0):
 		refer_entry =None
 
-		print len(self.Refers),self.Refers
-		x0 = self.Refers[0].GetXvalue()
-		xn = self.Refers[-1].GetXvalue()
+		#print len(self.refer_entries),self.refer_entries
+		x0 = self.refer_entries[0].GetXvalue()
+		xn = self.refer_entries[-1].GetXvalue()
 		if x0 > xn:
-			Xmax =self.Refers[0]
-			Xmin =self.Refers[-1]
+			Xmax =self.refer_entries[0]
+			Xmin =self.refer_entries[-1]
 		else:
-			Xmax =self.Refers[-1]
-			Xmin =self.Refers[0]
+			Xmax =self.refer_entries[-1]
+			Xmin =self.refer_entries[0]
+		#print "Xmin,Xmax,X--------------------",Xmin.GetXvalue(),Xmax.GetXvalue(),Xvalue
 		if Xvalue >=   Xmax.GetXvalue():
 			refer_entry = Xmax
-		elif Xvalue <= Xmin:
+		elif Xvalue <= Xmin.GetXvalue():
 			refer_entry = Xmin
 		else:
-			p0 = self.Refers[0]
-			for p1 in self.Refers:
-				x0 = p0.GetXvalue()
-				x1 = p1.GetXvalue()
-				delta0 = abs(Xvalue - x0)
+			p0 = self.refer_entries[0]
+			for p1 in self.refer_entries:
+				x0_ = p0.GetXvalue()
+				x1  = p1.GetXvalue()
+				delta0 = abs(Xvalue - x0_)
 				delta1 = abs(Xvalue - x1)
 				#judge being within by comparing delta_sum 
-				if (delta0 + delta1) > abs(x1 - x0):
+				if (delta0 + delta1) > abs(x1 - x0_):
 					p0 = p1
 					continue
 				#use nearby Yvalue
 				y0 = p0.GetYvalue()
 				y1 = p1.GetYvalue()
-				delta0 = abs(Yvalue - y0)
-				delta1 = abs(Yvalue - y1)
+				delta0 = Yvalue - y0
+				delta1 = Yvalue - y1
 				if abs(delta0) < abs(delta1): 
 					refer_entry =  p0
 				else:
@@ -198,22 +206,17 @@ class Signal(wx.Dialog):
 
 	def GetRefer_Y(self,Xvalue=0,Yvalue=0):
 		refer_entry= None
-		if Yvalue <= self.Refers[0].GetYvalue():#outof range
-				refer_entry =  self.Refers[0].GetYvalue()
-				self.Refers[0].SetValidStatus(True)
-		elif Yvalue >= self.Refers[-1].GetYvalue():#outof range
-				refer_entry =  self.Refers[-1].GetYvalue()
-				self.Refers[-1].SetValidStatus(True)
+		if Yvalue <= self.refer_entries[0].GetYvalue():#outof range
+				refer_entry =  self.refer_entries[0]
+		elif Yvalue >= self.refer_entries[-1].GetYvalue():#outof range
+				refer_entry =  self.refer_entries[-1]
 		else:
-			p0 = self.Refers[0]
-			for p1 in self.Refers:
-				if p1.GetValidStatus == True:
-					p0 = p1
-					continue
+			p0 = self.refer_entries[0]
+			for p1 in self.refer_entries:
 				y0 = p0.GetYvalue()
 				y1 = p1.GetYvalue()
-				delta0 = Yvalue - y0
-				delta1 = Yvalue - y1
+				delta0 = abs(Yvalue - y0)
+				delta1 = abs(Yvalue - y1)
 				#judge being within by comparing delta_sum 
 				if (delta0 + delta1) > abs(y1 - y0):
 					p0 = p1
@@ -221,10 +224,8 @@ class Signal(wx.Dialog):
 				#use nearby Yvalue
 				if abs(delta0) < abs(delta1): 
 					refer_entry =  p0
-					p0.SetValidStatus(True)
 				else:
 					refer_entry =  p1
-					p1.SetValidStatus(True)
 				break
 
 		return refer_entry # if not found, return None object
@@ -319,6 +320,8 @@ class Dialog_Setup(wx.Dialog):
 		print len(signals)
 		self.signals = signals
 		for signal in self.signals:
+			if not signal:
+				continue
 			cfg_panel = signal_cfgUI(self,-1,signal)
 			self.cfg_panels.append(cfg_panel )
 			self.ui_map.append([signal,cfg_panel])
@@ -392,10 +395,14 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 			self.Pause()
 	def Run(self):
 		for signal in self.signals:
+			if not signal:
+				continue
 			signal.Run()
 			
 	def Pause(self):
 		for signal in self.signals:
+			if not signal:
+				continue
 			signal.Pause()
 			
 
@@ -423,20 +430,20 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 
 	def SetEut(self,eut):
 		self.eut = eut
-		self.SetRefer(self.eut.GetReferTable())
+		#self.SetRefer(self.eut.GetReferTable())
 
-	def SetRefer(self,refer_tables):
-		self.refer_tables = refer_tables
-		for table in self.refer_tables:
-			table.sort(key=lambda x:x.GetYvalue())
-			#for refer_entry in table:
-			#	print ">>>>>>>>>>>>>>>>>>>>>>>>>",refer_entry.ShowSensor()
+		refer_tables = self.eut.GetReferTable()
+	#	for table in refer_tables:
+	#		table.sort(key=lambda x:x.GetYvalue())
+	#		#for refer_entry in table:
+	#		#	print ">>>>>>>>>>>>>>>>>>>>>>>>>",refer_entry.ShowSensor()
 		i=0
 		for signal in self.signals:#map refer_tables to signals as 1:1
 			try:
-				signal.SetRefers(self.refer_tables[i])
+				signal.SetRefer_entries(refer_tables[i])
 				i += 1
 			except:
+				print "map signal%d's refers failed.."%i
 				pass
 
 	def SetGridColour(self,colour):
@@ -462,23 +469,23 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 
 		
 	def DrawGrid(self):
+		if not  self.eut:
+			return
 		dc = wx.ClientDC(self)
 		clientRect = self.GetRect()
 		#dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.SHORT_DASH))
-		if  self.refer_tables == None:
-			return
 		#return
 		dc.SetPen(wx.Pen(self.grid_colour,1,style = wx.DOT))
 		dc.SetTextForeground(self.grid_colour)
-		refer_num = len(self.refer_tables[0])
+		refer_num = len(self.eut.GetReferTable()[0])
 		if refer_num < 40:
 			sparse = 2
 		else:
 			sparse = refer_num / 20
-		max_value = self.refer_tables[0][-1].GetYvalue() 
+		max_value = self.eut.GetMaxY()
 		max_height= clientRect.height
 		count = 0
-		for refer_entry in self.refer_tables[0]:
+		for refer_entry in self.eut.GetReferTable()[0]:
 			count +=1
 			if refer_num > 20 and count%sparse!=0:
 				continue
@@ -491,30 +498,32 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		clientRect = self.GetRect()
 		#dc.SetPen(wx.Pen(wx.Colour(100,100,100,200),1,style = wx.SHORT_DASH))
 		for signal in self.signals:
-			try:
-				self.DrawSignal(signal,dc,clientRect)
-			except:
-				pass
+			if not signal:
+				continue
+			self.DrawSignal(signal,dc,clientRect)
 
 	def DrawSignal(self,signal,dc,clientRect):
-		if not signal.Refers:
+		if not signal.refer_entries:
 			return
-		#print "render data....."
 		x0 = 1
 		x1 = 1
-		last_Y0= 1
-		max_value = signal.GetMaxValue() 
-		max_height= clientRect.height
-		for data_ in signal.data:
+		max_value  = signal.GetMaxValue() 
+		max_height = clientRect.height
+		last_Y0    = max_height
+		print "max @ height .....",max_value,max_height
+		for data_ in signal.GetData():
+			if not data_:
+				continue
 			if data_.GetYvalue() > 0:
 				x1 = x0 + data_.GetLength()
 				if data_.GetValid() == True:
 					dc.SetPen(wx.Pen(signal.ok_colour,2,style = wx.SOLID))
 				else:
 					dc.SetPen(wx.Pen(signal.bad_colour,2,style = wx.SOLID))
-				Y0=int((1.0-data_.GetYValue()/max_value)*max_height)
+				Y0=int((1.0-data_.GetYvalue()/max_value)*max_height)
 				dc.DrawLine(x0,Y0,x0,last_Y0)
 				dc.DrawLine(x0,Y0,x1,Y0)
+				print "x0,x1,Y0,last_Y0>>>>>>>>>>>>", x0,x1,Y0,last_Y0
 				last_Y0 =  Y0
 				x0 = x1
 	

@@ -110,32 +110,33 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 				self.SetReadOnly(row,col,read_only)
 
 #eut looks like [model,PN,NTC,NTC_PRC,unit,range,ref_points[[pos,value,precision],,,]]
-	def Update_Value(self):
-		for index in range(0,5):
-			row,col	= self.named_cells[index][_RC_VALUE]
-			value 	= self.GetCellValue(row,col)
-			type_	= self.named_cells[index][_TYPE]
-			if type_ == "float":
-				self.eut[index] = float(value)
-			else:
-				self.eut[index] = value
-
-		row,col_ = self.named_cells[_REF_POS][_RC_VALUE]
-		end = False
-		self.eut[_REF_PTS] = []
-		while not end:
-			point = []
-			for col in range(col_, col_ + 3):
-				value = self.GetCellValue(row,col)
-				if not value:
-					end = True
-					break
-				point.append(float(value))
-			if not end:
-				self.eut[_REF_PTS].append(point)
-				row +=1
-		#sort refer points by YVALUE as below
-		self.eut[_REF_PTS].sort(key=lambda x:x[_YVALUE])	
+#	def Update_Value(self):
+#		for index in range(0,5):
+#			row,col	= self.named_cells[index][_RC_VALUE]
+#			value 	= self.GetCellValue(row,col)
+#			type_	= self.named_cells[index][_TYPE]
+#			if type_ == "float":
+#				self.eut[index] = float(value)
+#			else:
+#				self.eut[index] = value
+#
+#		row,col_ = self.named_cells[_REF_POS][_RC_VALUE]
+#		end = False
+#		self.eut[_REF_PTS] = []
+#		while not end:
+#			point = []
+#			for col in range(col_, col_ + 3):
+#				value = self.GetCellValue(row,col)
+#				if not value:
+#					end = True
+#					break
+#				point.append(float(value))
+#			if not end:
+#				self.eut[_REF_PTS].append(point)
+#				row +=1
+#		#sort refer points by YVALUE as below
+#		self.eut[_REF_PTS].sort(key=lambda x:x[_YVALUE])	
+#
 
 	def UpdateField(self):
 		for (name,value) in self.eut.field.items():
@@ -637,7 +638,7 @@ class Eut_Editor(wx.Dialog):
 				col += 1
 			count += 1
 
-		self.PushStatusText(u"共 %d 数据条目找到!"%count)
+		#self.PushStatusText(u"共 %d 数据条目找到!"%count)
 
 	def OnExport(self,event):
 		export_name = ""

@@ -137,6 +137,10 @@ class Eut():
 		obj_x = gZpickle.loads(eut_b[3]) 
 		self.field = obj_x.field
 		self.Refer_Table = obj_x.Refer_Table 
+		for table in self.Refer_Table:
+			if not table:
+				continue
+			table.sort(key=lambda x:x.GetYvalue())
 		db_con.close()
 		#print "field after restore from DB",self.field
 
@@ -276,6 +280,8 @@ class Eut():
 	def SetReferTable(self,Refer_Table):
 		self.Refer_Table = Refer_Table
 		for table in self.Refer_Table:
+			if not table:
+				continue
 			table.sort(key=lambda x:x.GetYvalue())
 
 	def GetReferTable(self):
@@ -286,6 +292,9 @@ class Eut():
 
 	def GetThermoSensor(self):
 		return self.thermo_sensor
+
+	def GetMaxY(self,table_num=0):
+		return self.Refer_Table[table_num][-1].GetYvalue()
 
 
 	def AppendReferTable(self,table_num,refer_entry):
@@ -326,6 +335,7 @@ class Eut():
 		else:
 			Xmax =self.Refer_Table[table_num][-1]
 			Xmin =self.Refer_Table[table_num][0]
+		print "Xmin,Xmax,X--------------------",Xmin.GetXvalue(),Xmax.GetXvalue(),Xvalue
 
 		if Xvalue >= Xmax.GetXvalue():
 			refer_entry = Xmax
@@ -334,12 +344,12 @@ class Eut():
 		else:
 			p0 = self.Refer_Table[table_num][0]
 			for p1 in self.Refer_Table[table_num]:
-				x0 = p0.GetXvalue()
+				x0_ = p0.GetXvalue()
 				x1 = p1.GetXvalue()
-				delta0 = abs(Xvalue - x0)
+				delta0 = abs(Xvalue - x0_)
 				delta1 = abs(Xvalue - x1)
 				#judge being within by comparing delta_sum 
-				if (delta0 + delta1) > abs(x1 - x0):
+				if (delta0 + delta1) > abs(x1 - x0_):
 					p0 = p1
 					continue
 				if Yvalue != None:
@@ -353,7 +363,7 @@ class Eut():
 					else:
 						refer_entry =  p1
 				else:
-					if x0 > x1:
+					if x0 > xn:
 						refer_entry =  p1
 					else:
 						refer_entry =  p0

@@ -51,7 +51,9 @@ class Serial_Reader(threading.Thread):
 
 		self.eut_demo=eut.Eut()
 		self.eut_demo.RestoreFromDBZ(DEMO_PN)
+		print self.eut_demo
 		table0,table1 = self.eut_demo.GetReferTable()
+		print table0
 		x0 = table0[0].GetXvalue()
 		xn = table0[-1].GetXvalue()
 		if x0 > xn:
@@ -138,7 +140,7 @@ class Serial_Reader(threading.Thread):
 				#print 0.1*X
 			refer_entry= self.eut_demo.GetReferEntry(Xvalue=X)
 			refer_valueY= refer_entry.GetYvalue()*4096/self.ymax
-			print "get Yvalue is ........",int(refer_entry.GetYvalue())
+			print " up Yvalue is ........",int(refer_entry.GetYvalue())
 			Y = int(refer_valueY)
 			self.out += '%04x%04x'%(X,Y)
 			self.count +=1
@@ -148,7 +150,7 @@ class Serial_Reader(threading.Thread):
 		for X in range (int(self.xmin),int(self.xmax)):
 			refer_entry= self.eut_demo.GetReferEntry(Xvalue=(self.xmax+self.xmin-X))
 			refer_valueY= refer_entry.GetYvalue()*4096/self.ymax
-			print "get Yvalue is ........",int(refer_entry.GetYvalue())
+			print "down Yvalue is ........",int(refer_entry.GetYvalue())
 			Y = int(refer_valueY)
 			self.out += '%04x%04x'%(self.xmax+self.xmin-X,Y)
 			self.count +=1
@@ -157,9 +159,11 @@ class Serial_Reader(threading.Thread):
 	def max_(self):
 		#remain high for sometime
 
-		for X in range (1,800):
+		for X in range (1,800)f expand("%") == ""|browse confirm w|else|confirm w|endif
+		:
 			Y = self.eut_demo.GetReferEntry(Xvalue=self.xmax).GetYvalue()
 			self.out += '%04x%04x'%(self.xmax,Y*4096/self.ymax)
+			print "max Yvalue is ........",int(Y)
 			self.count +=1
 			self.out_()
 
@@ -168,13 +172,14 @@ class Serial_Reader(threading.Thread):
 		for X in range (1,800):
 			Y = self.eut_demo.GetReferEntry(Xvalue=self.xmin).GetYvalue()
 			self.out += '%04x%04x'%(self.xmin,Y*4096/self.ymax)
+			print "min Yvalue is ........",int(Y)
 			self.count +=1
 			self.out_()
 
 
 	def pull_(self):
 		#pull out eut and remain high
-		for X in range (1,100):
+		for X in range (1,30):
 			rand_value_once= random.random()* 4096
 			self.out += '%04x%04x'%(self.xmin,rand_value_once)
 			self.count +=1
@@ -183,7 +188,7 @@ class Serial_Reader(threading.Thread):
 	def null_(self):
 		for X in range (1,1200):
 			self.out += '%04x%04x'%(self.xmin,4096)
-			self.count +=1
+			self.count += 1
 			self.out_()
 		
 
@@ -416,10 +421,13 @@ class Device_Proxy():
 			data_queue =Queue(-1)
 			cmd_queues = [cmd_queue] 
 			data_queues =[data_queue]
-			self.routes[dev_name] = Device_Serial(ep,[cmd_queues,data_queues])
-			self.routes[dev_name].setDaemon(True) 
-			self.routes[dev_name].start() 
-			print "routes.keys()",self.routes.keys()
+			try:
+				self.routes[dev_name] = Device_Serial(ep,[cmd_queues,data_queues])
+				self.routes[dev_name].setDaemon(True) 
+				self.routes[dev_name].start() 
+				print "routes.keys()",self.routes.keys()
+			except:
+				pass
 		else:
 			cmd_queue = Queue(-1)
 			data_queue =Queue(-1)
