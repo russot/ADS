@@ -160,7 +160,7 @@ class Grouping_Filter(threading.Thread):
 				#two consequent steps generates a trigger, for bypassing noises
 				last_step = self.get_last_step()
 				if self.buffer_group[last_step]["flag"]=="step" and self.trigger_flag == False :
-					print "triggering ........."
+					#print "triggering ........."
 					self.trigger_flag = True
 					self.queue_out.put( "trigger")
 					cur_value = self.buffer_group[-1]["value"][-1]

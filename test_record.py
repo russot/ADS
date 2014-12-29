@@ -16,6 +16,7 @@ import config_db
 import sqlite3 as sqlite
 from refer_entry import Refer_Entry
 import pickle
+import eut
 
 #index for refer table RC
 REF_ROW = 6
@@ -25,6 +26,11 @@ REF_COL = 6
 _VALUE	= int(0)
 _RC	= int(1)
 
+gEut    = Eut()
+gThermo = Thermo_Sensor()
+
+gModule = False
+####################################################################################################
 class Record_Entry():
 	def __init__(self,refer_index=None,record=None):
 		# refer_index format: (index_num,table_num)
@@ -49,6 +55,7 @@ class Record_Entry():
 		else:
 			raise ValueError
 
+####################################################################################################
 class Test_Record():
 	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
 	table_name = config_db.eut_record_TBname
@@ -71,16 +78,51 @@ class Test_Record():
 		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2)]
 		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
 		self.SetSN(SN)
+		self.SetPN(PN)
 
-	def SetSN(self,SN):
-		if not SN or not isinstance(SN,str):
-			print "Warning:invalid SN, SN is set to 'ABCD-0000001'!"
-			self.field["SN"][_VALUE]='ABCD-0000001'
+#----------------------------------------------------------------------------------------------------
+	def SetupTimeStamp(self):
+		create_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
+		self.field["time"][_VALUE] = create_time
+
+#----------------------------------------------------------------------------------------------------
+	def SetupThermo(self,temprature,NTCvalue):
+		self.field["tempr"][_VALUE] = float(temprature)
+		self.field["NTCvalue"][_VALUE] = float(NTCvalue)
+		refer_value = gThermo.GetR(float(temprature))
+		self.field["NTCrefer"][_VALUE]  = float(refer_value)
+		refer_precision = gThermo.GetPrecision()
+		real_precision  = abs(float(NTCvalue) - refer_value)/refer_value
+		if real_precision > refer_precision: 
+			self.field["NTCresult"][_VALUE] = "Fail"
+		else : 
+			self.field["NTCresult"][_VALUE] = "Pass"
+
+
+	
+#----------------------------------------------------------------------------------------------------
+	def SetPN(self,PN):
+		gEut.RestoreFromDBZ(PN)
+		if gEut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
+			gThermo.RestoreFromDBZ( gEut.field["thermo_pn"])
+
+		self.field["model"][_value]   = eut.field["model"][_value]
+		self.field["x_unit"][_value]  = eut.field["x_unit"][_value]
+		self.field["y1_unit"][_value] = eut.field["y1_unit"][_value]
+		self.field["y2_unit"][_value] = eut.field["y2_unit"][_value]
+
+#----------------------------------------------------------------------------------------------------
+	def setsn(self,sn):
+		if not sn or not isinstance(sn,str):
+			print "warning:invalid sn, sn is set to 'abcd-0000001'!"
+			self.field["sn"][_value]='abcd-0000001'
 			return
-		self.field["SN"][_VALUE]=SN
-	def SetDefault(self):
-		self.field["PN"] = [PN,(0,0)]
-		self.field["SN"] = ['',(0,1)]
+		self.field["sn"][_value]=sn
+
+#----------------------------------------------------------------------------------------------------
+	def setdefault(self):
+		self.field["pn"] = [pn,(0,0)]
+		self.field["sn"] = ['',(0,1)]
 		self.field["model"]=['',(0,2)]
 		self.field["time"]=['',(0,3)]
 		self.field["tempr"] = ['',(2,0)]
@@ -92,6 +134,7 @@ class Test_Record():
 		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
 		self.Record_Table = [[],[]]
 
+#----------------------------------------------------------------------------------------------------
 	def AdjustSN(self,x):
 		index = -1
 		digits =  0
@@ -105,6 +148,7 @@ class Test_Record():
 		self.field["SN"][_VALUE] = SN_prefix + '%0*d'%(digits, serial_num)
 		return self.field["SN"][_VALUE]
 
+#----------------------------------------------------------------------------------------------------
 	def AppendRecord(self,record,table_num=0):
 		# record format: Refer_Entry
 		if isinstance(record,Record_Entry):
@@ -113,6 +157,7 @@ class Test_Record():
 			raise ValueError
 
 
+#----------------------------------------------------------------------------------------------------
 	def CreateTable(self,db_cursor):
 		db_cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='%s'"%self.table_name)
 		for x in db_cursor:
@@ -128,6 +173,7 @@ class Test_Record():
 				print "table %s existed already."%self.table_name
 
 
+#----------------------------------------------------------------------------------------------------
 	def RestoreFromDBZ(self,SN):
 		db_con = sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
@@ -154,6 +200,7 @@ class Test_Record():
 		return obj_x
 		#print "field after restore from DB",self.field
 
+#----------------------------------------------------------------------------------------------------
 	def Save2DBZ(self):
 		#print "before save2db...", self.field
 		db_con = sqlite.connect(self.db_name)
@@ -188,6 +235,7 @@ class Test_Record():
 
 
 
+#----------------------------------------------------------------------------------------------------
 	def UpdateTable(self,row,col,window):
 		if not  self.field["PN"][_VALUE]:
 			print "Error:invlid PN!"
@@ -253,7 +301,7 @@ class Test_Record():
 				window.SetCellBackgroundColour(row,col_,color)
 				window.SetCellValue(row_+1,col_,result)
 				window.SetReadOnly(row_+1,col_,True)
-
+#----------------------------------------------------------------------------------------------------
 	def QueryDB(self, time_pattern,PN_pattern):
 		db_con   =sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
@@ -274,16 +322,14 @@ class Test_Record():
 
 
 
-############################################################################################################################################
-
-
+####################################################################################################
+####################################################################################################
+####################################################################################################
 if __name__=='__main__':
 	record = TestRecord(PN="diek",SN="ieik-sab01-02883")
+	gModule = True
 
 	print record.AdjustSN(5)
 	print record.AdjustSN(-1)
 
-	s = pickle.dumps(record)
-	r2 = pickle.loads(s)
 
-	print r2.PN,r2.SN,r2.PNversion

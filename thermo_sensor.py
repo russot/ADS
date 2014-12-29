@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 #!python
 """Signal UI component .""" 
+import os 
 import wx 
 import wx.grid 
 import wx.lib.sheet 
@@ -46,6 +47,9 @@ class Thermo_Sensor():
 			self.SetTable(table)
 
 		#as key for db access,
+	def GetPrecision(self):
+		return self.field["precision"][_VALUE]
+
 	def SetDefault(self):
 		self.field["PN"][_VALUE] 	= ''
 		self.field["model"][_VALUE]	= ''
@@ -241,14 +245,21 @@ class Thermo_Sensor():
 		dlg = wx.FileDialog(None,u"选择csv文件",wildcard="*.csv")
 		if dlg.ShowModal() != wx.ID_OK:
 			return
-		eut_name = dlg.GetPath()
+		file_name = dlg.GetPath()
 		if not eut_name:
 			return 
-		reader =file(eut_name,"r")
+		self.ImportFrom(file_name)
+
+	def ImportFrom(self,file_name):
+		reader =file(file_name,"r")
 		reader.readline()#跳过第一行注释行
 		type_ = reader.readline()
 		if not type_.startswith("type,NTC"):
-			wx.MessageDialog(None,u"导入文件中的type行值错误，必须是'type,NTC'",u"警告",wx.YES_DEFAULT).ShowModal()
+			err_msg =u"导入文件中的type行值错误，必须是'type,NTC'" 
+			if not gModule:
+				wx.MessageDialog(None,err_msg,u"警告",wx.YES_DEFAULT).ShowModal()
+			else:
+				print err_msg
 			return 
 		print "import now"
 		lines =  reader.readlines()
@@ -289,8 +300,8 @@ class Thermo_Sensor():
 		x0 = self.Refer_Table[0]
 		for x1 in self.Refer_Table:
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!
-			r0 = x0.GetXvalue()
-			r1 = x1.GetXvalue()
+			r0 = x0.GetYvalue()
+			r1 = x1.GetYvalue()
 			delta0 = abs(Rvalue-r0)
 			delta1 = abs(Rvalue-r1)
 			#judge being within by comparing delta_sum 
@@ -298,8 +309,8 @@ class Thermo_Sensor():
 				x0 = x1
 				continue
 			#found and compute linearly
-			t0 =  x0.GetYvalue()
-			t1 =  x1.GetYvalue()
+			t0 =  x0.GetXvalue()
+			t1 =  x1.GetXvalue()
 			delta_R = r1 - r0
 			delta_T = t1 - t0
 			k = delta_T/delta_R
@@ -314,8 +325,8 @@ class Thermo_Sensor():
 		x0 = self.Refer_Table[0]
 		for x1 in self.Refer_Table:
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!
-			t0 = x0.GetYvalue()
-			t1 = x1.GetYvalue()
+			t0 = x0.GetXvalue()
+			t1 = x1.GetXvalue()
 			delta0 = abs(Tvalue-t0)
 			delta1 = abs(Tvalue-t1)
 			#judge being within by comparing delta_sum 
@@ -323,13 +334,14 @@ class Thermo_Sensor():
 				x0 = x1
 				continue
 			#found and compute linearly
-			r0 =  x0.GetXvalue()
-			r1 =  x1.GetXvalue()
+			r0 =  x0.GetYvalue()
+			r1 =  x1.GetYvalue()
 			delta_R = r1 - r0
 			delta_T = t1 - t0
 			k = delta_R/delta_T
 			delta_t =  Tvalue - t0
-			rx= t0 + k*delta_t
+			rx= r0 + k*delta_t
+			print "r0=",r0,"  r1=",r1,"  k=",k,"  delta_t=",delta_t,"  rx=",rx
 			break
 		return rx
 			
@@ -350,4 +362,39 @@ class Thermo_Sensor():
 				(2,u"Model/温度传感器型号",180),
 				(3,u"PN/料号",120),) 
 		return (entries,column_format) # fields of each should be matched	
+############################################################################################################################################
+
+gModule = False
+if __name__=='__main__':
+	#app = wx.App()
+	gModule = True
+	thermo_demo = Thermo_Sensor()
+	thermo_demo.ImportFrom("j2000.csv")
+	for key,value in thermo_demo.field.items():
+		print key,"=",value
+	for x in thermo_demo.Refer_Table:
+		print x.ShowThermo()
+#	thermo_demo.Save2DBZ()
+# 	wx.MessageBox(u" 确认退出",
+#		style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+	PN = thermo_demo.field["PN"][_VALUE]
+	thermo_demo.RestoreFromDBZ(PN)
+	for key,value in thermo_demo.field.items():
+		print key,"=",value
+	for x in thermo_demo.Refer_Table:
+		print x.ShowThermo()
+ 	#wx.MessageBox(u" 确认退出",
+		#style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+	tempr = 40.5
+	tempR = thermo_demo.GetR(tempr)
+	print ">>>temprature %5f and R is %5f"%(tempr,thermo_demo.GetR(tempr))
+	print "<<<temprature %5f and R is %5f"%(thermo_demo.GetT(tempR),tempR)
+	tempr = 20.5
+	tempR = thermo_demo.GetR(tempr)
+	print ">>>temprature %5f and R is %5f"%(tempr,thermo_demo.GetR(tempr))
+	print "<<<temprature %5f and R is %5f"%(thermo_demo.GetT(tempR),tempR)
+	tempr = 25
+	tempR = thermo_demo.GetR(tempr)
+	print ">>>temprature %5f and R is %5f"%(tempr,thermo_demo.GetR(tempr))
+	print "<<<temprature %5f and R is %5f"%(thermo_demo.GetT(tempR),tempR)
 

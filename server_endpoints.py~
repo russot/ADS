@@ -159,8 +159,7 @@ class Serial_Reader(threading.Thread):
 	def max_(self):
 		#remain high for sometime
 
-		for X in range (1,800)f expand("%") == ""|browse confirm w|else|confirm w|endif
-		:
+		for X in range (1,800):
 			Y = self.eut_demo.GetReferEntry(Xvalue=self.xmax).GetYvalue()
 			self.out += '%04x%04x'%(self.xmax,Y*4096/self.ymax)
 			print "max Yvalue is ........",int(Y)

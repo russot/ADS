@@ -136,7 +136,13 @@ class Signal(wx.Dialog):
 			item = self.data_queue.get()
 			if isinstance(item,str):
 				if item.startswith("trigger"):
+					print "signal triggering.........."
 					self.Init_Data()
+				elif item.startswith("sleep"):
+					print "signal sleeping.........."
+					self.Init_Data()
+				else:
+					pass
 			if isinstance(item,dict):
 				self.data_count += 1
 				Xvalue,Yvalue_ = item["value"]
