@@ -16,7 +16,8 @@ import config_db
 import sqlite3 as sqlite
 from refer_entry import Refer_Entry
 import pickle
-import eut
+from eut import Eut
+from thermo_sensor import Thermo_Sensor
 
 #index for refer table RC
 REF_ROW = 6
@@ -60,7 +61,6 @@ class Test_Record():
 	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
 	table_name = config_db.eut_record_TBname
 	db_name = config_db.eut_db
-
 	def __init__(self,PN='',SN='',Record_Table=[[],[]]):
 		create_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
 		self.Record_Table = Record_Table
@@ -81,6 +81,13 @@ class Test_Record():
 		self.SetPN(PN)
 
 #----------------------------------------------------------------------------------------------------
+	def ShowField(self):
+		out=''
+		for key,value in self.field.items():
+			out+="%s:%s\n"%(key,str(value[_VALUE]))
+		return out
+
+#----------------------------------------------------------------------------------------------------
 	def SetupTimeStamp(self):
 		create_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
 		self.field["time"][_VALUE] = create_time
@@ -89,10 +96,10 @@ class Test_Record():
 	def SetupThermo(self,temprature,NTCvalue):
 		self.field["tempr"][_VALUE] = float(temprature)
 		self.field["NTCvalue"][_VALUE] = float(NTCvalue)
-		refer_value = gThermo.GetR(float(temprature))
-		self.field["NTCrefer"][_VALUE]  = float(refer_value)
+		refer_VALUE = gThermo.GetR(float(temprature))
+		self.field["NTCrefer"][_VALUE]  = float(refer_VALUE)
 		refer_precision = gThermo.GetPrecision()
-		real_precision  = abs(float(NTCvalue) - refer_value)/refer_value
+		real_precision  = abs(float(NTCvalue) - refer_VALUE)/refer_VALUE
 		if real_precision > refer_precision: 
 			self.field["NTCresult"][_VALUE] = "Fail"
 		else : 
@@ -102,27 +109,31 @@ class Test_Record():
 	
 #----------------------------------------------------------------------------------------------------
 	def SetPN(self,PN):
+		print "setup PN"
 		gEut.RestoreFromDBZ(PN)
-		if gEut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
-			gThermo.RestoreFromDBZ( gEut.field["thermo_pn"])
+	#		return None
+		print "setup PN end...................................................................................................."
+	#	if gEut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
+	#		gThermo.RestoreFromDBZ( gEut.field["thermo_PN"])
 
-		self.field["model"][_value]   = eut.field["model"][_value]
-		self.field["x_unit"][_value]  = eut.field["x_unit"][_value]
-		self.field["y1_unit"][_value] = eut.field["y1_unit"][_value]
-		self.field["y2_unit"][_value] = eut.field["y2_unit"][_value]
+		self.field["PN"][_VALUE]   = gEut.field["PN"][_VALUE]
+		self.field["model"][_VALUE]   = gEut.field["model"][_VALUE]
+		self.field["X_unit"][_VALUE]  = gEut.field["X_unit"][_VALUE]
+		self.field["Y1_unit"][_VALUE] = gEut.field["Y1_unit"][_VALUE]
+		self.field["Y2_unit"][_VALUE] = gEut.field["Y2_unit"][_VALUE]
 
 #----------------------------------------------------------------------------------------------------
-	def setsn(self,sn):
-		if not sn or not isinstance(sn,str):
-			print "warning:invalid sn, sn is set to 'abcd-0000001'!"
-			self.field["sn"][_value]='abcd-0000001'
+	def SetSN(self,SN):
+		if not SN or not isinstance(SN,str):
+			print "warning:invalid SN, SN is set to 'abcd-0000001'!"
+			self.field["SN"][_VALUE]='abcd-0000001'
 			return
-		self.field["sn"][_value]=sn
+		self.field["SN"][_VALUE]=SN
 
 #----------------------------------------------------------------------------------------------------
-	def setdefault(self):
-		self.field["pn"] = [pn,(0,0)]
-		self.field["sn"] = ['',(0,1)]
+	def SetDefault(self):
+		self.field["PN"] = [PN,(0,0)]
+		self.field["SN"] = ['',(0,1)]
 		self.field["model"]=['',(0,2)]
 		self.field["time"]=['',(0,3)]
 		self.field["tempr"] = ['',(2,0)]
@@ -184,7 +195,7 @@ class Test_Record():
 			if existed[0] <= 0:
 				wx.MessageBox(u"抱歉！此记录不存在!",
 					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
-				return
+				return None
 			else:
 				break
 		cmd = "select * from %s where PN like '%s'" % (self.table_name, PN)
@@ -325,11 +336,14 @@ class Test_Record():
 ####################################################################################################
 ####################################################################################################
 ####################################################################################################
+DEMO_PN    = 'R939-5y'
 if __name__=='__main__':
-	record = TestRecord(PN="diek",SN="ieik-sab01-02883")
-	gModule = True
-
-	print record.AdjustSN(5)
-	print record.AdjustSN(-1)
+	app = wx.App()
+	record = Test_Record()
+	#gModule = True
+	record.SetPN(DEMO_PN)
+	record.AdjustSN(5)
+	record.AdjustSN(-1)
+	print record.ShowField()
 
 
