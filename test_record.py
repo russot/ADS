@@ -33,19 +33,18 @@ gThermo = Thermo_Sensor()
 gModule = False
 ####################################################################################################
 class Record_Entry():
-	def __init__(self,refer_index=None,record=None):
-		# refer_index format: (index_num,table_num)
-		# record format: Refer_Entry
-		self.refer_index = refer_index
+	def __init__(self,refer=None,record=None):
+		self.refer  = refer
 		self.record = record
 
-	def GetReferIndex(self):
-		# refer_index format: (index_num,table_num)
-		return self.refer_index
+	def GetRefer(self):
+		return self.refer
 
-	def SetReferIndex(self,index):
-		# refer_index format: (index_num,table_num)
-		self.refer_index = index
+	def SetRefer(self,refer):
+		if isinstance(refer,Refer_Entry):
+			self.refer  = refer
+		else:
+			raise ValueError
 
 	def GetRecord(self):
 		return self.record
@@ -163,7 +162,7 @@ class Test_Record():
 	def AppendRecord(self,record,table_num=0):
 		# record format: Refer_Entry
 		if isinstance(record,Record_Entry):
-			sefl.Record_Table[table_num].append(record)
+			self.Record_Table[table_num].append(record)
 		else:
 			raise ValueError
 

@@ -25,6 +25,8 @@ from dialog_query import Dialog_Query
 import wx.lib.newevent
 import data_point
 
+from eut import * 
+from test_record import * 
 from data_source import Data_Source 
 from data_source import MyEvent, EVT_MY_EVENT
 
@@ -46,9 +48,21 @@ class Signal(wx.Dialog):
 		self.started_flag = False
 		self.thread_source = None
 		self.data_count = 0
+		self.xmax= 0.0
+		self.ymax= 0.0
 		self.SetRefer_entries(table)
 		self.SetUrl(url)
 		self.Bind(EVT_MY_EVENT, self.OnNewData)
+		self.trig_status = False
+		self.record = Test_Record()
+
+	def SetPN(self,eut):#extract PN from eut object
+		if not isinstance(eut,Eut()):
+			print "Error: invalid type, should be Eut!"
+			return None
+		self.record.SetPN(eut.GetPN())
+	def SetSN(self,SN):
+		self.record.SetSN(SN)
 
 	def SetWindow(self,window):
 		self.window = window
@@ -92,9 +106,16 @@ class Signal(wx.Dialog):
 			self.refer_entries = table
 			self.refer_entries.sort(key=lambda x:x.GetYvalue())
 			#print "signal max value",self.refer_entries[-1].GetYvalue()
-			ymax = self.refer_entries[-1].GetYvalue()
+			x0 = self.refer_entries[ 0].GetXvalue()
+			xn = self.refer_entries[-1].GetXvalue()
+			if x0 > xn:
+				xmax = x0
+			else:
+				xmax = xn
+
 			ymin = self.refer_entries[ 0].GetYvalue()
-			self.SetMaxValue(ymax)
+			ymax = self.refer_entries[-1].GetYvalue()
+			self.SetMaxValue(xmax,ymax)
 			gPGA.find_solution(range_=(ymin,ymax),unit="Ohm")
 			for x in self.refer_entries:
 				print "signal refers value X,Y",x.GetXvalue(),x.GetYvalue()
@@ -102,16 +123,20 @@ class Signal(wx.Dialog):
 			self.refer_entries = None
 
 
-	def SetMaxValue(self,value):
-		self.max_value = float(value)
+	def SetMaxValue(self,xmax,ymax):
+		self.xmax= float(xmax)
+		self.ymax= float(ymax)
 
-	def GetMaxValue(self):
-		return self.max_value
+	def GetMaxY(self):
+		return self.ymax
+
+	def GetMaxX(self):
+		return self.xmax
 
 	def Run(self):
 		print "signal running.....\n"
 		self.cmd_queue.put("run:")
-		while not self.data_queue.empty(): # 消除输出队列中的过期数据
+		while not self.data_queue.empty(): # flush outdated data
 			self.data_queue.get()
 
 	def Init_Data(self):
@@ -122,7 +147,7 @@ class Signal(wx.Dialog):
 	def Pause(self):
 		print "signal pause.....\n"
 		self.cmd_queue.put("stop:")
-		while not self.data_queue.empty(): # 消除输出队列中的过期数据
+		while not self.data_queue.empty(): # flush outdated data
 			self.data_queue.get()
 		#self.Init_Data()
 
@@ -137,10 +162,14 @@ class Signal(wx.Dialog):
 			if isinstance(item,str):
 				if item.startswith("trigger"):
 					print "signal triggering.........."
+					self.trig_status = True
 					self.Init_Data()
 				elif item.startswith("sleep"):
 					print "signal sleeping.........."
-					self.Init_Data()
+					if  self.trig_status == True:
+						print "signal saving.........."
+						self.trig_status = False
+						self.Init_Data()
 				else:
 					pass
 			if isinstance(item,dict):
@@ -159,14 +188,20 @@ class Signal(wx.Dialog):
 					status = True
 				else:
 					status = False
-				record_entry = Refer_Entry(
+				record_= Refer_Entry(
 						Xvalue=Xvalue,
 						Yvalue=Yvalue,
 						Xprecision=Xprecision,
 						Yprecision=Yprecision,
 						valid_status=status)
-				record_entry.SetLength(length)
-				self.data.append(record_entry)
+				record_.SetLength(length)
+				self.data.append(record_)
+				self.record.AppendRecord(
+					Record_Entry(
+						refer	= refer_entry,
+						record	= record_
+						)
+					)
 				#self.window.DrawData()
 				self.window.Refresh()
 
@@ -386,6 +421,11 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.Bind(wx.EVT_MENU, self.OnSelectEut,self.menu_eut)
 		#self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
 
+		self.SetScreenXsize(Xsize=1200)
+
+	def SetScreenXsize(self,Xsize):
+		self.screenXsize = Xsize*2
+
 	def OnRightDown(self,event):
 		pos = self.ScreenToClient(event.GetPosition())
 		self.PopupMenu(self.popmenu1, pos)
@@ -446,10 +486,12 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		i=0
 		for signal in self.signals:#map refer_tables to signals as 1:1
 			try:
-				signal.SetRefer_entries(refer_tables[i])
+				signal.SetRefer_entries(refer_tables[i]) #first
+				self.SetScreenXsize(signal.GetMaxX())    #second
 				i += 1
-			except:
+			except Exception,e:
 				print "map signal%d's refers failed.."%i
+				print e
 				pass
 
 	def SetGridColour(self,colour):
@@ -511,31 +553,33 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 	def DrawSignal(self,signal,dc,clientRect):
 		if not signal.refer_entries:
 			return
-		x0 = 1
-		x1 = 1
-		max_value  = signal.GetMaxValue() 
+		x0_ = 1
+		x1_ = 1
+		maxY= signal.GetMaxY() 
+		maxX= signal.GetMaxX() 
 		max_height = clientRect.height
 		last_Y0    = max_height
-		print "max @ height .....",max_value,max_height
+		#print "max @ height .....",max_value,max_height
 		for data_ in signal.GetData():
 			if not data_:
 				continue
-			if data_.GetYvalue() > 0:
-				x1 = x0 + data_.GetLength()
+			if data_.GetYvalue() >= 0:
+				x1_ = x0_ + data_.GetLength()
+				x0  = x0_ *self.screenXsize/maxX
+				x1  = x1_ *self.screenXsize/maxX
 				if data_.GetValid() == True:
 					dc.SetPen(wx.Pen(signal.ok_colour,2,style = wx.SOLID))
 				else:
 					dc.SetPen(wx.Pen(signal.bad_colour,2,style = wx.SOLID))
-				Y0=int((1.0-data_.GetYvalue()/max_value)*max_height)
+				Y0=int((1.0-data_.GetYvalue()/maxY)*max_height)
 				dc.DrawLine(x0,Y0,x0,last_Y0)
 				dc.DrawLine(x0,Y0,x1,Y0)
-				print "x0,x1,Y0,last_Y0>>>>>>>>>>>>", x0,x1,Y0,last_Y0
+				#print "x0,x1,Y0,last_Y0>>>>>>>>>>>>", x0,x1,Y0,last_Y0
 				last_Y0 =  Y0
-				x0 = x1
+				x0_ = x1_
 	
 	def InitValue(self):
 		for signal in self.signals:
-			del signal.data
 			signal.data = []
 
 	def OnShowCurrent(self, event):

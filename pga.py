@@ -324,7 +324,7 @@ class  Pga():
 		self.config[_RANGE_] = (0,solution[1])
 
 	def find_result4R(self,value_hex):
-		print self.config
+		#print self.config
 		RH = float(self.Rs[_RH][0])
 		RL = float(self.Rs[_RL][0])
 		Vref = self.Vrefs[_VR]*RL/(RH + RL)

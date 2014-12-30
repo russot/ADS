@@ -36,6 +36,9 @@ class Eut():
 		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
 		self.Refer_Table = Refer_Table
 
+	def GetPN(self):
+		return self.field["PN"][_VALUE]
+
 	def GetRefer( index=(0,0) ):#parameter is  a tuple of (index,table_num)
 		index_num,table_num=index
 		return self.Refer_Table[table_num][index_num]
