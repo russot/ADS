@@ -18,6 +18,7 @@ from refer_entry import Refer_Entry
 import pickle
 from eut import Eut
 from thermo_sensor import Thermo_Sensor
+from util import gAuthen,gZip,gZpickle 
 
 #index for refer table RC
 REF_ROW = 6
@@ -131,17 +132,6 @@ class Test_Record():
 
 #----------------------------------------------------------------------------------------------------
 	def SetDefault(self):
-		self.field["PN"] = [PN,(0,0)]
-		self.field["SN"] = ['',(0,1)]
-		self.field["model"]=['',(0,2)]
-		self.field["time"]=['',(0,3)]
-		self.field["tempr"] = ['',(2,0)]
-		self.field["NTCvalue"] =['',(2,1)]
-		self.field["NTCrefer"] =['',(2,2)]
-		self.field["NTCresult"] =['',(2,3)]
-		self.field["X_unit"] = ["mm",(REF_ROW-2,0)]
-		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2)]
-		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
 		self.Record_Table = [[],[]]
 
 #----------------------------------------------------------------------------------------------------
@@ -197,7 +187,7 @@ class Test_Record():
 				return None
 			else:
 				break
-		cmd = "select * from %s where PN like '%s'" % (self.table_name, PN)
+		cmd = "select * from %s where PN like '%s'" % (self.table_name, SN)
 		db_cursor.execute(cmd)
 		eut_b = db_cursor.fetchone()
 		#print eut_b

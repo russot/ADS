@@ -106,7 +106,7 @@ class Signal_Control(wx.Panel):   #3
 		#~ self.tip.SetStartDelay(1000)
 		#~ self.tip.SetTarget(self)
 		
-
+		#os.system("server_ep.py")
 
 		#print "sig ctrl init1"
 		self.queue_cmd =  Queue(-1) # 创建一个无限长队列,用于输入命令
@@ -158,7 +158,7 @@ class Signal_Control(wx.Panel):   #3
 		self.signal_panel_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_panel_lane.SetSizer(self.signal_panel_sizer)
 		signals=[]
-		s1 =Signal(url="127.0.0.1:8088/com1/1")
+		s1 =Signal(url="127.0.0.1:8088/com3/1")
 		s2 =Signal()
 		s2 = None
 		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=[s1,s2])
@@ -246,6 +246,8 @@ class Signal_Control(wx.Panel):   #3
 
 		if raw_code == 75 and modifiers==2: # ctrl+k to clear Debug text
 			self.debug_out.SetValue("")
+
+		self.signal_panel.OnKeyDown(event)
 
 	def OnShowCurrent(self,event):
 		print "************************************************************\n"
@@ -393,7 +395,6 @@ class Signal_Control(wx.Panel):   #3
 			#~ self.AdjustSerial( +100 )
 		#~ elif raw_code == 83 and modifiers==7:  # ctrl+alt+shift+S , Sub by hundred
 			#~ self.AdjustSerial( -100 )
-
 
 
 

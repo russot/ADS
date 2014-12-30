@@ -142,7 +142,7 @@ class Signal(wx.Dialog):
 	def Init_Data(self):
 		self.data_count = 0
 		self.data = []
-		self.window.Refresh()
+		self.window.Refresh(True)
 
 	def Pause(self):
 		print "signal pause.....\n"
@@ -167,9 +167,13 @@ class Signal(wx.Dialog):
 				elif item.startswith("sleep"):
 					print "signal sleeping.........."
 					if  self.trig_status == True:
-						print "signal saving.........."
+						print "saving.........."
+						self.record.Save2DBZ()
+						self.record.SetDefault()
+						self.record.AdjustSN(1)
 						self.trig_status = False
 						self.Init_Data()
+						print "saving ok.........."
 				else:
 					pass
 			if isinstance(item,dict):
@@ -203,7 +207,7 @@ class Signal(wx.Dialog):
 						)
 					)
 				#self.window.DrawData()
-				self.window.Refresh()
+				self.window.Refresh(True)
 
 	def GetRefer_X(self,Xvalue=0,Yvalue=0):
 		refer_entry =None
@@ -419,12 +423,30 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#self.Bind(wx.EVT_MENU, self.OnQuery_UI,self.menu_query_ui)
 		self.Bind(wx.EVT_MENU, self.OnSetup,self.menu_setup)
 		self.Bind(wx.EVT_MENU, self.OnSelectEut,self.menu_eut)
+		#self.Bind(wx.EVT_WHEEL, self.OnZoom)
 		#self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
+		self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
 		self.SetScreenXsize(Xsize=1200)
 
+	def OnKeyDown(self, event):
+		"""KeyDown event is sent first"""
+		raw_code = event.GetRawKeyCode()
+		modifiers = event.GetModifiers()
+		print "raw_code=",raw_code,";modifiers=",modifiers
+
+		if raw_code == 39 or raw_code == 73 :  # <I> = zoom in 
+			self.screenXsize += 100 
+			print "X zoom in"
+		elif raw_code == 37 or raw_code ==79 :# <O> = zomm out
+			self.screenXsize -= 100 
+			print "X zoom out"
+		print "self.screenXsize",self.screenXsize
+		self.Refresh(True)
+
 	def SetScreenXsize(self,Xsize):
-		self.screenXsize = Xsize*2
+		self.screenXsize = Xsize
+		print "self.screenXsize",self.screenXsize
 
 	def OnRightDown(self,event):
 		pos = self.ScreenToClient(event.GetPosition())
@@ -583,23 +605,25 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 			signal.data = []
 
 	def OnShowCurrent(self, event):
-		pos = event.GetPosition()
-		data_g =  []
-		for blk_data in self.signals:
-			data_g.append(blk_data[pos.x])
-		for data in data_g:
-			valid = data.GetValid()
-			value = data.GetValue()
-			position   = data.GetPos()
-			value_refer= data.GetValue_refer()
-			precision_refer= data.GetPrecision_refer()
-			precision= data.GetPrecision()
-			#输出到控制台
-			print time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-			print u"位置\t数值\t参考值\t参考精度\t实际精度\t结果"
-			if value!= -100:
-				print "%d\t%5.2f\t%5.2f\t%5.4f\t%5.4f\t"%(position, value,value_refer, precision_refer, precision),valid
-
+		x,y = event.GetPosition()
+		x0_ = 1
+		x1_ = 1
+		for signal in self.signals:
+			if not signal:
+				continue
+			maxX= signal.GetMaxX() 
+			for data_ in signal.GetData():
+				if not data_:
+					continue
+				if data_.GetYvalue() >= 0:
+					x1_ = x0_ + data_.GetLength()
+					x0  = x0_ *self.screenXsize/maxX
+					x1  = x1_ *self.screenXsize/maxX
+					if x >= x0 and x < x1:
+						print data_.ShowSensor()
+						break
+					x0_ = x1_
+	
 	def OnSelectEut(self,evt):
 		Eut_editor = Eut_Editor(self)
 		Eut_editor.ShowModal()
