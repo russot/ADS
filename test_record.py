@@ -83,16 +83,25 @@ class Test_Record():
 
 
 #----------------------------------------------------------------------------------------------------
+	def Show(self):
+		out=''
+		out += self.ShowField()
+		out += self.ShowRecord()
+		return out
+
+#----------------------------------------------------------------------------------------------------
 	def ShowRecord(self):
 		out=''
+		count = 1
 		for table in self.Record_Table:
 			if not table:
 				continue
 			for record_entry in table:
 				refer  = record_entry.GetRefer()
 				record = record_entry.GetRecord()
-				out+="refer :%s\n"%(refer)
-				out+="record:%s\n"%(record)
+				out+="%04d,refer ,%s\n"%(count, refer.ShowSensor())
+				out+="%04d,record,%s\n"%(count, record.ShowSensor())
+				count += 1
 		return out
 #----------------------------------------------------------------------------------------------------
 	def ShowField(self):

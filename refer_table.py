@@ -238,6 +238,13 @@ class Eut_Editor(wx.Dialog):
 		self.sizer_btn  = wx.BoxSizer(wx.VERTICAL) 
 		self.btn_filter = wx.Button(self,-1,u"筛选")
 		self.btn_selectType = buttons.GenToggleButton(self,-1,u"Sensor")
+
+		self.type_list  = wx.ListBox(self, -1,
+				(20, 20),
+				(80, 120),
+				["record","thermo","sensor"], wx.LB_SINGLE)
+
+
 		self.btn_selectDB = wx.Button(self,-1,u"DB/选择数据库")
 		self.sizer_btn.Add(self.btn_filter)
 		self.sizer_btn.Add(self.btn_selectType)
@@ -252,6 +259,8 @@ class Eut_Editor(wx.Dialog):
 		#self.sizer_filter.Add(sizer_time)
 		#self.sizer_filter.Add((10,20),1)
 		#self.sizer_filter.Add(sizer_valid)
+
+
 		self.sizer_filter.Add(self.sizer_btn)
 		self.btn_filter.Bind(wx.EVT_BUTTON, self.OnFilter)
 		self.btn_selectType.Bind(wx.EVT_BUTTON, self.OnSelectType)
@@ -332,7 +341,8 @@ class Eut_Editor(wx.Dialog):
 		self.Bind(wx.EVT_MENU, self.OnExport,self.menu_export)
 		self.Bind(wx.EVT_MENU, self.OnExport,self.menu_export2file)
 		self.Bind(wx.EVT_MENU, self.OnViewGUI,self.menu_view)
-		self.Bind(wx.EVT_CONTEXT_MENU, self.OnPopup,self.refer_sheet)
+		self.Bind(wx.EVT_CONTEXT_MENU, self.OnPopup)
+		#self.Bind(wx.EVT_CONTEXT_MENU, self.OnPopup,self.refer_sheet)
 
 		self.Relayout()
 		if gModule == True:
@@ -618,7 +628,7 @@ class Eut_Editor(wx.Dialog):
 		export_name = ""
 		item = self.popmenu1.FindItemById(event.GetId())
 		
-		if item.gettext() == u"导出"  :
+		if item.GetText() == u"导出":
 			tofile = sys.stdout
 		else:
 			dlg = wx.FileDialog(None,"select a file ")
@@ -626,50 +636,53 @@ class Eut_Editor(wx.Dialog):
 				return
 			export_name = dlg.GetPath()
 			tofile = codecs.open(export_name,'w+','gb2312')
-		item_x = self.refer_sheet.GetFirstSelected()
+		item_x = self.eut_list.GetFirstSelected()
 		if item_x == -1:
-			max_index = self.refer_sheet.GetItemCount()
-			columns = self.refer_sheet.GetColumnCount()
+			max_index = self.eut_list.GetItemCount()
+			columns = self.eut_list.GetColumnCount()
 			out=''
 			for column in range(0,columns):
-				out += self.refer_sheet.GetColumn(column).GetText()
+				out += self.eut_list.GetColumn(column).GetText()
 				out += ','
 			out += '\n'
 			for item_index in range(0,max_index):
 				for column in range(0,columns):
-					out += self.refer_sheet.GetItem(item_index,column).GetText()
+					out += self.eut_list.GetItem(item_index,column).GetText()
 					out += ','
 				out += '\n'
 			print >> tofile, out
 			if export_name !="":
 				tofile.close()
 		else:
-			self.export_detail(tofile,export_name)
+			self.export_detail(tofile)
+		if not tofile is sys.stdout:
+			tofile.close()
 
-	def export_detail(self,tofile, export_name):
+	def export_detail(self,tofile):
 		db_con   =sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor=db_con.cursor()
 
-		tmp_str = self.filter_valid.GetValue()
-		if tmp_str == "Pass":
-			filter_valid = 1
-		elif tmp_str == "Fail":
-			filter_valid = 0 
-		else:
-			filter_valid = "ALL" 
+	#	tmp_str = self.filter_valid.GetValue()
+	#	if tmp_str == "Pass":
+	#		filter_valid = 1
+	#	elif tmp_str == "Fail":
+	#		filter_valid = 0 
+	#	else:
+	#		filter_valid = "ALL" 
 
-		item = self.refer_sheet.GetFirstSelected()
-		output = ''
+		item = self.eut_list.GetFirstSelected()
+		out = '#####################################################################################################\n'
 		while item !=-1:
-			serial =  self.refer_sheet.GetItem(item,3).GetText()
-			time  =  self.refer_sheet.GetItem(item,4).GetText()
-
-			self.ViewOne(tofile,serial,time,filter_valid)
-			item = self.refer_sheet.GetNextSelected(item)
-		#print >> tofile, output
-		if  export_name != "":
-			tofile.close()
+			SN =  self.eut_list.GetItem(item,2).GetText()
+			#time  =  self.eut_list.GetItem(item,4).GetText()
+			eut = self.refer_sheet.GetEut()
+			eut.RestoreFromDBZ(SN)
+			out += eut.Show()
+			out += '#####################################################################################################\n'
+			item = self.eut_list.GetNextSelected(item)
+		print >>tofile, out
+		print  out
 
 
 
