@@ -56,6 +56,7 @@ class Record_Entry():
 		else:
 			raise ValueError
 
+
 ####################################################################################################
 class Test_Record():
 	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
@@ -80,6 +81,19 @@ class Test_Record():
 		self.SetSN(SN)
 		self.SetPN(PN)
 
+
+#----------------------------------------------------------------------------------------------------
+	def ShowRecord(self):
+		out=''
+		for table in self.Record_Table:
+			if not table:
+				continue
+			for record_entry in table:
+				refer  = record_entry.GetRefer()
+				record = record_entry.GetRecord()
+				out+="refer :%s\n"%(refer)
+				out+="record:%s\n"%(record)
+		return out
 #----------------------------------------------------------------------------------------------------
 	def ShowField(self):
 		out=''
@@ -109,6 +123,8 @@ class Test_Record():
 	
 #----------------------------------------------------------------------------------------------------
 	def SetPN(self,PN):
+		if not PN:
+			return
 		print "setup PN"
 		gEut.RestoreFromDBZ(PN)
 	#		return None
@@ -124,11 +140,12 @@ class Test_Record():
 
 #----------------------------------------------------------------------------------------------------
 	def SetSN(self,SN):
-		if not SN or not isinstance(SN,str):
+		if not SN:
 			print "warning:invalid SN, SN is set to 'abcd-0000001'!"
 			self.field["SN"][_VALUE]='abcd-0000001'
 			return
 		self.field["SN"][_VALUE]=SN
+		print "recod SN is set to ---->>> ",self.field["SN"][_VALUE]
 
 #----------------------------------------------------------------------------------------------------
 	def SetDefault(self):
@@ -174,7 +191,8 @@ class Test_Record():
 
 
 #----------------------------------------------------------------------------------------------------
-	def RestoreFromDBZ(self,SN):
+	def RestoreFromDBZ(self,SN):#search by unique_number of SN 
+		print "try to restore",SN
 		db_con = sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor = db_con.cursor()
@@ -187,42 +205,47 @@ class Test_Record():
 				return None
 			else:
 				break
-		cmd = "select * from %s where PN like '%s'" % (self.table_name, SN)
+		cmd = "select * from %s where SN like '%s'" % (self.table_name, SN)
 		db_cursor.execute(cmd)
 		eut_b = db_cursor.fetchone()
 		#print eut_b
+		if not eut_b:
+			print "Warning:%s not found!\n"%SN
+			return None
 
-		obj_x = gZpickle.loads(eut_b[3]) 
+		obj_x = gZpickle.loads(eut_b[4]) 
 		self.field = obj_x.field
 		self.Record_Table = obj_x.Record_Table 
-		self.result = objx.result
+		self.result = obj_x.result
 		db_con.close()
+		self.ShowRecord()
 		return obj_x
 		#print "field after restore from DB",self.field
 
 #----------------------------------------------------------------------------------------------------
 	def Save2DBZ(self):
+		self.SetupTimeStamp()
 		#print "before save2db...", self.field
 		db_con = sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor = db_con.cursor()
 		self.CreateTable(db_cursor)
-		cmd = "select count(*) from %s where SN like '%s'"%(self.table_name,self.field["SN"][_VALUE])
-		db_cursor.execute(cmd)
-		for existed in db_cursor:
-			if existed[0] > 0:
-				if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
-						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-					return
-				else:
-					cmd = "delete from %s where SN like '%s'" % (self.table_name, self.field["SN"][_VALUE])
-					db_cursor.execute(cmd)
-					db_con.commit()
-			else:
-				if  wx.NO == wx.MessageBox(u"确认要保存？",
-						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-					return
-			break
+	#	cmd = "select count(*) from %s where SN like '%s'"%(self.table_name,self.field["SN"][_VALUE])
+	#	db_cursor.execute(cmd)
+	#	for existed in db_cursor:
+	#		if existed[0] > 0:
+	#			if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
+	#					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+	#				return
+	#			else:
+	#				cmd = "delete from %s where SN like '%s'" % (self.table_name, self.field["SN"][_VALUE])
+	#				db_cursor.execute(cmd)
+	#				db_con.commit()
+	#		else:
+	#			if  wx.NO == wx.MessageBox(u"确认要保存？",
+	#					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+	#				return
+	#		break
 		print "obj len ......",len(gZpickle.dumps(self))
 		record_bz = (self.field["PN"][_VALUE],
 				self.field["SN"][_VALUE],
@@ -237,16 +260,17 @@ class Test_Record():
 
 #----------------------------------------------------------------------------------------------------
 	def UpdateTable(self,row,col,window):
-		if not  self.field["PN"][_VALUE]:
-			print "Error:invlid PN!"
-			return 
-		eut = Eut()
-		eut.RestoreFromDBZ(self.field["PN"][_VALUE])
-		
-		if eut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
-			thermo_sensor = Thermo_Sensor()
-			thermo_sensor.RestoreFromDBZ( eut.field["thermo_PN"])
-
+		print "update record table"
+#		if not  self.field["PN"][_VALUE]:
+#			print "Error:invlid PN!"
+#			return 
+#		eut = Eut()
+#		eut.RestoreFromDBZ(self.field["PN"][_VALUE])
+#		
+#		if eut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
+#			thermo_sensor = Thermo_Sensor()
+#			thermo_sensor.RestoreFromDBZ( eut.field["thermo_PN"])
+#
 		for table in self.Record_Table:
 			table_len = len(table)*2+10
 			if window.GetNumberRows() < table_len:
@@ -264,16 +288,19 @@ class Test_Record():
 				window.SetReadOnly(row,col_,True)
 				window.SetCellBackgroundColour(row,col_,"Grey")
 				col_ += 1
+			
+			if not table:
+				continue
 			row_ = row-1
 			for record_entry in table:
 				row_ += 2
 				window.SetRowLabelValue(row_,str(row_-row))
-				record = record_entry.GetRecord()
-				index  = record_entry.GetReferIndex()#index is  a tuple of (index_num,table_num)
-				refer_entry  = eut.GetRefer(index)
+				record		= record_entry.GetRecord()
+				refer_entry  	= record_entry.GetRefer()#index is  a tuple of (index_num,table_num)
 
 				(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
 				(Xvalue_,Xprecision_,Yvalue_,Yprecision_,Yoffset_,Ymin_,Ymax_)=record.Values()
+				print record.Values()
 				#show refer values
 				col_ = col_start
 				for value in (Xvalue,Xprecision,Yvalue,Yprecision):
@@ -295,9 +322,9 @@ class Test_Record():
 					result += u"Y轴(测量值)超差"
 				if not result:
 					result  = u"PASS"
-					color = "red"
-				else:
 					color = "green"
+				else:
+					color = "red"
 				window.SetCellBackgroundColour(row,col_,color)
 				window.SetCellValue(row_+1,col_,result)
 				window.SetReadOnly(row_+1,col_,True)

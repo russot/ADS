@@ -158,10 +158,10 @@ class Signal_Control(wx.Panel):   #3
 		self.signal_panel_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_panel_lane.SetSizer(self.signal_panel_sizer)
 		signals=[]
-		s1 =Signal(url="127.0.0.1:8088/com3/1")
+		s1 =Signal(url="127.0.0.1:8088/com1/1")
 		s2 =Signal()
 		s2 = None
-		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=[s1,s2])
+		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=[s1,s2],window=self)
 		self.signal_panel_sizer.Add(self.signal_panel,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		#加入信号栏/信息栏 分割窗
@@ -421,17 +421,21 @@ class Signal_Control(wx.Panel):   #3
 	def OnDclick_serial(self, evt):
 		dlg =  wx.TextEntryDialog(None,u"请输入序列号",u"序列号输入",self.text_serial.GetValue(),style=wx.OK|wx.CANCEL)
 		if dlg.ShowModal() == wx.ID_OK :
-			self.Set_Serial(dlg.GetValue())
+			SN = dlg.GetValue()
+			self.SetSN(SN)
+			self.signal_panel.SetSN(SN)
 		dlg.Destroy()
 
 	def Set_Name(self, name):
 		self.eut_name = name 
 		self.text_name.SetValue(name)
 
+	def UploadSN(self,SN):
+		self.SetSN(SN)
 
-	def Set_Serial(self, serial):
-		self.eut_serial = serial
-		self.text_serial.SetValue(serial)
+
+	def SetSN(self,SN):
+		self.text_serial.SetValue(SN)
 
 
 #	def populate_data(self):

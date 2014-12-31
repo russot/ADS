@@ -57,12 +57,15 @@ class Signal(wx.Dialog):
 		self.record = Test_Record()
 
 	def SetPN(self,eut):#extract PN from eut object
-		if not isinstance(eut,Eut()):
+		if not isinstance(eut,Eut):
 			print "Error: invalid type, should be Eut!"
 			return None
 		self.record.SetPN(eut.GetPN())
 	def SetSN(self,SN):
 		self.record.SetSN(SN)
+
+	def UploadSN(self,SN):
+		self.window.UploadSN(SN)
 
 	def SetWindow(self,window):
 		self.window = window
@@ -167,11 +170,12 @@ class Signal(wx.Dialog):
 				elif item.startswith("sleep"):
 					print "signal sleeping.........."
 					if  self.trig_status == True:
+						self.trig_status = False
 						print "saving.........."
 						self.record.Save2DBZ()
 						self.record.SetDefault()
-						self.record.AdjustSN(1):
-						self.trig_status = False
+						SN = self.record.AdjustSN(1)
+						self.UploadSN(SN)
 						self.Init_Data()
 						print "saving ok.........."
 				else:
@@ -389,9 +393,11 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 			size=(-1,-1),
 			id=-1,
 	 		signals=[],
-			back_color="Black"):
+			back_color="Black",
+			window=None):
 		super(Signal_Panel, self).__init__(parent, id,size=size)
 		#panel 创建
+		self.window = window
 		self.SetupScrolling(scroll_x=True, scroll_y=True, rate_x=20, rate_y=20)
 		self.SetupScrolling() 
 		if signals:
@@ -496,20 +502,26 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		
 		dlg.Destroy() #释放资源
 
+	def SetSN(self,SN):
+		for signal in self.signals:
+			if not signal:
+				continue
+			signal.SetSN(SN)
+
+	def UploadSN(self,SN):
+		self.window.UploadSN(SN)
+
 	def SetEut(self,eut):
 		self.eut = eut
 		#self.SetRefer(self.eut.GetReferTable())
 
 		refer_tables = self.eut.GetReferTable()
-	#	for table in refer_tables:
-	#		table.sort(key=lambda x:x.GetYvalue())
-	#		#for refer_entry in table:
-	#		#	print ">>>>>>>>>>>>>>>>>>>>>>>>>",refer_entry.ShowSensor()
 		i=0
 		for signal in self.signals:#map refer_tables to signals as 1:1
 			try:
 				signal.SetRefer_entries(refer_tables[i]) #first
 				self.SetScreenXsize(signal.GetMaxX())    #second
+				signal.SetPN(eut)
 				i += 1
 			except Exception,e:
 				print "map signal%d's refers failed.."%i

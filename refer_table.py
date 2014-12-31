@@ -38,7 +38,7 @@ from test_record import Test_Record
 _CMD = 0
 _DATA = 1
 
-
+gModule = False
 
 
 
@@ -109,37 +109,10 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 			for col in range(0,self.GetNumberCols()):
 				self.SetReadOnly(row,col,read_only)
 
-#eut looks like [model,PN,NTC,NTC_PRC,unit,range,ref_points[[pos,value,precision],,,]]
-#	def Update_Value(self):
-#		for index in range(0,5):
-#			row,col	= self.named_cells[index][_RC_VALUE]
-#			value 	= self.GetCellValue(row,col)
-#			type_	= self.named_cells[index][_TYPE]
-#			if type_ == "float":
-#				self.eut[index] = float(value)
-#			else:
-#				self.eut[index] = value
-#
-#		row,col_ = self.named_cells[_REF_POS][_RC_VALUE]
-#		end = False
-#		self.eut[_REF_PTS] = []
-#		while not end:
-#			point = []
-#			for col in range(col_, col_ + 3):
-#				value = self.GetCellValue(row,col)
-#				if not value:
-#					end = True
-#					break
-#				point.append(float(value))
-#			if not end:
-#				self.eut[_REF_PTS].append(point)
-#				row +=1
-#		#sort refer points by YVALUE as below
-#		self.eut[_REF_PTS].sort(key=lambda x:x[_YVALUE])	
-#
 
 	def UpdateField(self):
 		for (name,value) in self.eut.field.items():
+			print "field name&value:",name,value
 			if isinstance(value[_VALUE],int):
 				value_str = str(value[_VALUE])
 			elif isinstance(value[_VALUE],float):
@@ -362,8 +335,9 @@ class Eut_Editor(wx.Dialog):
 		self.Bind(wx.EVT_CONTEXT_MENU, self.OnPopup,self.refer_sheet)
 
 		self.Relayout()
-	#	sys.stdout = self.debug_out
-	#	sys.stderr = self.debug_out
+		if gModule == True:
+			sys.stdout = self.debug_out
+			sys.stderr = self.debug_out
 		self.UpdateToggle()
 		print "sheet init ok...."
 
@@ -609,7 +583,7 @@ class Eut_Editor(wx.Dialog):
 	def OnViewOne(self,event):
 		item = self.eut_list.GetFocusedItem()
 		PN =  self.eut_list.GetItem(item,2).GetText()
-		#print "view one",PN
+		print "view one",PN
 		self.refer_sheet.show(PN)
 		self.UpdateToggle()
 
@@ -704,6 +678,8 @@ class Eut_Editor(wx.Dialog):
 
 
 if __name__=='__main__':
+	gModule = True
+
 	app = wx.App()
 	frm = Eut_Editor()
 	frm.SetSize((1280,800))
