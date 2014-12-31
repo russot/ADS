@@ -237,12 +237,12 @@ class Eut_Editor(wx.Dialog):
 
 		self.sizer_btn  = wx.BoxSizer(wx.VERTICAL) 
 		self.btn_filter = wx.Button(self,-1,u"筛选")
-		self.btn_selectType = buttons.GenToggleButton(self,-1,u"Sensor")
+		#self.btn_selectType = buttons.GenToggleButton(self,-1,u"Sensor")
 
-		self.type_list  = wx.ListBox(self, -1,
+		self.btn_selectType = wx.ListBox(self, -1,
 				(20, 20),
 				(80, 120),
-				["record","thermo","sensor"], wx.LB_SINGLE)
+				[u"Record",u"Thermo",u"Sensor"], wx.LB_SINGLE)
 
 
 		self.btn_selectDB = wx.Button(self,-1,u"DB/选择数据库")
@@ -263,7 +263,7 @@ class Eut_Editor(wx.Dialog):
 
 		self.sizer_filter.Add(self.sizer_btn)
 		self.btn_filter.Bind(wx.EVT_BUTTON, self.OnFilter)
-		self.btn_selectType.Bind(wx.EVT_BUTTON, self.OnSelectType)
+		self.btn_selectType.Bind(wx.EVT_LISTBOX, self.OnSelectType)
 		self.btn_selectDB.Bind(wx.EVT_BUTTON, self.OnSelectDb)
 		self.btn_import.Bind(wx.EVT_BUTTON, self.OnImport)
 		self.btn_new.Bind(wx.EVT_BUTTON, self.OnNew)
@@ -469,21 +469,21 @@ class Eut_Editor(wx.Dialog):
 	def OnSelectType(self,event):
 		"""select table file to query"""
 		self.eut_list.ClearAll()         
-		if self.btn_selectType.GetLabelText() == u"Thermo":
+		if self.btn_selectType.GetSelection() == u"Sensor":
 			if wx.NO ==	wx.MessageBox(u"确认更换到Sensor!",
 					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 				return
 
 			self.btn_selectType.SetLabel(u"Sensor")
 			self.refer_sheet.SetEut(Eut())
-		elif self.btn_selectType.GetLabelText() == u"Sensor":
+		elif self.btn_selectType.GetSelection() == u"Record":
 			if wx.NO ==	wx.MessageBox(u"确认更换到Record!",
 					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 				return
 
 			self.btn_selectType.SetLabel(u"Record")
 			self.refer_sheet.SetEut(Test_Record())
-		elif self.btn_selectType.GetLabelText() == u"Record":
+		elif self.btn_selectType.GetSelection() == u"Thermo":
 			if wx.NO ==	wx.MessageBox(u"确认更换到Thermo!",
 					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 				return
