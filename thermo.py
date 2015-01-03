@@ -28,7 +28,7 @@ class Thermo():
 		self.NTC = Thermo_Sensor()
 		self.temprature = 0.0
 		self.init_ok = True
-		self.SetPT("pt1000-0001")
+		self.SetPT("pt1000-01")
 
 	def SetPT(self,PN):
 		err_msg = u"Error: 无法测温，因为无PT1000电阻，请在NTC数据库中输入PT1000电阻!"
@@ -50,20 +50,21 @@ class Thermo():
 #----------------------------------------------------------------------------------------------------
 #below method based on PT circuit 
 	def GetRpt(self,hex_value):
-		RA2H = 18000.0
-		RA2L = 2000.0
+		RA2H = 2000.0
+		RA2L = 200.0
 		RA1L = 200.0
 		RRH  = 18000.0
 		RRL  = 200.0
-		Vref = 2.5
-		VADC = 3.3
+		Vref = 2.487
+		VADC = 3.263
 		Hex_Max = 4096.0
 		A2_Vout = VADC*hex_value/Hex_Max
 		A1_Vout = A2_Vout*RA2L/(RA2H+RA2L)
 		A1_Vin  = Vref*RRL/(RRH+RRL)
 		AMP1 = A1_Vout/A1_Vin
 		Rpt  = AMP1*RA1L-RA1L
-		print "Rpt current:%5.3f",A1_Vout/(Rpt+RA1L)
+		print "Rpt current:%5.8f"%(A1_Vout/(Rpt+RA1L))
+		print "A2out:%.5f,A1out:%.5f,A1in:%.5f,Rpt:%.5f"%(A2_Vout,A1_Vout,A1_Vin,Rpt)
 		return Rpt
 
 	def GetTemprature(self,hex_value):
@@ -74,7 +75,7 @@ class Thermo():
 		Rpt = self.GetRpt(hex_value)
 		self.temprature = self.PT.GetT(Rpt)
 
-		print "temprature is %5.3f now"%temprature
+		print "temprature is %8.2f now"%self.temprature
 		return self.temprature
 
 #----------------------------------------------------------------------------------------------------
@@ -103,6 +104,7 @@ class Thermo():
 			result = False
 		else:
 			result = True
+		print precision,offset,"pre & real"
 		return (result,temprature,Rntc,Rref)
 	
 ############################################################################################################################################
@@ -115,6 +117,6 @@ if __name__=='__main__':
 	thermo  = Thermo()
 	thermo.SetPT(Demo_PT)
 	thermo.SetNTC(Demo_PN)
-	print thermo.Validate(0x500,0x800)
-
+	print thermo.PT.GetT(thermo.PT.GetR(25.0)),"@25.0"
+	print thermo.Validate(hex_NTC=0xa90,hex_PT=0x97d)
 	
