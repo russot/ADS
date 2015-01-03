@@ -10,6 +10,7 @@ import config_db
 import sqlite3 as sqlite
 from util import gAuthen,gZip,gZpickle 
 from refer_entry import Refer_Entry
+from thermo_sensor import *
 
 
 #index for named cells
@@ -38,6 +39,13 @@ class Eut():
 
 	def GetPN(self):
 		return self.field["PN"][_VALUE]
+
+	def GetThermoModel(self):
+		PN = self.field["thermo_PN"][_VALUE]
+		thermo_sensor = Thermo_Sensor()
+		thermo_sensor.RestoreFromDBZ(PN)
+		return str(thermo_sensor.field["model"][_VALUE])
+
 
 	def GetRefer( index=(0,0) ):#parameter is  a tuple of (index,table_num)
 		index_num,table_num=index

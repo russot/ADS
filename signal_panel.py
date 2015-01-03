@@ -55,6 +55,7 @@ class Signal(wx.Dialog):
 		self.Bind(EVT_MY_EVENT, self.OnNewData)
 		self.trig_status = False
 		self.record = Test_Record()
+		self.status = None
 
 	def SetPN(self,eut):#extract PN from eut object
 		if not isinstance(eut,Eut):
@@ -145,6 +146,7 @@ class Signal(wx.Dialog):
 	def Init_Data(self):
 		self.data_count = 0
 		self.data = []
+		self.window.SetUnknown()
 		self.window.Refresh(True)
 
 	def Pause(self):
@@ -170,6 +172,8 @@ class Signal(wx.Dialog):
 				elif item.startswith("sleep"):
 					print "signal sleeping.........."
 					if  self.trig_status == True:
+						if self.status != False:
+							self.window.SetPass()
 						self.trig_status = False
 						print "saving.........."
 						self.record.Save2DBZ()
@@ -177,6 +181,7 @@ class Signal(wx.Dialog):
 						SN = self.record.AdjustSN(1)
 						self.UploadSN(SN)
 						self.Init_Data()
+						time.sleep(0.5)
 						print "saving ok.........."
 				else:
 					pass
@@ -186,16 +191,18 @@ class Signal(wx.Dialog):
 				Yvalue = gPGA.find_result4R(Yvalue_)
 				#print "Yvalue of R:",Yvalue
 				length = item["length"]
-				#print "new data .............",Xvalue,Yvalue,length
 				if length > 200:
 					length = 50
 				refer_entry  = self.GetReferEntry(Xvalue,Yvalue)
+				print "new data .............",Xvalue,Yvalue,length
 				print "searched refer_entry X,Y:",refer_entry.GetXvalue(),refer_entry.GetYvalue()
 				Xprecision,Yprecision,xstatus,ystatus = refer_entry.Validate(Xvalue,Yvalue)
 				if xstatus==True and ystatus==True:
 					status = True
 				else:
 					status = False
+					self.status = False
+					self.window.SetFail()
 				record_= Refer_Entry(
 						Xvalue=Xvalue,
 						Yvalue=Yvalue,
@@ -447,7 +454,8 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		elif raw_code == 37 or raw_code ==79 :# <O> = zomm out
 			self.screenXsize -= 100 
 			print "X zoom out"
-		print "self.screenXsize",self.screenXsize
+		elif raw_code == 32 or raw_code ==19 :# <O> = zomm out
+			self.OnRunStop(event)
 		self.Refresh(True)
 
 	def SetScreenXsize(self,Xsize):
@@ -468,12 +476,14 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 			self.running_flag = False
 			self.Pause()
 	def Run(self):
+		self.running_flag = True
 		for signal in self.signals:
 			if not signal:
 				continue
 			signal.Run()
 			
 	def Pause(self):
+		self.running_flag = False
 		for signal in self.signals:
 			if not signal:
 				continue
@@ -645,7 +655,18 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		print eut.ShowRefer()
 		print "end eut show refer...................................................................................................."
 		self.SetEut(eut)
+		self.window.SetName(eut.GetPN())
+		self.window.SetThermoModel(eut.GetThermoModel())
 		self.Refresh(True)
+
+	def SetUnknown(self):
+		self.window.SetUnknown()
+
+	def SetPass(self):
+		self.window.SetPass()
+
+	def SetFail(self):
+		self.window.SetFail()
 
 ############################################################################################################################################
 def populate_data(data_panel):

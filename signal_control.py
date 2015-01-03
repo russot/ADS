@@ -54,12 +54,15 @@ class Result_Ctrl(wx.Control):
 		dc = wx.PaintDC(self)
 		brush = wx.Brush(self.back_color)
 		dc.SetBackground(brush)
-		if self.ok_status:
+		if self.ok_status == True:
 			result_str = "PASS"
 			dc.SetTextForeground(wx.Colour(0,200,0,200))
-		else:
+		elif self.ok_status == False:
 			result_str= "FAIL"
 			dc.SetTextForeground(wx.Colour(255,0,0,200))
+		elif self.ok_status == None:
+			result_str= "......"
+			dc.SetTextForeground(wx.Colour(255,255,0,200))
 		font =self.GetFont()
 		font.SetPointSize(30)
 		font.SetWeight(wx.FONTWEIGHT_BOLD)
@@ -75,6 +78,9 @@ class Result_Ctrl(wx.Control):
 		time_str = time.strftime('%H:%M:%S',time.localtime(time.time()))
 		dc.DrawText(time_str,0,62)
 		
+	def SetUnknown(self):
+		self.ok_status = None
+
 	def SetPass(self):
 		self.ok_status = True
 
@@ -118,7 +124,6 @@ class Signal_Control(wx.Panel):   #3
 		self.acc_flag = False
 		self.response = ""
 		self.cmd_line = ""
-		self.init_data()
 
 
 		# 创建字体改善UI
@@ -158,7 +163,7 @@ class Signal_Control(wx.Panel):   #3
 		self.signal_panel_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_panel_lane.SetSizer(self.signal_panel_sizer)
 		signals=[]
-		s1 =Signal(url="127.0.0.1:8088/com1/1")
+		s1 =Signal(url="127.0.0.1:8088/com3/1")
 		s2 =Signal()
 		s2 = None
 		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=[s1,s2],window=self)
@@ -172,15 +177,17 @@ class Signal_Control(wx.Panel):   #3
 		self.text_name.SetBackgroundColour( self.GetBackgroundColour())
 		self.text_name.SetForegroundColour("purple")
 		self.text_serial = wx.TextCtrl(self,-1,eut_serial,style=(wx.TE_READONLY))
-		self.text_therm= wx.TextCtrl(self,-1,"eut_name1",style=(wx.TE_READONLY))
-		self.text_NTC= wx.TextCtrl(self,-1,"eut_name2",style=(wx.TE_READONLY))
+		self.text_thermo = wx.TextCtrl(self,-1,"eut_name1",style=(wx.TE_READONLY))
+		self.text_NTC= wx.TextCtrl(self,-1,"NTC5000_B3950",style=(wx.TE_READONLY))
+		self.text_NTC_measured = wx.TextCtrl(self,-1,"5000",style=(wx.TE_READONLY))
 		self.text_NTC.Bind(wx.EVT_KEY_UP, self.OnPass)
 
 		self.sizer_info = wx.BoxSizer(wx.VERTICAL)
 		for label_name,txt in ((u"型号/PN",self.text_name),
 				(u"编号/SN",self.text_serial),
-				(u"温度/Temprature.",self.text_therm),
-				(u"热敏电阻/NTC Resistor",self.text_NTC),):
+				(u"温度/Temprature.",self.text_thermo),
+				(u"热敏电阻/\nNTC Resistor",self.text_NTC),
+				(u"热敏电阻实测/\nNTC measured",self.text_NTC_measured),):
 			label = wx.StaticText(self,-1,label_name)
 			label.SetFont(font)
 			txt.SetFont(font)
@@ -188,9 +195,9 @@ class Signal_Control(wx.Panel):   #3
 			self.sizer_info.Add(txt,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 			self.sizer_info.Add((100,20))
 
-		self.sizer_info.Add((100,300))
+		self.sizer_info.Add((100,200))
 		self.result = Result_Ctrl(parent=self,id=-1)
-		self.sizer_info.Add(self.result,2,wx.EXPAND|wx.LEFT|wx.RIGHT)
+		self.sizer_info.Add(self.result,3,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		
 		self.SetSizer(self.topsizer)
@@ -215,6 +222,7 @@ class Signal_Control(wx.Panel):   #3
 		#self.Bind(EVT_MY_EVENT, self.OnNewData)
 
 	
+		self.SetThermo(25.5)
 		#指定 DEBUG 窗口
 		sys.stdout = self.debug_out
 		sys.stderr = self.debug_out
@@ -236,7 +244,14 @@ class Signal_Control(wx.Panel):   #3
 		except:
 			pass
 
+	def SetUnknown(self):
+		self.result.SetUnknown()
 
+	def SetPass(self):
+		self.result.SetPass()
+
+	def SetFail(self):
+		self.result.SetFail()
 
 
 	def OnClearDebug(self,event):
@@ -244,63 +259,57 @@ class Signal_Control(wx.Panel):   #3
 		raw_code = event.GetRawKeyCode()
 		modifiers = event.GetModifiers()
 
-		if raw_code == 75 and modifiers==2: # ctrl+k to clear Debug text
+		if raw_code == 88 and modifiers==2: # <ctrl>+<x> to clear Debug text
 			self.debug_out.SetValue("")
 
 		self.signal_panel.OnKeyDown(event)
-
-	def OnShowCurrent(self,event):
-		print "************************************************************\n"
-		print time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-		print u"位置\t数值\t参考值\t参考精度\t  实际精度\t结果"
-		out = ''
-		x_pos = 0
-		last_pos = len(self.signal_panel.data_store)-1
-		copy_count = 1
-		last_data= self.signal_panel.data_store[0]
-		for data in self.signal_panel.data_store[1:]:
-			x_pos += 1
-			if data.GetValue() == last_data.GetValue() and x_pos!=last_pos:
-				copy_count += 1
-			elif last_data.GetValue() > 0:
-				valid = last_data.GetValid()
-				value = last_data.GetValue()
-				position   = last_data.GetPos()
-				value_refer= last_data.GetValue_refer()
-				precision_refer= last_data.GetPrecision_refer()
-				precision= last_data.GetPrecision()
-				#输出到控制台
-				if valid:
-					valid_view = u"Pass"
-
-				else:
-					valid_view = u"Fail"
-					self.debug_out.SetStyle( self.debug_out.GetNumberOfLines(),
-							-1,
-							wx.TextAttr("yellow","red"))
-				line_cur  =  "%4d\t"   % position
-				line_cur +=  "%5.2f\t" % value
-				line_cur +=  "%5.2f\t" % value_refer
-				line_cur +=  "%5.4f\t    " % precision_refer
-				line_cur +=  "%5.4f \t"% precision
-				line_cur +=  "%s\n"   % valid_view
-				print line_cur 
-				self.debug_out.SetStyle( self.debug_out.GetNumberOfLines(),
-						-1,
-						wx.TextAttr("black","white"))
-
-				copy_count = 1
-			last_data = data
-
+#	def OnShowCurrent(self,event):
+#		print "************************************************************\n"
+#		print time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+#		print u"位置\t数值\t参考值\t参考精度\t  实际精度\t结果"
+#		out = ''
+#		x_pos = 0
+#		last_pos = len(self.signal_panel.data_store)-1
+#		copy_count = 1
+#		last_data= self.signal_panel.data_store[0]
+#		for data in self.signal_panel.data_store[1:]:
+#			x_pos += 1
+#			if data.GetValue() == last_data.GetValue() and x_pos!=last_pos:
+#				copy_count += 1
+#			elif last_data.GetValue() > 0:
+#				valid = last_data.GetValid()
+#				value = last_data.GetValue()
+#				position   = last_data.GetPos()
+#				value_refer= last_data.GetValue_refer()
+#				precision_refer= last_data.GetPrecision_refer()
+#				precision= last_data.GetPrecision()
+#				#输出到控制台
+#				if valid:
+#					valid_view = u"Pass"
+#
+#				else:
+#					valid_view = u"Fail"
+#					self.debug_out.SetStyle( self.debug_out.GetNumberOfLines(),
+#							-1,
+#							wx.TextAttr("yellow","red"))
+#				line_cur  =  "%4d\t"   % position
+#				line_cur +=  "%5.2f\t" % value
+#				line_cur +=  "%5.2f\t" % value_refer
+#				line_cur +=  "%5.4f\t    " % precision_refer
+#				line_cur +=  "%5.4f \t"% precision
+#				line_cur +=  "%s\n"   % valid_view
+#				print line_cur 
+#				self.debug_out.SetStyle( self.debug_out.GetNumberOfLines(),
+#						-1,
+#						wx.TextAttr("black","white"))
+#
+#				copy_count = 1
+#			last_data = data
+#
 		
 	def OnRightDown(self,event):
 		pos = self.ScreenToClient(event.GetPosition())
 		self.PopupMenu(self.popmenu1, pos)
-
-	def init_data(self):
-		self.data_buffer = []
-		self.data_buffer_size = 0
-		self.data_point_current = -1
 
 	def OnKeyRun(self, event):
 		"""KeyDown event is sent first"""
@@ -414,7 +423,7 @@ class Signal_Control(wx.Panel):   #3
 	def OnDclick_name(self, evt):
 		dlg =  wx.TextEntryDialog(None,u"请输入产品名称",u"名称输入",self.text_name.GetValue(),style=wx.OK|wx.CANCEL)
 		if dlg.ShowModal() == wx.ID_OK :
-			self.Set_Name(dlg.GetValue())
+			self.SetName(dlg.GetValue())
 		dlg.Destroy()
 		self.result.Refresh()
 
@@ -426,7 +435,7 @@ class Signal_Control(wx.Panel):   #3
 			self.signal_panel.SetSN(SN)
 		dlg.Destroy()
 
-	def Set_Name(self, name):
+	def SetName(self, name):
 		self.eut_name = name 
 		self.text_name.SetValue(name)
 
@@ -437,6 +446,14 @@ class Signal_Control(wx.Panel):   #3
 	def SetSN(self,SN):
 		self.text_serial.SetValue(SN)
 
+	def SetThermo(self,thermo):
+		self.text_thermo.SetValue(str(float(thermo)))
+
+	def SetThermoModel(self,model):
+		self.text_NTC.SetValue(model)
+
+	def SetThermoRefer(self,refer):
+		self.text_NTC.SetValue(refer)
 
 #	def populate_data(self):
 #		rand_value_all = 0 
