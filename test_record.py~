@@ -143,7 +143,7 @@ class Test_Record():
 	#		return None
 		print "setup PN end...................................................................................................."
 		if gEut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
-			gThermo.SetNTC( gEut.field["thermo_PN"])
+			gThermo.SetNTC(gEut.field["thermo_PN"][_VALUE])
 			gThermo.SetPT(Demo_PT)
 
 		self.field["PN"][_VALUE]   = gEut.field["PN"][_VALUE]

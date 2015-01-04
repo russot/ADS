@@ -145,6 +145,10 @@ class Serial_Reader(threading.Thread):
 			self.out += '%04x%04x'%(X,Y)
 			self.count +=1
 			self.out_()
+		out_thermo = '0t:0a90097d'
+		self.output(out_thermo)
+		#print thermo.Validate(hex_NTC=0xa90,hex_PT=0x97d)
+
 
 	def down_(self):
 		for X in range (int(self.xmin),int(self.xmax)):
@@ -155,6 +159,8 @@ class Serial_Reader(threading.Thread):
 			self.out += '%04x%04x'%(self.xmax+self.xmin-X,Y)
 			self.count +=1
 			self.out_()
+		out_thermo = '0t:0a8a097d'
+		self.output(out_thermo)
 
 	def max_(self):
 		#remain high for sometime

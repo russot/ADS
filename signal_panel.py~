@@ -184,12 +184,14 @@ class Signal(wx.Dialog):
 						self.Init_Data()
 						time.sleep(0.5)
 						print "saving ok.........."
-				else:
-					pass
-				if item.startswith("0t:"):
+				elif item.startswith("0t:"):
 					hex_NTC = int(item[3:7],16)
 					hex_PT  = int(item[7:11],16)
 					(result,temprature,Rntc,Rref)=self.record.SetupThermo(hex_NTC,hex_PT)
+					self.window.window.SetThermo(str(round(temprature,3)))
+					self.window.window.SetThermoValue(str(round(Rntc,3)))
+					self.window.window.SetThermoRefer(str(round(Rref,3)))
+
 
 			elif isinstance(item,dict):
 				self.data_count += 1
@@ -657,6 +659,11 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		Eut_editor = Eut_Editor(self)
 		Eut_editor.ShowModal()
 		eut = Eut_editor.GetEut()
+		if not isinstance(eut,Eut) or not eut.GetPN():
+			print u"错误：无效的Sensor!"
+			wx.MessageBox(u"错误：无效的Sensor!",
+				style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+			return False
 
 		print "start eut show refer...................................................................................................."
 		print eut.ShowRefer()
@@ -665,6 +672,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.window.SetName(eut.GetPN())
 		self.window.SetThermoModel(eut.GetThermoModel())
 		self.Refresh(True)
+		return True
 
 	def SetUnknown(self):
 		self.window.SetUnknown()

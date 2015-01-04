@@ -101,7 +101,6 @@ class Signal_Control(wx.Panel):   #3
 		     persist=None):
 		super(Signal_Control, self).__init__(parent=parent, id=id,size=size)
 		#panel 创建
-		self.eut_name = eut_name #persist~~~~~~~~~~~~~~~~~~
 		self.eut_serial = eut_serial #persist~~~~~~~~~~~~~~~~~~
 		self.url_name = url
 		self.persist = persist
@@ -115,9 +114,9 @@ class Signal_Control(wx.Panel):   #3
 		#os.system("server_ep.py")
 
 		#print "sig ctrl init1"
-		self.queue_cmd =  Queue(-1) # 创建一个无限长队列,用于输入命令
-		self.queue_data=  Queue(-1)# 创建一个无限长队列,用于输出结果
-		self.thread_source = Data_Source(self,self.url_name,self.queue_cmd,self.queue_data)
+		#self.queue_cmd =  Queue(-1) # 创建一个无限长队列,用于输入命令
+		#self.queue_data=  Queue(-1)# 创建一个无限长队列,用于输出结果
+		#self.thread_source = Data_Source(self,self.url_name,self.queue_cmd,self.queue_data)
 		self.started_flag = False
 		self.running_flag = False
 		self.move_flag = False
@@ -147,6 +146,9 @@ class Signal_Control(wx.Panel):   #3
 		self.debug_out   = wx.TextCtrl(self.debug_lane,-1,style=(wx.TE_MULTILINE|wx.TE_RICH2|wx.HSCROLL) )
 		self.sizer_debug.Add(self.debug_out,1,wx.EXPAND|wx.ALL)
 
+		#指定 DEBUG 窗口
+		sys.stdout = self.debug_out
+		sys.stderr = self.debug_out
 		#创建信息栏
 		#print "sig ctrl init3"
 		self.info_lane  = wx.ScrolledWindow(self.data_window,-1)
@@ -178,15 +180,14 @@ class Signal_Control(wx.Panel):   #3
 		self.text_name.SetForegroundColour("purple")
 		self.text_serial = wx.TextCtrl(self,-1,eut_serial,style=(wx.TE_READONLY))
 		self.text_thermo = wx.TextCtrl(self,-1,"eut_name1",style=(wx.TE_READONLY))
-		self.text_NTC= wx.TextCtrl(self,-1,"NTC5000_B3950",style=(wx.TE_READONLY))
-		self.text_NTC_measured = wx.TextCtrl(self,-1,"5000",style=(wx.TE_READONLY))
-		self.text_NTC.Bind(wx.EVT_KEY_UP, self.OnPass)
+		self.text_NTC_ref= wx.TextCtrl(self,-1,"NTC5000_B3950",style=(wx.TE_READONLY))
+		self.text_NTC_measured = wx.TextCtrl(self,-1,"50",style=(wx.TE_READONLY))
 
 		self.sizer_info = wx.BoxSizer(wx.VERTICAL)
 		for label_name,txt in ((u"型号/PN",self.text_name),
 				(u"编号/SN",self.text_serial),
 				(u"温度/Temprature.",self.text_thermo),
-				(u"热敏电阻/\nNTC Resistor",self.text_NTC),
+				(u"热敏电阻/\nNTC Resistor",self.text_NTC_ref),
 				(u"热敏电阻实测/\nNTC measured",self.text_NTC_measured),):
 			label = wx.StaticText(self,-1,label_name)
 			label.SetFont(font)
@@ -222,10 +223,7 @@ class Signal_Control(wx.Panel):   #3
 		#self.Bind(EVT_MY_EVENT, self.OnNewData)
 
 	
-		self.SetThermo(25.5)
-		#指定 DEBUG 窗口
-		sys.stdout = self.debug_out
-		sys.stderr = self.debug_out
+		self.SetThermo(20.0)
 
 
 	def OnSplit(self,event):
@@ -436,7 +434,6 @@ class Signal_Control(wx.Panel):   #3
 		dlg.Destroy()
 
 	def SetName(self, name):
-		self.eut_name = name 
 		self.text_name.SetValue(name)
 
 	def UploadSN(self,SN):
@@ -449,11 +446,11 @@ class Signal_Control(wx.Panel):   #3
 	def SetThermo(self,thermo):
 		self.text_thermo.SetValue(str(float(thermo)))
 
-	def SetThermoModel(self,model):
-		self.text_NTC.SetValue(model)
+	def SetThermoValue(self,value):
+		self.text_NTC_measured.SetValue(value)
 
 	def SetThermoRefer(self,refer):
-		self.text_NTC.SetValue(refer)
+		self.text_NTC_ref.SetValue(refer)
 
 #	def populate_data(self):
 #		rand_value_all = 0 

@@ -41,10 +41,11 @@ class Thermo():
 		
 	def SetNTC(self,PN):
 		err_msg = u"Error: 无法在NTC数据库中找到此PN的NTC!"
+		print "to set-ntc %s now...."%PN
 		if not self.NTC.RestoreFromDBZ(PN):
 			print err_msg
 			return None
-		print u"OK:设置NTC 成功!"
+		print u"OK:设置NTC_%s 成功!"%PN
 		return True
 #----------------------------------------------------------------------------------------------------
 #below method based on PT circuit 

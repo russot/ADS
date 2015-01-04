@@ -157,6 +157,8 @@ class Data_Source(threading.Thread,wx.Object):
 				pos_newline = recv_segment.find('\n')
 				self.buffer_recv.append(recv_segment[:pos_newline] )
 				raw_data = ''.join(self.buffer_recv)
+				if raw_data.startswith("0t:"):
+					self.queue_out.put(raw_data)
 				if raw_data.startswith("0x:"):
 					data_str = raw_data[3:]
 					len_data = data_str.find('\0')/8 

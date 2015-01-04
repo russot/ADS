@@ -141,7 +141,7 @@ class Thermo_Sensor():
 						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
 				else:
 					print u"抱歉！此记录不存在!"
-				return None
+				return False
 			else:
 				break
 		cmd = "select * from %s where PN like '%s'" % (self.table_name, PN)
