@@ -20,7 +20,6 @@ REF_ROW = 6
 REF_COL = 6
 
 
-
 class Thermo():
 	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
 	def __init__(self):

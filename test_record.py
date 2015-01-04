@@ -20,6 +20,8 @@ from eut import Eut
 from thermo_sensor import Thermo_Sensor
 from util import gAuthen,gZip,gZpickle 
 
+from thermo import Thermo
+
 #index for refer table RC
 REF_ROW = 6
 REF_COL = 6
@@ -29,7 +31,8 @@ _VALUE	= int(0)
 _RC	= int(1)
 
 gEut    = Eut()
-gThermo = Thermo_Sensor()
+gThermo = Thermo()
+Demo_PT = "pt1000-01"
 
 gModule = False
 ####################################################################################################
@@ -116,17 +119,18 @@ class Test_Record():
 		self.field["time"][_VALUE] = create_time
 
 #----------------------------------------------------------------------------------------------------
-	def SetupThermo(self,temprature,NTCvalue):
+	def SetupThermo(self,hex_NTC,hex_PT):
+		(result,temprature,Rntc,Rref) = gThermo.Validate(hex_NTC=hex_NTC,hex_PT=hex_PT)
 		self.field["tempr"][_VALUE] = float(temprature)
-		self.field["NTCvalue"][_VALUE] = float(NTCvalue)
-		refer_VALUE = gThermo.GetR(float(temprature))
-		self.field["NTCrefer"][_VALUE]  = float(refer_VALUE)
-		refer_precision = gThermo.GetPrecision()
-		real_precision  = abs(float(NTCvalue) - refer_VALUE)/refer_VALUE
-		if real_precision > refer_precision: 
-			self.field["NTCresult"][_VALUE] = "Fail"
-		else : 
+		self.field["NTCvalue"][_VALUE] = float(Rntc)
+		self.field["NTCrefer"][_VALUE]  = float(Rref)
+		if result == True:
 			self.field["NTCresult"][_VALUE] = "Pass"
+		else:
+			self.field["NTCresult"][_VALUE] = "Fail"
+		
+		return (result,temprature,Rntc,Rref)
+
 
 
 	
@@ -138,8 +142,9 @@ class Test_Record():
 		gEut.RestoreFromDBZ(PN)
 	#		return None
 		print "setup PN end...................................................................................................."
-	#	if gEut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
-	#		gThermo.RestoreFromDBZ( gEut.field["thermo_PN"])
+		if gEut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
+			gThermo.SetNTC( gEut.field["thermo_PN"])
+			gThermo.SetPT(Demo_PT)
 
 		self.field["PN"][_VALUE]   = gEut.field["PN"][_VALUE]
 		self.field["model"][_VALUE]   = gEut.field["model"][_VALUE]

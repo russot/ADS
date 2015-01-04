@@ -30,8 +30,8 @@ from test_record import *
 from data_source import Data_Source 
 from data_source import MyEvent, EVT_MY_EVENT
 
-from refer_entry import *
-from refer_table import *
+from refer_entry import Refer_Entry
+from refer_table import Eut_Editor
 from pga import gPGA
 
 class Signal(wx.Dialog):
@@ -56,6 +56,7 @@ class Signal(wx.Dialog):
 		self.trig_status = False
 		self.record = Test_Record()
 		self.status = None
+		self.thermo = Thermo()
 
 	def SetPN(self,eut):#extract PN from eut object
 		if not isinstance(eut,Eut):
@@ -185,7 +186,12 @@ class Signal(wx.Dialog):
 						print "saving ok.........."
 				else:
 					pass
-			if isinstance(item,dict):
+				if item.startswith("0t:"):
+					hex_NTC = int(item[3:7],16)
+					hex_PT  = int(item[7:11],16)
+					(result,temprature,Rntc,Rref)=self.record.SetupThermo(hex_NTC,hex_PT)
+
+			elif isinstance(item,dict):
 				self.data_count += 1
 				Xvalue,Yvalue_ = item["value"]
 				Yvalue = gPGA.find_result4R(Yvalue_)
@@ -219,6 +225,7 @@ class Signal(wx.Dialog):
 					)
 				#self.window.DrawData()
 				self.window.Refresh(True)
+
 
 	def GetRefer_X(self,Xvalue=0,Yvalue=0):
 		refer_entry =None
