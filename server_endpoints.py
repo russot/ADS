@@ -33,21 +33,23 @@ _OUT	= 1
 #index for Devices.type_
 USB	= 0
 COM	= 1
+SIM	= 2
 
 
 PORT=8088
 IP_ADDRESS = '127.0.0.1'
-DEMO_PN    = 'R939-5y'
+DEMO_PN    = 'R939-5x'
 
 USB_IDVendor=0x0483
 USB_IDProduct=0x5750
 			
 			
 class Serial_Reader(threading.Thread):
-	def __init__(self,serial_in,data_queues):
+	def __init__(self,serial_in,data_queues,dev_type=USB):
 		threading.Thread.__init__(self)
 		self.data_queues = data_queues
-		self.serial = serial_in
+		self.serial_in = serial_in
+		self.dev_type=USB
 
 		self.eut_demo=eut.Eut()
 		self.eut_demo.RestoreFromDBZ(DEMO_PN)
@@ -78,23 +80,24 @@ class Serial_Reader(threading.Thread):
 	
 
 	def run(self):
-		#Serial_Writer(self.serial).start()
-		print "read thread start....\n",self.serial
+		print "read thread start....\n",self.serial_in
 		while True:
-			#self.get_data()
-			self.get_debug_data()
+			self.get_data()
+			#self.get_debug_data()
 			time.sleep(0.001)
 
 	def get_data(self):
-		if self.type_ == USB:
-			self.get_usb_data()
-		elif self.type_ == COM:
+		if self.dev_type == COM:
 			self.get_com_data()
+		elif self.dev_type == USB:
+			self.get_usb_data()
+		else:
+			self.get_sim_data()
 
 
 	def get_com_data(self):
 		try:
-			data = self.serial.readline()
+			data = self.serial_in.readline()
 			self.output(data)
 		except:
 			pass
@@ -102,18 +105,20 @@ class Serial_Reader(threading.Thread):
 	def get_usb_data(self):
 		self.out = ''
 		try:
-			for byte__ in self.serial[_IN].read(size=64):
+			for byte__ in self.serial_in.read(size=64):
 				if byte__  != 0:
 					self.out += chr(byte__)
 			self.output(self.out)
+			print self.out
 
-		except:
+		except Exception,e:
+			print e
 			pass
 	def output(self,data):
 		for queue in self.data_queues:
 			queue.put(data)
 
-	def get_debug_data(self):
+	def get_sim_data(self):
 		self.up_()
 		self.max_()
 		self.down_()
@@ -213,12 +218,11 @@ class Device_Serial(threading.Thread):
 		#Serial_Writer(self.serial).start()
 		print "device thread start....\n",self.serial
 		#start a reader thread to deal with read task	
-		reader = Serial_Reader(self.serial[_IN],self.queues[_DAT])
+		reader = Serial_Reader(self.serial[_IN],self.queues[_DAT],dev_type=self.type_)
 		reader.setDaemon(True)
 		reader.start()
 		#start ever loop to deal with write task	
 		while True:
-		#	self.get_data()
 			self.deal_cmd()
 			time.sleep(0.001)
 
@@ -226,6 +230,8 @@ class Device_Serial(threading.Thread):
 		for queue_cmd in self.queues[_CMD]:
 			while not queue_cmd.empty():
 				cmd = queue_cmd.get()
+				print ">>>>>>>>>>>$new cmd: %s"%cmd
+				print self.serial[_OUT]
 				self.serial[_OUT].write(cmd)
 
 
@@ -260,9 +266,9 @@ class Motor():
 
 	def stop(self):
 		print "motor stopped....."
+		self.cmd_queue.put("adc:stop:")
 		time.sleep(0.001)
-		cmd = "motor:stop:"
-		self.cmd_queue.put(cmd)
+		self.cmd_queue.put("motor:stop:")
 		time.sleep(0.001)
 
 	def setup(self,command):
@@ -274,12 +280,23 @@ class Motor():
 
 	def run(self):
 		print "motor running....."
-		cmd = "motor:auto:Y"
-		self.cmd_queue.put(cmd)
+		self.cmd_queue.put("adc:swt:R")
 		time.sleep(0.01)
-		cmd = "motor:move:x>"
-		self.cmd_queue.put(cmd)
-		time.sleep(0.001)
+		self.cmd_queue.put("adc:pga:R:64")
+		time.sleep(0.01)
+		self.cmd_queue.put("adc:pga:A:2")
+		time.sleep(0.01)
+		self.cmd_queue.put("adc:cfg:auto:Y")
+		time.sleep(0.01)
+		self.cmd_queue.put("adc:cfg:interval:4000")
+		time.sleep(0.01)
+		self.cmd_queue.put("adc:cfg:channel:0")
+		time.sleep(0.01)
+		self.cmd_queue.put("adc:run:")
+		time.sleep(0.01)
+	#	cmd = "motor:move:x>"
+	#	self.cmd_queue.put(cmd)
+		#time.sleep(0.001)
 
 	def adc(self,command):
 		print "adc cmd %s....."%command
@@ -311,7 +328,7 @@ class Endpoint(threading.Thread):
 	def Watchdog(self):
 		if self.run_flag == True:
 			self.life -= 1
-			print u"life remain %d sec"%(self.life*5)
+			#print u"life remain %d sec"%(self.life*5)
 		if self.life == 0:
 			self.quit_flag = True
 		else:
@@ -360,7 +377,7 @@ class Endpoint(threading.Thread):
 
 	def deal_cmd(self):
 		command = self.queue_cmd_in.get()
-		print 'command:%s\n' % command
+		#print 'command:%s\n' % command
 		if command.startswith("open"): #excute once and stop
 			dev_name = command[5:]
 			queues_ = gDevices.Open(dev_name)
@@ -380,7 +397,7 @@ class Endpoint(threading.Thread):
 			self.run_flag = True
 			while not self.queue_data.empty():
 				self.queue_data.get()#flush old data 
-			#self.motor.run()
+			self.motor.run()
 
 		elif command.startswith("accl"):#excute in loop 
 			if command.startswith("accl:plus"):
@@ -419,15 +436,16 @@ class Device_Proxy():
 		dev_name = dev_name_all.split(":")[0]
 		if not dev_name in self.routes.keys():
 			print "dev_name in open()....................",dev_name
-			ep =  self.OpenDevice(dev_name_all)
+			dev_type,ep =  self.OpenDevice(dev_name_all)
 			if not ep:
 				return None
+			print "serial ep:___________________________________________________________________________________________________\n",ep
 			cmd_queue = Queue(-1)
 			data_queue =Queue(-1)
 			cmd_queues = [cmd_queue] 
 			data_queues =[data_queue]
 			try:
-				self.routes[dev_name] = Device_Serial(ep,[cmd_queues,data_queues])
+				self.routes[dev_name] = Device_Serial(ep,[cmd_queues,data_queues],dev_type)
 				self.routes[dev_name].setDaemon(True) 
 				self.routes[dev_name].start() 
 				print "routes.keys()",self.routes.keys()
@@ -441,10 +459,17 @@ class Device_Proxy():
 
 	def OpenDevice(self,dev_name):
 		if dev_name.startswith("usb"):
-			return self.OpenUSB(dev_name)
+			return (USB,self.OpenUSB(dev_name))
 		elif dev_name.startswith("com"):
-			return self.OpenCOM(dev_name)
+			return (COM,self.OpenCOM(dev_name))
+		elif dev_name.startswith("sim"):
+			return (SIM,self.OpenSIM(dev_name))
 
+
+	def OpenSIM(self,dev_name):
+		print "open serial",dev_name
+		return (sys.stdin,sys.stdout)
+	
 	def OpenCOM(self,dev_name):
 		print "open serial",dev_name
 		serial_ = dev_name.split(":")

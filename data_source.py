@@ -73,6 +73,8 @@ class Data_Source(threading.Thread,wx.Object):
 		self.Q4filter_cmd_out= Queue(-10)
 		self.Q4filter_data_in= Queue(-10)
 		self.Q4filter_data_out= Queue(-10)
+		self.not_filted_count = 0
+		self.filter_option = True
 
 		self.signal_filter = sig_filter.Grouping_Filter(self.Q4filter_cmd_in,self.Q4filter_cmd_out,self.Q4filter_data_in,self.Q4filter_data_out)
 		#self.signal_filter.start()
@@ -108,15 +110,6 @@ class Data_Source(threading.Thread,wx.Object):
 	def SetEndpoint(self,url):
 		self.endpoint.SetUrl(url)
 
-	def run_adc(self):
-		self.tcpCliSock.send("adc:cfg:manual:Y\n")
-		time.sleep(0.01)
-		self.tcpCliSock.send("adc:cfg:interval:20\n")
-		time.sleep(0.01)
-		self.tcpCliSock.send("adc:cfg:channel:0\n")
-		time.sleep(0.01)
-		self.tcpCliSock.send("adc:run:\n")
-		time.sleep(0.01)
 	
 	def sample(self):
 		self.tcpCliSock.send("adc:cfg:channel:0\n")
@@ -141,15 +134,83 @@ class Data_Source(threading.Thread,wx.Object):
 			while not self.queue_out.empty(): # 清除输出队列中的过期数据
 				self.queue_out.get()
 			#~ time.sleep(3)
-		#	self.run_adc()
-		elif  command.startswith("get_status"): #excute 
+		elif command.startswith("Filter:On"):
+			self.filter_option = True
+		elif command.startswith("Filter:Off"):
+			self.filter_option = False
+		elif command.startswith("get_status"): #excute 
 			self.queue_out.put(self.run_flag)
-		elif  command.startswith("calibrate:") and self.run_flag==False: #excute 
+		elif command.startswith("calibrate:") and self.run_flag==False: #excute 
 			self.calibrate(command[len("calibrate:"):])
 		#print command + '\n' 
 		self.tcpCliSock.send(command + '\n') #
 
+
+#######  thermo (ntc,pt) data: '0t:nnnnpppp.............................\n'
+#        liquid (x,   y) data: '0x:xxxxyyyy.............................\n'
 	def GetData(self):
+		if self.filter_option == True:
+			self.GetData_Filted()
+		else:
+			self.GetData_NotFilted()
+
+	def GetData_NotFilted(self):
+		try:
+			recv_segment = self.tcpCliSock.recv(1024)
+			#print recv_segment
+			while '\n' in recv_segment:
+				pos_newline = recv_segment.find('\n')
+				self.buffer_recv.append(recv_segment[:pos_newline] )
+				raw_data = ''.join(self.buffer_recv)
+				if raw_data.startswith("0t:"):
+					self.queue_out.put(raw_data)
+				if raw_data.startswith("0x:"):
+					data_str = raw_data[3:]
+					len_data = data_str.find('\0')/8 
+					#input data now 
+					for i in range(0,len_data):
+						str4X = data_str[i*8:i*8+4]
+						str4Y = data_str[i*8+4:i*8+8]
+						data_x = int(str4X,16)
+						data_y = int(str4Y,16)
+						if data_y > 0x8000:
+							data_y_ = float(data_y-0x8000)/10.0
+						else:
+							data_y_ = float(data_y)
+
+						new_data =  {"length":int(1),"value":(data_x,data_y),"flag":"new"}
+						#self.signal_filter.append_to_ibuffer((data_x,data_y))
+						self.Q4filter_data_out.put(new_data)
+				self.buffer_recv = []
+				try:
+					recv_segment = recv_segment[pos_newline+1:]
+				except:
+					pass
+			self.buffer_recv.append(recv_segment)
+			#get filtered data 
+			while not self.Q4filter_data_out.empty():
+				data = self.Q4filter_data_out.get()
+				self.not_filted_count += 1
+				if self.not_filted_count - 2000 == 0:
+					self.not_filted_count = 0
+					self.queue_out.put("sleep")
+					self.queue_out.put("trigger")
+				#	for signal in self.signals:
+				#		signal.in_data_queue.put("sleep")
+				#		signal.in_data_queue.put("trigger")
+					wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
+
+				#self.queue_out.put(data)
+				if self.not_filted_count%2 == 0:
+					self.queue_out.put(data)
+				#	for signal in self.signals:
+				#		signal.in_data_queue.put(data)
+					wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
+				
+		
+		except Exception, e:
+			pass 
+	def GetData_Filted(self):
 		try:
 			recv_segment = self.tcpCliSock.recv(1024)
 			#print recv_segment

@@ -98,12 +98,11 @@ class Signal_Control(wx.Panel):   #3
 		     url = "",
 		     eut_name="demo",
 		     eut_serial="demo",
-		     persist=None):
+		     ):
 		super(Signal_Control, self).__init__(parent=parent, id=id,size=size)
 		#panel 创建
 		self.eut_serial = eut_serial #persist~~~~~~~~~~~~~~~~~~
 		self.url_name = url
-		self.persist = persist
 		self.mincircle = 0
 		self.data_count = 0
 
@@ -165,7 +164,7 @@ class Signal_Control(wx.Panel):   #3
 		self.signal_panel_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_panel_lane.SetSizer(self.signal_panel_sizer)
 		signals=[]
-		s1 =Signal(url="127.0.0.1:8088/com3/1")
+		s1 =Signal(url="127.0.0.1:8088/usb1/1")
 		s2 =Signal()
 		s2 = None
 		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=[s1,s2],window=self)
@@ -497,7 +496,6 @@ if __name__=='__main__':
 	app = wx.App()
 	frm = wx.Frame(None)
 	frm.SetSize((1400,800))
-	persist =(Queue(-1),Queue(-1))
 	
 #	sql = Thread_Sqlite(db_name="sqlite3_all.db",queue_in=persist[0], queue_out=persist[1]) 
 #	sql.setDaemon(True)
@@ -514,8 +512,7 @@ if __name__=='__main__':
 				id=-1,
 				url = URL,
 				eut_name="Eawdfr2s3WEE",
-				eut_serial="10p8-082wj490",
-				persist =persist)
+				eut_serial="10p8-082wj490",)
 	#panel.populate_data()
 	#panel.signal.SetRefer(signal_panel.pupulate_refer_table())
 	panel.signal_panel.SetGridColour(wx.Colour(0,250,250,200))

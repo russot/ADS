@@ -57,6 +57,7 @@ class Signal(wx.Dialog):
 		self.record = Test_Record()
 		self.status = None
 		self.thermo = Thermo()
+		self.filter_option = True
 
 	def SetPN(self,eut):#extract PN from eut object
 		if not isinstance(eut,Eut):
@@ -81,7 +82,20 @@ class Signal(wx.Dialog):
 	def GetOkColour(self):
 		return self.ok_colour
 
+	def GetBackColour(self):
+		return self.window.GetBackColour()
+
+	def GetGridColour(self):
+		return self.window.GetGridColour()
+
 		
+	def SetFilterOption(self,option):
+		self.filter_option = option
+		if option == True:
+			self.cmd_queue.put("Filter:On")
+		else:
+			self.cmd_queue.put("Filter:Off")
+
 	def SetBadColour(self,colour):
 		self.bad_colour = colour 
 
@@ -202,8 +216,9 @@ class Signal(wx.Dialog):
 				if length > 200:
 					length = 50
 				refer_entry  = self.GetReferEntry(Xvalue,Yvalue)
-				print "new data .............",Xvalue,Yvalue,length
-				print "searched refer_entry X,Y:",refer_entry.GetXvalue(),refer_entry.GetYvalue()
+				if length > 10:
+					print "new data .............",Xvalue,Yvalue,length
+					print "searched refer_entry X,Y:",refer_entry.GetXvalue(),refer_entry.GetYvalue()
 				Xprecision,Yprecision,xstatus,ystatus = refer_entry.Validate(Xvalue,Yvalue)
 				if xstatus==True and ystatus==True:
 					status = True
@@ -317,10 +332,18 @@ class signal_cfgUI(wx.Panel):
 		#self.url_btn = wx.Button(self,-1,"set URL")
 		self.ok_color_btn = wx.Button(self,-1,"Ok color")
 		self.bad_color_btn = wx.Button(self,-1,"Bad color")
+		self.back_color_btn = wx.Button(self,-1,"Back color")
+		self.grid_color_btn = wx.Button(self,-1,"Grid color")
+		self.filter_option = wx.CheckBox(self,-1,u"Using Filter/\n使用滤波器",(20,20),(160,-1))
+		self.filter_option.SetValue(True)
 		self.ok_color_btn.SetBackgroundColour(self.signal.GetOkColour())
 		self.bad_color_btn.SetBackgroundColour(self.signal.GetBadColour())
+		self.back_color_btn.SetBackgroundColour(self.signal.GetBackColour())
+		self.grid_color_btn.SetBackgroundColour(self.signal.GetGridColour())
 		self.ok_color_btn.Bind(wx.EVT_BUTTON, self.SelectColor)
 		self.bad_color_btn.Bind(wx.EVT_BUTTON, self.SelectColor)
+		self.back_color_btn.Bind(wx.EVT_BUTTON, self.SelectColor)
+		self.grid_color_btn.Bind(wx.EVT_BUTTON, self.SelectColor)
 		self.topsizer= wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
 		self.topsizer.Add((200,40))
 		self.topsizer.Add(wx.StaticText(self, -1,u"URL,如 127.0.0.1:8088/usb1"))
@@ -333,8 +356,16 @@ class signal_cfgUI(wx.Panel):
 		self.hsizer.Add(self.ok_color_btn)
 		self.hsizer.Add((20,20))
 		self.hsizer.Add(self.bad_color_btn)
+		self.hsizer2= wx.BoxSizer(wx.HORIZONTAL|wx.ALIGN_CENTER)# 创建一个分割窗
+		self.hsizer2.Add(self.back_color_btn)
+		self.hsizer2.Add((20,20))
+		self.hsizer2.Add(self.grid_color_btn)
+		self.hsizer2.Add((20,20))
 		self.topsizer.Add((40,20))
 		self.topsizer.Add(self.hsizer)		
+		self.topsizer.Add((40,20))
+		self.topsizer.Add(self.hsizer2)		
+		self.topsizer.Add(self.filter_option)
 		
 		self.SetSizer(self.topsizer)
 		self.Fit()
@@ -350,9 +381,17 @@ class signal_cfgUI(wx.Panel):
 			print "set ok color"
 			self.ok_color_btn.SetBackgroundColour(color)
 			#self.signal.SetOkColour(color)
-		else:
+		elif event.GetId() == self.ok_color_btn.GetId():
 			print "set bad color"
 			self.bad_color_btn.SetBackgroundColour(color)
+			#self.signal.SetBadColour(color)
+		elif event.GetId() == self.back_color_btn.GetId():
+			print "set back color"
+			self.back_color_btn.SetBackgroundColour(color)
+			#self.signal.SetBadColour(color)
+		elif event.GetId() == self.grid_color_btn.GetId():
+			print "set grid color"
+			self.grid_color_btn.SetBackgroundColour(color)
 			#self.signal.SetBadColour(color)
 		dlg.Destroy()
 
@@ -362,8 +401,17 @@ class signal_cfgUI(wx.Panel):
 	def GetBadColour(self):
 		return self.bad_color_btn.GetBackgroundColour()
 
+	def GetBackgroundColour(self):
+		return self.back_color_btn.GetBackgroundColour()
+
+	def GetGridColour(self):
+		return self.grid_color_btn.GetBackgroundColour()
+
 	def GetUrl(self):
 		return self.url.GetValue()
+
+	def GetFilterOption(self):
+		return self.filter_option.IsChecked()
 
 	#def OnSetUrl(self,event):
 		#self.signal.SetUrl(self.url.GetValue())
@@ -418,7 +466,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.SetupScrolling() 
 		if signals:
 			self.SetSignals(signals)
-		self.SetBackgroundColour(back_color)
+		self.SetBackColour(back_color)
 		self.grid_colour= wx.Colour(250,0,250,200)
 		self.ok_colour= wx.Colour(0,0,250,200)
 		self.bad_colour= wx.Colour(250,0,0,200)
@@ -431,25 +479,38 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.Bind(wx.EVT_MIDDLE_DCLICK, self.OnSetup)
 
 		self.popmenu1 = wx.Menu()
-		self.menu_save = self.popmenu1.Append(wx.NewId(), u"保存数据", u"保存数据到数据库" )
+		#self.menu_save = self.popmenu1.Append(wx.NewId(), u"保存数据", u"保存数据到数据库" )
 		self.menu_run = self.popmenu1.Append(wx.NewId(), u"运行.当前点", u"运行与暂停", kind=wx.ITEM_CHECK)
 		self.popmenu1.AppendSeparator()
 		self.menu_query_ui = self.popmenu1.Append(wx.NewId(), u"数据库查询", u"组合查询已存储数据")
-		self.menu_query_current = self.popmenu1.Append(wx.NewId(), u"当前数据查询", u"查询正在测试的数据")
+		#self.menu_query_current = self.popmenu1.Append(wx.NewId(), u"当前数据查询", u"查询正在测试的数据")
 		self.popmenu1.AppendSeparator()
 		self.menu_eut = self.popmenu1.Append(wx.NewId(), u"Sensor选择", u"被测件选择")
 		self.menu_setup = self.popmenu1.Append(wx.NewId(), u"配置", u"测试参数配置")
 		self.Bind(wx.EVT_CONTEXT_MENU, self.OnRightDown)
 		self.Bind(wx.EVT_MENU, self.OnRunStop,self.menu_run)
-		self.Bind(wx.EVT_MENU, self.OnShowCurrent,self.menu_query_current)
-		#self.Bind(wx.EVT_MENU, self.OnQuery_UI,self.menu_query_ui)
+		#self.Bind(wx.EVT_MENU, self.OnShowCurrent,self.menu_query_current)
 		self.Bind(wx.EVT_MENU, self.OnSetup,self.menu_setup)
+		self.Bind(wx.EVT_MENU, self.OnSelectEut,self.menu_query_ui)
 		self.Bind(wx.EVT_MENU, self.OnSelectEut,self.menu_eut)
 		#self.Bind(wx.EVT_WHEEL, self.OnZoom)
 		#self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
 		self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
 		self.SetScreenXsize(Xsize=1200)
+
+	def SetGridColour(self,color):
+		self.grid_colour= wx.Colour(color)
+
+	def GetGridColour(self):
+		return self.grid_colour
+
+	def SetBackColour(self,color):
+		self.back_colour = color
+		self.SetBackgroundColour(color)
+
+	def GetBackColour(self):
+		return self.back_colour
 
 	def OnKeyDown(self, event):
 		"""KeyDown event is sent first"""
@@ -509,17 +570,21 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.Setup()
 	
 	def Setup(self):
-		dlg = Dialog_Setup(None,-1,"signal UI&CFG",self.signals)
+		dlg = Dialog_Setup(self,-1,"signal UI&CFG",self.signals)
 		if dlg.ShowModal()==wx.ID_OK:
 			print "setup OK!"
 			for (signal,cfg_panel) in dlg.ui_map:
 				signal.SetUrl(cfg_panel.GetUrl())
 				signal.SetOkColour(cfg_panel.GetOkColour())
 				signal.SetBadColour(cfg_panel.GetBadColour())
+				signal.SetFilterOption(cfg_panel.GetFilterOption())
+				self.SetBackColour(cfg_panel.GetBackgroundColour())
+				self.SetGridColour(cfg_panel.GetGridColour())
 		else:
 			print "setup cancelled!"
 		
 		dlg.Destroy() #释放资源
+		self.Refresh(True)
 
 	def SetSN(self,SN):
 		for signal in self.signals:
@@ -659,6 +724,8 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		Eut_editor = Eut_Editor(self)
 		Eut_editor.ShowModal()
 		eut = Eut_editor.GetEut()
+		if evt.GetId() == self.menu_query_ui.GetId():
+			return True
 		if not isinstance(eut,Eut) or not eut.GetPN():
 			print u"错误：无效的Sensor!"
 			wx.MessageBox(u"错误：无效的Sensor!",
@@ -670,7 +737,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		print "end eut show refer...................................................................................................."
 		self.SetEut(eut)
 		self.window.SetName(eut.GetPN())
-		self.window.SetThermoModel(eut.GetThermoModel())
+		self.window.SetThermoValue(eut.GetThermoModel())
 		self.Refresh(True)
 		return True
 

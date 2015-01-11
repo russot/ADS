@@ -661,7 +661,7 @@ class Eut_Editor(wx.Dialog):
 
 
 if __name__=='__main__':
-	gModule = True
+	gModule = False
 
 	app = wx.App()
 	frm = Eut_Editor()

@@ -27,7 +27,7 @@ class Thermo():
 		self.NTC = Thermo_Sensor()
 		self.temprature = 0.0
 		self.init_ok = True
-		self.SetPT("pt1000-01")
+		#self.SetPT("pt1000-01")
 
 	def SetPT(self,PN):
 		err_msg = u"Error: 无法测温，因为无PT1000电阻，请在NTC数据库中输入PT1000电阻!"

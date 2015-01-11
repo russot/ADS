@@ -17,8 +17,8 @@ import config_db
 from time import sleep
 from util import *
 
+import server_endpoints
 
-from thread_sqlite import Thread_Sqlite
 
 
 
@@ -31,7 +31,7 @@ class Frame(wx.Frame):   #3
 		self.spaces = []
 		self.signals_count = 0
 		self.signals_status = "stopped"
-		print "begin create splitter window"
+		#print "begin create splitter window"
 
 		
 
@@ -75,21 +75,21 @@ class Frame(wx.Frame):   #3
 
 		self.SetSizer(self.topsizer)
 		self.CreateMenu()
-		print " create menu ok"
+		#print " create menu ok"
 
 
 		#创建 持久化线程,通过两个队列管道进行数据交换
-		self.queue_persist_in = Queue(-1)
-		self.queue_persist_out = Queue(-1)
-		self.persist = Thread_Sqlite(queue_in  = self.queue_persist_in, 
-							queue_out= self.queue_persist_out) 
-		self.persist.setDaemon(True)
-		self.persist.start()
+	#	self.queue_persist_in = Queue(-1)
+	#	self.queue_persist_out = Queue(-1)
+	#	self.persist = Thread_Sqlite(queue_in  = self.queue_persist_in, 
+	#						queue_out= self.queue_persist_out) 
+	#	self.persist.setDaemon(True)
+	#	self.persist.start()
 		self.SetEditable(False)
-		print "add signal"
+		#print "add signal"
 
-		self.AddSignals(2)
-		print "add signal OK"
+		self.AddSignals(1)
+		#print "add signal OK"
 		
 		self.Relayout()
 
@@ -155,17 +155,17 @@ class Frame(wx.Frame):   #3
 
 
 		self.editable = False
-		self.popmenu1 = wx.Menu()
-		self.menu_run = self.popmenu1.Append(wx.NewId(), u"运行.全部", u"运行与暂停", kind=wx.ITEM_CHECK)
-		self.popmenu1.AppendSeparator()
-		#self.menu_query = self.popmenu1.Append(wx.NewId(), u"数据查询", u"查询已存储的数据")
-		self.menu_query_ui = self.popmenu1.Append(wx.NewId(), u"数据组合查询", u"组合查询已存储数据")
-		self.popmenu1.AppendSeparator()
-		self.menu_editable = self.popmenu1.Append(wx.NewId(), u"编辑状态", u"进出编辑状态，增加/删除测试点", kind=wx.ITEM_CHECK )
-		self.Bind(wx.EVT_CONTEXT_MENU, self.OnRightDown)
-		self.Bind(wx.EVT_MENU, self.OnRunSignals,self.menu_run)
-		self.Bind(wx.EVT_MENU, lambda evt: os.startfile('dialog_query.pyw'),self.menu_query_ui)
-		self.Bind(wx.EVT_MENU, self.OnToggleEdit,self.menu_editable)
+	#	self.popmenu1 = wx.Menu()
+	#	self.menu_run = self.popmenu1.Append(wx.NewId(), u"运行.全部", u"运行与暂停", kind=wx.ITEM_CHECK)
+	#	self.popmenu1.AppendSeparator()
+	#	#self.menu_query = self.popmenu1.Append(wx.NewId(), u"数据查询", u"查询已存储的数据")
+	#	self.menu_query_ui = self.popmenu1.Append(wx.NewId(), u"数据组合查询", u"组合查询已存储数据")
+	#	self.popmenu1.AppendSeparator()
+	#	self.menu_editable = self.popmenu1.Append(wx.NewId(), u"编辑状态", u"进出编辑状态，增加/删除测试点", kind=wx.ITEM_CHECK )
+	#	self.Bind(wx.EVT_CONTEXT_MENU, self.OnRightDown)
+	#	self.Bind(wx.EVT_MENU, self.OnRunSignals,self.menu_run)
+	#	self.Bind(wx.EVT_MENU, lambda evt: os.startfile('dialog_query.pyw'),self.menu_query_ui)
+	#	self.Bind(wx.EVT_MENU, self.OnToggleEdit,self.menu_editable)
 
 
 	def OnRightDown(self,event):
@@ -338,7 +338,7 @@ class Frame(wx.Frame):   #3
 
 	def AddSignalOnce(self,signal):
 		self.signals_count += 1
-		self.sizer_signals.Add(signal,1,wx.EXPAND|wx.ALL,0)
+		self.sizer_signals.Add(signal,1,wx.EXPAND|wx.ALL)
 		
 		self.signals.append(signal)
 
@@ -346,15 +346,25 @@ class Frame(wx.Frame):   #3
 	  
 	def AddSignals(self,signals_num=1):
 		while signals_num != 0:
-			signal_ctrl = Signal_Control(parent=self,
-					size = (1400,800),
-					url="127.0.0.1:20001/com6",
-					eut_name="Eawdfr2s3WEE",
-					eut_serial="10p8-082wj490",
-					persist =(self.queue_persist_in, self.queue_persist_out)
-					)
+			port = '%d'%(server_endpoints.PORT)
+			ip = '%s'%(server_endpoints.IP_ADDRESS)
+			URL = ip+':'+port+'/'+'usb1'
+			#print URL
+			
+			panel = Signal_Control(parent=self,
+						#size = wx.DisplaySize(),
+						size = (1200,700),
+						id=-1,
+						url = URL,
+						eut_name="Eawdfr2s3WEE",
+						eut_serial="10p8-082wj490",)
+			#panel.populate_data()
+			#panel.signal.SetRefer(signal_panel.pupulate_refer_table())
+			panel.signal_panel.SetGridColour(wx.Colour(0,250,250,200))
+			panel.signal_panel.SetBackgroundColour(wx.Colour(250,250,250,200))
+			panel.signal_panel.SetBadColour(wx.Colour(200,0,200))
 			#signal_ctrl.populate_data()
-			self.AddSignalOnce(signal_ctrl)
+			self.AddSignalOnce(panel)
 			signals_num -= 1
 		#扩展窗口以显示全貌
 		#~ self.panel_signals.SetupScrolling()

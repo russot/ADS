@@ -21,7 +21,7 @@ import struct
 ############################################################################################################################################
 class Grouping_Filter(threading.Thread):
 	x10_magic = 0x10000# 0x1000, means data x10 in mcu
-	A1_to_A2 = 10
+	A1_to_A2 = 10.0
 	sleep_trig_level = 500
 	step_trig_level = 10
 	err= -999999
@@ -95,7 +95,7 @@ class Grouping_Filter(threading.Thread):
 				if Yvalue == 0:# avoid error of devide_by_zero
 					Yvalue = 0.0001
 				if float(Yvalue) >= float(self.x10_magic) :
-					data_new = (float(Yvalue)-self.x10_magic )/self.A1_to_A2
+					data_new = (float(Yvalue)-float(self.x10_magic) )/self.A1_to_A2
 				else:
 					data_new = float(Yvalue)
 				data_last=self.buffer_group[-1]["value"][-1]
