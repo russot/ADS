@@ -178,7 +178,7 @@ class Data_Source(threading.Thread,wx.Object):
 						else:
 							data_y_ = float(data_y)
 
-						new_data =  {"length":int(1),"value":(data_x,data_y),"flag":"new"}
+						new_data =  {"length":int(1),"value":(data_x,data_y_),"flag":"new"}
 						#self.signal_filter.append_to_ibuffer((data_x,data_y))
 						self.Q4filter_data_out.put(new_data)
 				self.buffer_recv = []
@@ -231,7 +231,7 @@ class Data_Source(threading.Thread,wx.Object):
 						data_y = int(str4Y,16)
 						#print str4X,str4Y,data_x,data_y
 						#self.signal_filter.append_to_ibuffer((data_x,data_y))
-						self.Q4filter_data_in.put((data_x,data_y))
+						self.Q4filter_data_in.put((data_x,float(data_y)))
 					#filter data now 
 					self.signal_filter.filter_data()
 				self.buffer_recv = []
