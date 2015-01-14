@@ -106,16 +106,6 @@ class Signal(wx.Dialog):
 		if not url:
 			return
 		self.url = url
-		if self.started_flag != True:
-			self.thread_source = Data_Source(self,self.url,self.cmd_queue,self.data_queue)
-			self.thread_source.setDaemon(True)
-			self.thread_source.start() #启动后台线程, 与endpoint server进行连接与通信
-			self.started_flag = True
-			#self.menu_setup.Enable(False)#已运行，再不能设置
-			serial_name = self.url.split("/")[1]
-			open_cmd = "open:%s:%s"%(serial_name,'115200')
-			print open_cmd
-			self.cmd_queue.put(open_cmd)
 
 	def GetUrl(self):
 		return self.url
@@ -153,10 +143,19 @@ class Signal(wx.Dialog):
 		return self.xmax
 
 	def Run(self):
-		print "signal running.....\n"
-		self.cmd_queue.put("run:")
-		while not self.data_queue.empty(): # flush outdated data
+		if self.started_flag != True:
+			self.thread_source = Data_Source(self,self.url,self.cmd_queue,self.data_queue)
+			self.thread_source.setDaemon(True)
+			self.thread_source.start() #启动后台线程, 与endpoint server进行连接与通信
+			self.started_flag = True
+			serial_name = self.url.split("/")[1]
+			open_cmd = "open:%s:%s"%(serial_name,'115200')
+			print open_cmd
+			self.cmd_queue.put(open_cmd)
+		 # flush outdated data
+		while not self.data_queue.empty():
 			self.data_queue.get()
+		self.cmd_queue.put("run:")
 
 	def Init_Data(self):
 		self.data_count = 0

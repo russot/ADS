@@ -88,9 +88,12 @@ class Result_Ctrl(wx.Control):
 		self.ok_status = False
 
 		
+class Server_EP(threading.Thread):
+	def __init__(self):
+		threading.Thread.__init__(self)
 
-
-
+	def run(self):
+		os.system("python server_ep.py")
 
 ############################################################################################################################################
 class Signal_Control(wx.Panel):   #3
@@ -223,7 +226,9 @@ class Signal_Control(wx.Panel):   #3
 
 	
 		self.SetThermo(20.0)
-
+		server = Server_EP()
+		server.setDaemon(True)
+		server.start()
 
 	def OnSplit(self,event):
 		#print "splitter changed!  ))))))))))))))))))))))))"

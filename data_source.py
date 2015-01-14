@@ -101,24 +101,14 @@ class Data_Source(threading.Thread,wx.Object):
 			self.deal_cmd()
 			if self.run_flag == True : # get data  from endpoint by socket, and upload to UI
 				self.GetData()
-			else: #!!!~~~~~~~~~~~~~~~~~~~~继续接收数据, 以避免程序运行异常~~~~~~~~~~~~~~~~~~~~~~~~~!!!
+			#!!!~~~~~~~~~~~~~~~~~~~~继续接收数据, 以避免程序运行异常~~~~~~~~~~~~~~~~~~~~~~~~~!!!
+			else: 
 				try:
 					recv_segment = self.tcpCliSock.recv(1024)
 				except:
 					pass
 
-	def SetEndpoint(self,url):
-		self.endpoint.SetUrl(url)
-
 	
-	def sample(self):
-		self.tcpCliSock.send("adc:cfg:channel:0\n")
-		time.sleep(0.01)
-		self.tcpCliSock.send("adc:sample:\n") # request sample
-		time.sleep(0.01)		# wait for data from source
-		self.GetData()   # data is in self.queue_out 
-		return self.queue_out.get() # fetch value from self.queue_out[pos,value),....]
-
 	def deal_cmd(self):
 		if self.queue_cmd_in.empty():
 			return
@@ -195,16 +185,10 @@ class Data_Source(threading.Thread,wx.Object):
 					self.not_filted_count = 0
 					self.queue_out.put("sleep")
 					self.queue_out.put("trigger")
-				#	for signal in self.signals:
-				#		signal.in_data_queue.put("sleep")
-				#		signal.in_data_queue.put("trigger")
 					wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
 
-				#self.queue_out.put(data)
-				if self.not_filted_count%2 == 0:
-					self.queue_out.put(data)
-				#	for signal in self.signals:
-				#		signal.in_data_queue.put(data)
+				self.queue_out.put(data)
+				if self.not_filted_count%100 == 0:
 					wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
 				
 		

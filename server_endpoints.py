@@ -103,13 +103,15 @@ class Serial_Reader(threading.Thread):
 			pass
 
 	def get_usb_data(self):
-		self.out = ''
 		try:
-			for byte__ in self.serial_in.read(size=64):
-				if byte__  != 0:
-					self.out += chr(byte__)
-			self.output(self.out)
-			print self.out
+			raw_bytes = self.serial_in.read(size=64)
+			self.output(raw_bytes)
+			if str(raw_bytes).startswith('0x:'):
+				datas = struct.unpack('30H', str(raw_bytes)[3:63])
+				out = '0x:'
+				for data in datas:
+					out += '%04x'%data
+				print out
 
 		except Exception,e:
 			print e
@@ -286,7 +288,7 @@ class Motor():
 		time.sleep(0.01)
 		self.cmd_queue.put("adc:pga:A:2")
 		time.sleep(0.01)
-		self.cmd_queue.put("adc:cfg:auto:Y")
+		self.cmd_queue.put("adc:cfg:manual:N")
 		time.sleep(0.01)
 		self.cmd_queue.put("adc:cfg:interval:4000")
 		time.sleep(0.01)
@@ -552,12 +554,12 @@ class Client_Endpoints(threading.Thread):
 		self.timer = threading.Timer(1,self.FeedDog).start()
 
 	def run(self):
-		self.CliSock.send("open:com1:115200\n")
+		self.CliSock.send("open:usb1:115200\n")
 		time.sleep(1.01)
 		self.CliSock.send("run:\n")
 		time.sleep(1.01)
 		#~ time.sleep(3)
-		self.CliSock.send("adc:cfg:manual:Y\n")
+		self.CliSock.send("adc:cfg:manual:N\n")
 		time.sleep(0.01)
 		self.CliSock.send("adc:cfg:interval:2000\n")
 		time.sleep(0.01)
