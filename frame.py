@@ -39,29 +39,29 @@ class Frame(wx.Frame):   #3
 		
 
 
-		self.btn_add = wx.Button(self,-1,"add")
-		self.btn_del = wx.Button(self,-1,"del")
-		self.btn_run = wx.Button(self,-1,"start")
-		self.btn_run.Show(False) 
-		self.step_add = wx.SpinCtrl(self, -1,"5", wx.DefaultPosition, (50,-1), wx.SP_ARROW_KEYS,0, 20, 1)
-		self.sizer_toolbar = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
-		#self.sizer_toolbar.Add(self.btn_run)  # run 放在第一位
-		self.sizer_toolbar.Add((100,20))
-		self.sizer_toolbar.Add(self.step_add)
-		self.sizer_toolbar.Add(self.btn_add)
-		self.sizer_toolbar.Add(self.btn_del)
-		self.btn_add.Bind(wx.EVT_BUTTON, self.OnAddSignals,self.btn_add)
-		self.btn_del.Bind(wx.EVT_BUTTON, self.OnDelSignals,self.btn_del)
-		self.btn_run.Bind(wx.EVT_BUTTON, self.OnRunSignals,self.btn_run)
+		#self.btn_add = wx.Button(self,-1,"add")
+		#self.btn_del = wx.Button(self,-1,"del")
+		#self.btn_run = wx.Button(self,-1,"start")
+		#self.btn_run.Show(False) 
+		#self.step_add = wx.SpinCtrl(self, -1,"5", wx.DefaultPosition, (50,-1), wx.SP_ARROW_KEYS,0, 20, 1)
+		#self.sizer_toolbar = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
+		##self.sizer_toolbar.Add(self.btn_run)  # run 放在第一位
+		#self.sizer_toolbar.Add((100,20))
+		#self.sizer_toolbar.Add(self.step_add)
+		#self.sizer_toolbar.Add(self.btn_add)
+		#self.sizer_toolbar.Add(self.btn_del)
+		#self.btn_add.Bind(wx.EVT_BUTTON, self.OnAddSignals,self.btn_add)
+		#self.btn_del.Bind(wx.EVT_BUTTON, self.OnDelSignals,self.btn_del)
+		#self.btn_run.Bind(wx.EVT_BUTTON, self.OnRunSignals,self.btn_run)
 		
 
 
 
-		self.panel_signals = wx.ScrolledWindow(self,-1)
-		self.panel_signals.SetScrollbars(1,1,200,200)
-		#~ self.panel_signals = scrolledpanel.ScrolledPanel(self.scroller,-1,size=(200,500),style=wx.TAB_TRAVERSAL|wx.BORDER_SUNKEN)
-		self.sizer_signals = wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
-		self.panel_signals.SetSizer(self.sizer_signals)
+		#self.panel_signals = wx.ScrolledWindow(self,-1)
+		#self.panel_signals.SetScrollbars(1,1,200,200)
+		##~ self.panel_signals = scrolledpanel.ScrolledPanel(self.scroller,-1,size=(200,500),style=wx.TAB_TRAVERSAL|wx.BORDER_SUNKEN)
+		#self.sizer_signals = wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
+		#self.panel_signals.SetSizer(self.sizer_signals)
 
 	   
 
@@ -71,7 +71,7 @@ class Frame(wx.Frame):   #3
 		
 		self.topsizer =wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
 #		self.topsizer.Add(self.sizer_toolbar)
-		self.topsizer.Add(self.sizer_signals,wx.EXPAND|wx.ALL)
+		#self.topsizer.Add(self.sizer_signals,wx.EXPAND|wx.ALL)
 
 		self.SetSizer(self.topsizer)
 		self.CreateMenu()
@@ -90,8 +90,11 @@ class Frame(wx.Frame):   #3
 
 		self.AddSignals(1)
 		#print "add signal OK"
+		self.server_ep = Server_EP()
+		self.server_ep.setDaemon(True)
+		self.server_ep.SetCommandline("python server_ep.py")
+		self.server_ep.start()
 		
-		self.Relayout()
 
 	def OnResize(self,evt):
 		self.Relayout()
@@ -212,119 +215,120 @@ class Frame(wx.Frame):   #3
 		
 		
 	def SetEditable(self, toggle):
-		self.btn_add.Show(toggle)
-		self.btn_del.Show(toggle)
-		self.step_add.Show(toggle)
+		pass
+		#self.btn_add.Show(toggle)
+		#self.btn_del.Show(toggle)
+		#self.step_add.Show(toggle)
 	
-	def OnRunSignals(self,evt):
-		if self.signals_count == 0:
-			return 
-		self.SetEditable(False)
-		if self.signals_status != "stopped":
-			self.signals_status = "stopped"
-			self.btn_run.SetLabel("run")
-			self.btn_run.SetBackgroundColour("green")
-			for signal in self.signals:
-				signal.Pause()
-
-		else:
-			self.signals_status = "running"
-			self.btn_run.SetLabel("pause")
-			self.btn_run.SetBackgroundColour("red")
-			for signal in self.signals:
-				signal.Run()
-
-			
+#	def OnRunSignals(self,evt):
+#		if self.signals_count == 0:
+#			return 
+#		self.SetEditable(False)
+#		if self.signals_status != "stopped":
+#			self.signals_status = "stopped"
+#			self.btn_run.SetLabel("run")
+#			self.btn_run.SetBackgroundColour("green")
+#			for signal in self.signals:
+#				signal.Pause()
+#
+#		else:
+#			self.signals_status = "running"
+#			self.btn_run.SetLabel("pause")
+#			self.btn_run.SetBackgroundColour("red")
+#			for signal in self.signals:
+#				signal.Run()
+#
+#			
 	def OnExit(self, evt):
 		self.Close()
 
 
 	
-	def OnOpenSession(self,event):
-		self.DelSignals(self.signals_count)
-		dlg = wx.FileDialog(None,"select a file ")
-		if dlg.ShowModal()!=wx.ID_OK:
-			return
-		file_name = dlg.GetPath()
-		session_file = open(file_name,'r')
+	#def OnOpenSession(self,event):
+	#	self.DelSignals(self.signals_count)
+	#	dlg = wx.FileDialog(None,"select a file ")
+	#	if dlg.ShowModal()!=wx.ID_OK:
+	#		return
+	#	file_name = dlg.GetPath()
+	#	session_file = open(file_name,'r')
+	#	
+	#	#process each line as lSignal_Control object
+	#	for line in session_file.readlines():
+	#		line = line.replace(" ","").replace("\t","").replace("\n","")
+	#		for element in line.split(';'):
+	#			pair = element.split('=')
+	#			if pair[0] == "color_ok":
+	#				str_ = pair[1].strip('(').strip(')')
+	#				str_value = str_.split(',')
+	#				color_ok = wx.Colour(string.atoi(str_value[0]),
+	#						     string.atoi(str_value[1]),
+	#						     string.atoi(str_value[2]),
+	#						     string.atoi(str_value[3]))
+	#			elif pair[0] == "color_bad":
+	#				str_ = pair[1].strip('(').strip(')')
+	#				str_value = str_.split(',')
+	#				color_bad = wx.Colour(string.atoi(str_value[0]),
+	#						     string.atoi(str_value[1]),
+	#						     string.atoi(str_value[2]),
+	#						     string.atoi(str_value[3]))
+	#			elif pair[0] == "url_name":
+	#				url_name = pair[1].strip('"')
+	#			elif pair[0] == "refer_file":
+	#				refer_file = pair[1].strip('"')
+	#			elif pair[0] == "calib_file":
+	#				calib_file = pair[1].strip('"')
+	#			elif pair[0] == "eut_name":
+	#				eut_name = pair[1].strip('"')
+	#			elif pair[0] == "eut_serial":
+	#				eut_serial = pair[1].strip('"')
+	#			elif pair[0] == "points":
+	#				points_number = string.atoi(pair[1].strip('"'))
+	#			else:
+	#				pass
+	#				
+	#		signal_panel = lSignal_Control(parent=self.panel_signals,
+	#							id=-1, 
+	#							size_=(-1,-1),
+	#							color_ok=color_ok,
+	#							color_bad=color_bad,
+	#							url_name=url_name,
+	#							eut_name=eut_name,
+	#							eut_serial=eut_serial,
+	#							refer_file=refer_file,
+	#							calib_file=calib_file,
+	#							points=points_number,
+	#							persist = (self.queue_persist_in ,self.queue_persist_out)
+	#							)
+	#		
+	#		self.AddSignalOnce(signal_panel)
+	#	session_file.close()
+	#	self.Relayout()
 		
-		#process each line as Signal_Control object
-		for line in session_file.readlines():
-			line = line.replace(" ","").replace("\t","").replace("\n","")
-			for element in line.split(';'):
-				pair = element.split('=')
-				if pair[0] == "color_ok":
-					str_ = pair[1].strip('(').strip(')')
-					str_value = str_.split(',')
-					color_ok = wx.Colour(string.atoi(str_value[0]),
-							     string.atoi(str_value[1]),
-							     string.atoi(str_value[2]),
-							     string.atoi(str_value[3]))
-				elif pair[0] == "color_bad":
-					str_ = pair[1].strip('(').strip(')')
-					str_value = str_.split(',')
-					color_bad = wx.Colour(string.atoi(str_value[0]),
-							     string.atoi(str_value[1]),
-							     string.atoi(str_value[2]),
-							     string.atoi(str_value[3]))
-				elif pair[0] == "url_name":
-					url_name = pair[1].strip('"')
-				elif pair[0] == "refer_file":
-					refer_file = pair[1].strip('"')
-				elif pair[0] == "calib_file":
-					calib_file = pair[1].strip('"')
-				elif pair[0] == "eut_name":
-					eut_name = pair[1].strip('"')
-				elif pair[0] == "eut_serial":
-					eut_serial = pair[1].strip('"')
-				elif pair[0] == "points":
-					points_number = string.atoi(pair[1].strip('"'))
-				else:
-					pass
-					
-			signal_panel = Signal_Control(parent=self.panel_signals,
-								id=-1, 
-								size_=(-1,-1),
-								color_ok=color_ok,
-								color_bad=color_bad,
-								url_name=url_name,
-								eut_name=eut_name,
-								eut_serial=eut_serial,
-								refer_file=refer_file,
-								calib_file=calib_file,
-								points=points_number,
-								persist = (self.queue_persist_in ,self.queue_persist_out)
-								)
-			
-			self.AddSignalOnce(signal_panel)
-		session_file.close()
-		self.Relayout()
-		
-	def OnSaveSession(self,event):
-		dlg = wx.FileDialog(None,"select a file ")
-		if dlg.ShowModal()!=wx.ID_OK:
-			return
-		file_name = dlg.GetPath()
-		session_file = open(file_name,'w')
-		for signal in self.signals:
-			line = "color_ok=%s;\
-				color_bad=%s;\
-				url_name=%s;\
-				eut_name=%s;\
-				eut_serial=%s;\
-				refer_file=%s;\
-				calib_file=%s;\
-				points=%s\n"\
-				%(signal.color_ok,
-				signal.color_bad,
-				signal.url_name,
-				signal.eut_name,
-				signal.eut_serial,
-				signal.refer_file,
-				signal.calib_file,
-				signal.points)
-			session_file.write(line.replace(" ","").replace("\t",""))
-		session_file.close()
+	#def OnSaveSession(self,event):
+	#	dlg = wx.FileDialog(None,"select a file ")
+	#	if dlg.ShowModal()!=wx.ID_OK:
+	#		return
+	#	file_name = dlg.GetPath()
+	#	session_file = open(file_name,'w')
+	#	for signal in self.signals:
+	#		line = "color_ok=%s;\
+	#			color_bad=%s;\
+	#			url_name=%s;\
+	#			eut_name=%s;\
+	#			eut_serial=%s;\
+	#			refer_file=%s;\
+	#			calib_file=%s;\
+	#			points=%s\n"\
+	#			%(signal.color_ok,
+	#			signal.color_bad,
+	#			signal.url_name,
+	#			signal.eut_name,
+	#			signal.eut_serial,
+	#			signal.refer_file,
+	#			signal.calib_file,
+	#			signal.points)
+	#		session_file.write(line.replace(" ","").replace("\t",""))
+	#	session_file.close()
 		
 	def SaveSession_sqlite(self):
 		
@@ -338,7 +342,7 @@ class Frame(wx.Frame):   #3
 
 	def AddSignalOnce(self,signal):
 		self.signals_count += 1
-		self.sizer_signals.Add(signal,1,wx.EXPAND|wx.ALL)
+		self.topsizer.Add(signal,1,wx.EXPAND|wx.ALL)
 		
 		self.signals.append(signal)
 
@@ -351,24 +355,24 @@ class Frame(wx.Frame):   #3
 			URL = ip+':'+port+'/'+'usb1'
 			#print URL
 			
-			panel = Signal_Control(parent=self,
-						#size = wx.DisplaySize(),
-						size = (1200,700),
+			sizeX,sizeY = wx.DisplaySize()
+			signal_ctrl = Signal_Control(parent=self,
+						size = (sizeX*5,sizeY*8/10),
+						#size = (1200,700),
 						id=-1,
 						url = URL,
-						eut_name="Eawdfr2s3WEE",
-						eut_serial="10p8-082wj490",)
-			#panel.populate_data()
-			#panel.signal.SetRefer(signal_panel.pupulate_refer_table())
-			panel.signal_panel.SetGridColour(wx.Colour(0,250,250,200))
-			panel.signal_panel.SetBackgroundColour(wx.Colour(250,250,250,200))
-			panel.signal_panel.SetBadColour(wx.Colour(200,0,200))
+						eut_name="",
+						eut_serial="",)
+			print "display size", wx.DisplaySize(),
+			signal_ctrl.signal_panel.SetGridColour(wx.Colour(0,250,250,200))
+			signal_ctrl.signal_panel.SetBackColour("Black")
+			signal_ctrl.signal_panel.SetBadColour(wx.Colour(200,0,200))
 			#signal_ctrl.populate_data()
-			self.AddSignalOnce(panel)
+			self.AddSignalOnce(signal_ctrl)
 			signals_num -= 1
 		#扩展窗口以显示全貌
 		#~ self.panel_signals.SetupScrolling()
-
+		
 	
 	def OnDelSignals(self,event):
 		self.DelSignals(self.step_add.GetValue())
@@ -399,7 +403,7 @@ if __name__=='__main__':
 	app = wx.App()
 	frm = Frame(None, -1)
 
-	frm.SetSize((1400,800))
+	frm.Maximize()
 	frm.Show()
 	app.SetTopWindow(frm)
 	app.MainLoop()

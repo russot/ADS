@@ -83,6 +83,7 @@ class Test_Record():
 		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
 		self.SetSN(SN)
 		self.SetPN(PN)
+		self.SetDefault()
 
 
 #----------------------------------------------------------------------------------------------------
@@ -164,6 +165,8 @@ class Test_Record():
 #----------------------------------------------------------------------------------------------------
 	def SetDefault(self):
 		self.Record_Table = [[],[]]
+		self.last_row = 0
+		self.last_index = 0
 
 #----------------------------------------------------------------------------------------------------
 	def AdjustSN(self,x):
@@ -186,7 +189,17 @@ class Test_Record():
 			self.Record_Table[table_num].append(record)
 		else:
 			raise ValueError
+	def GetLastRecord(self):
+		if self.Record_Table[1] :
+			try:
+				if self.Record_Table[1][-1]:
+					return (self.Record_Table[0][-1],self.Record_Table[1][-1])
+			except:
+				pass
+		else:
+			return (self.Record_Table[0][-1],None)
 
+	
 
 #----------------------------------------------------------------------------------------------------
 	def CreateTable(self,db_cursor):
@@ -273,7 +286,7 @@ class Test_Record():
 
 
 #----------------------------------------------------------------------------------------------------
-	def UpdateTable(self,row,col,window):
+	def UpdateTable(self,row=6,col=0,window=None):
 		print "update record table"
 #		if not  self.field["PN"][_VALUE]:
 #			print "Error:invlid PN!"
@@ -285,6 +298,11 @@ class Test_Record():
 #			thermo_sensor = Thermo_Sensor()
 #			thermo_sensor.RestoreFromDBZ( eut.field["thermo_PN"])
 #
+		self.UpdateHeader(row,col,window)
+		self.UpdateRecord(col=col,window=window,tables=self.Record_Table)
+
+#----------------------------------------------------------------------------------------------------
+	def UpdateHeader(self,row=6,col=0,window=None):
 		for table in self.Record_Table:
 			table_len = len(table)*2+10
 			if window.GetNumberRows() < table_len:
@@ -302,16 +320,33 @@ class Test_Record():
 				window.SetReadOnly(row,col_,True)
 				window.SetCellBackgroundColour(row,col_,"Grey")
 				col_ += 1
+		self.last_row = row + 1
+		print "last row>>>>>>>>>>>>>",self.last_row
 			
+#----------------------------------------------------------------------------------------------------
+	def UpdateRecord(self,col=0,window=None,tables=[]):
+		for table in tables:
 			if not table:
 				continue
-			row +=1
-			row_ = row-2
+			table_len = len(table)*2
+			sheet_len =window.GetNumberRows()  
+			window.SetNumberRows(sheet_len + table_len)
+			print "table length %d >>>>>> %d"%(window.GetNumberRows(),sheet_len+table_len)
+			row_ = self.last_row
+			row  = self.last_row
+			if table is tables[0]:
+				col_start = col
+			else:
+				col_start = col + REF_COL
+			col_ = col_start
+			#print self.last_row
 			for record_entry in table:
-				row_ += 2
+				if not record_entry:
+					continue
 				row_index = (row_-row)/2 +1
-				#print row,row_,row_index
-				window.SetRowLabelValue(row_,str(row_index))
+				self.last_index +=row_index
+				#print "row,row_,row_index",row,row_,row_index
+				window.SetRowLabelValue(row_,str(self.last_index))
 				window.SetRowLabelValue(row_+1,"")
 				record		= record_entry.GetRecord()
 				refer_entry  	= record_entry.GetRefer()#index is  a tuple of (index_num,table_num)
@@ -330,6 +365,7 @@ class Test_Record():
 				col_ = col_start
 				for value in (Xvalue_,Xprecision_,Yvalue_,Yprecision_):
 					value_str = str(round(value,6))
+					print "row, col,str:::::::::",row_+1,col_,value_str
 					window.SetCellValue(row_+1,col_,value_str)
 					window.SetReadOnly(row_+1,col_,True)
 					col_ += 1
@@ -346,6 +382,11 @@ class Test_Record():
 				window.SetCellBackgroundColour(row_+1,col_,color)
 				window.SetCellValue(row_+1,col_,result)
 				window.SetReadOnly(row_+1,col_,True)
+				row_ += 2 # next record_entry
+
+			self.last_row = row_
+		print "last row>>>>>>>>>>>>>",self.last_row
+
 #----------------------------------------------------------------------------------------------------
 	def QueryDB(self, time_pattern,PN_pattern):
 		db_con   =sqlite.connect(self.db_name)

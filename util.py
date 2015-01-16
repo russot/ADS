@@ -126,3 +126,15 @@ class PickleZip():
 
 gZpickle = PickleZip()
 
+		
+class Server_EP(threading.Thread):
+	def __init__(self):
+		threading.Thread.__init__(self)
+		self.commandline = ''
+
+	def SetCommandline(self,commandline):
+		self.commandline = commandline
+
+	def run(self):
+		os.system(self.commandline)
+

@@ -87,13 +87,6 @@ class Result_Ctrl(wx.Control):
 	def SetFail(self):
 		self.ok_status = False
 
-		
-class Server_EP(threading.Thread):
-	def __init__(self):
-		threading.Thread.__init__(self)
-
-	def run(self):
-		os.system("python server_ep.py")
 
 ############################################################################################################################################
 class Signal_Control(wx.Panel):   #3
@@ -141,11 +134,11 @@ class Signal_Control(wx.Panel):   #3
 		self.data_window = wx.SplitterWindow(self.sp_window)#创建一个分割窗
 		self.data_window.SetMinimumPaneSize(1)  #创建一个分割窗
 		#创建debug窗口栏
-		self.debug_lane  = wx.ScrolledWindow(self.sp_window)
-		#self.debug_lane.SetScrollbars(1,1,100,100)
+		self.debug_window  = wx.ScrolledWindow(self.sp_window)
+		#self.debug_window.SetScrollbars(1,1,100,100)
 		self.sizer_debug  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
-		self.debug_lane.SetSizer(self.sizer_debug)
-		self.debug_out   = wx.TextCtrl(self.debug_lane,-1,style=(wx.TE_MULTILINE|wx.TE_RICH2|wx.HSCROLL) )
+		self.debug_window.SetSizer(self.sizer_debug)
+		self.debug_out   = wx.TextCtrl(self.debug_window,-1,style=(wx.TE_MULTILINE|wx.TE_RICH2|wx.HSCROLL) )
 		self.sizer_debug.Add(self.debug_out,1,wx.EXPAND|wx.ALL)
 
 		#指定 DEBUG 窗口
@@ -162,20 +155,22 @@ class Signal_Control(wx.Panel):   #3
 		
 	
 		#创建信号栏
-		self.signal_panel_lane  = wx.ScrolledWindow(self.data_window,-1)
-		self.signal_panel_lane.SetScrollbars(1,1,100,100)
+		self.signal_window  = wx.ScrolledWindow(self.data_window,-1)
+		self.signal_window.SetScrollbars(1,1,100,100)
 		self.signal_panel_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
-		self.signal_panel_lane.SetSizer(self.signal_panel_sizer)
+		self.signal_window.SetSizer(self.signal_panel_sizer)
 		signals=[]
 		s1 =Signal(url="127.0.0.1:8088/usb1/1")
 		s2 =Signal()
 		s2 = None
-		self.signal_panel   = Signal_Panel(parent=self.signal_panel_lane,id=-1,size=wx.DefaultSize,signals=[s1,s2],window=self)
+		self.info_sheet.SetEut(s1.record)
+		self.signal_panel   = Signal_Panel(parent=self.signal_window,id=-1,size=size,signals=[s1,s2],window=self)
+		self.signal_panel.SetBackColour("Black")
 		self.signal_panel_sizer.Add(self.signal_panel,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		#加入信号栏/信息栏 分割窗
-		self.data_window.SplitVertically(self.signal_panel_lane,self.info_lane,-10)
-		self.sp_window.SplitHorizontally(self.data_window,self.debug_lane,-100)
+		self.data_window.SplitVertically(self.signal_window,self.info_lane,-10)
+		self.sp_window.SplitHorizontally(self.data_window,self.debug_window,-100)
 
 		self.text_name = wx.TextCtrl(self,-1,eut_name,style=(wx.TE_READONLY))
 		self.text_name.SetBackgroundColour( self.GetBackgroundColour())
@@ -226,9 +221,8 @@ class Signal_Control(wx.Panel):   #3
 
 	
 		self.SetThermo(20.0)
-		server = Server_EP()
-		server.setDaemon(True)
-		server.start()
+
+		self.count =0
 
 	def OnSplit(self,event):
 		#print "splitter changed!  ))))))))))))))))))))))))"
@@ -245,6 +239,18 @@ class Signal_Control(wx.Panel):   #3
 			self.result.Refresh(True)
 		except:
 			pass
+
+	def UpdateRecord(self):
+		#self.count +=1
+		#if self.count > 5:
+		#	return
+		self.info_sheet.UpdateCell()
+
+	def UpdateRecordOnce(self):
+		#self.count +=1
+		#if self.count > 5:
+		#	return
+		self.info_sheet.UpdateRecord()
 
 	def SetUnknown(self):
 		self.result.SetUnknown()
@@ -415,7 +421,7 @@ class Signal_Control(wx.Panel):   #3
 	def OnOptions(self,event):
 
 		self.signal_panel.SetReferColour(wx.Colour(0,250,250,200))
-		self.signal_panel.SetBackgroundColour(wx.Colour(150,50,90,200))
+		self.signal_panel.SetBackColour(wx.Colour(150,50,90,200))
 		self.signal_panel.SetRefer(signal_panel.pupulate_refer_table())
 
 		self.signal_panel.SetMaxValue(1200)
@@ -512,8 +518,10 @@ if __name__=='__main__':
 	#print URL
 	
 	
+	x,y = wx.DisplaySize()
 	panel = Signal_Control(parent=frm,
-				size = (1200,700),
+				#size = (1200,700),
+				size = (x*5,y),
 				id=-1,
 				url = URL,
 				eut_name="Eawdfr2s3WEE",
@@ -521,7 +529,7 @@ if __name__=='__main__':
 	#panel.populate_data()
 	#panel.signal.SetRefer(signal_panel.pupulate_refer_table())
 	panel.signal_panel.SetGridColour(wx.Colour(0,250,250,200))
-	panel.signal_panel.SetBackgroundColour(wx.Colour(150,50,90,200))
+	#panel.signal_panel.SetBackColour(wx.Colour(150,50,90,200))
 	panel.signal_panel.SetBadColour(wx.Colour(200,0,200))
 	frm.Show()
 	app.SetTopWindow(frm)

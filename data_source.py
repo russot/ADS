@@ -17,6 +17,11 @@ import struct
 import config_db
 import wx.lib.newevent
 
+#index for x,y
+_X = 0
+_Y = 1
+
+
 MyEvent, EVT_MY_EVENT = wx.lib.newevent.NewCommandEvent()
 
 class Endpoint():
@@ -56,6 +61,9 @@ class Endpoint():
 
 ############################################################################################################################################
 class Data_Source(threading.Thread,wx.Object):
+	x10_magic = 65536
+	A1_to_A2  = 10.0
+	new_value = 0.05
 	def __init__(self,window=None,url='',queue_in=None,queue_out_=None):
 		threading.Thread.__init__(self)
 		self.window = window
@@ -79,12 +87,15 @@ class Data_Source(threading.Thread,wx.Object):
 		self.signal_filter = sig_filter.Grouping_Filter(self.Q4filter_cmd_in,self.Q4filter_cmd_out,self.Q4filter_data_in,self.Q4filter_data_out)
 		#self.signal_filter.start()
 		self.signals = []
-
+		self.buffer_group=[]
 	def write(self,TE):
 		pass
 
 	def RegisterSignal(self,signal):
 		self.signals.append(signal)
+
+	def GetFilterOption(self):
+		return self.filter_option
 
 	def FeedDog(self):
 		self.tcpCliSock.send('feed:dog\n') #
@@ -115,11 +126,13 @@ class Data_Source(threading.Thread,wx.Object):
 		command = self.queue_cmd_in.get() #get command (from self.queue_cmd_in), then process it and response(to  self.queue_out)
 		#print "thread_source command: %s" % command
 		if command.startswith("stop"): #excute
+			print "data source stop"
 			self.run_flag =  False
 			while not self.queue_out.empty(): # 清除输出队列中的过期数据
 				self.queue_out.get()
 		#	self.queue_out.put("endpoint stopped by command.\n")
 		elif command.startswith("run"):# 
+			print "data source run"
 			self.run_flag = True 
 			while not self.queue_out.empty(): # 清除输出队列中的过期数据
 				self.queue_out.get()
@@ -138,75 +151,54 @@ class Data_Source(threading.Thread,wx.Object):
 
 #######  thermo (ntc,pt) data: '0t:nnnnpppp.............................\n'
 #        liquid (x,   y) data: '0x:xxxxyyyy.............................\n'
-	def GetData(self):
-		if self.filter_option == True:
-			self.GetData_Filted()
-		else:
-			self.GetData_NotFilted()
-
-	def GetData_NotFilted(self):
-		try:
-			recv_segment = self.tcpCliSock.recv(1024)
-			#print recv_segment
-			while '\n' in recv_segment:
-				pos_newline = recv_segment.find('\n')
-				self.buffer_recv.append(recv_segment[:pos_newline] )
-				raw_data = ''.join(self.buffer_recv)
-				if raw_data.startswith("0t:"):
-					self.queue_out.put(raw_data)
-				if raw_data.startswith("0x:"):
-					data_str = raw_data[3:]
-					len_data = data_str.find('\0')/8 
-					#input data now 
-					for i in range(0,len_data):
-						str4X = data_str[i*8:i*8+4]
-						str4Y = data_str[i*8+4:i*8+8]
-						data_x = int(str4X,16)
-						data_y = int(str4Y,16)
-						if data_y > 0x8000:
-							data_y_ = float(data_y-0x8000)/10.0
-						else:
-							data_y_ = float(data_y)
-
-						new_data =  {"length":int(1),"value":(data_x,data_y_),"flag":"new"}
-						#self.signal_filter.append_to_ibuffer((data_x,data_y))
-						self.Q4filter_data_out.put(new_data)
-				self.buffer_recv = []
-				try:
-					recv_segment = recv_segment[pos_newline+1:]
-				except:
-					pass
-			self.buffer_recv.append(recv_segment)
-			#get filtered data 
-			while not self.Q4filter_data_out.empty():
-				data = self.Q4filter_data_out.get()
+	def group_data(self):
+		while not self.Q4filter_data_in.empty():
+			try:
+				#!!!!input data must be (pos_,value) tuple or list
 				self.not_filted_count += 1
-				if self.not_filted_count - 2000 == 0:
+				if self.not_filted_count - 2000 == 0:#update 4000/screen
 					self.not_filted_count = 0
-					self.queue_out.put("sleep")
-					self.queue_out.put("trigger")
-					wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
+					self.Q4filter_data_out.put("sleep")
+					self.Q4filter_data_out.put("trigger")
+					del self.buffer_group
+					self.buffer_group = []
 
-				self.queue_out.put(data)
-				if self.not_filted_count%100 == 0:
-					wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
-				
-		
-		except Exception, e:
-			pass 
-	def GetData_Filted(self):
+				newX,newY__ = self.Q4filter_data_in.get() 
+				#print newX,newY__
+				if newY__ == 0:# avoid error of devide_by_zero
+					newY__ = 0.0001
+				if float(newY__) >= float(self.x10_magic) :
+					newY= (float(newY__)-float(self.x10_magic) )/self.A1_to_A2
+				else:
+					newY= float(Yvalue)
+				lastY=self.buffer_group[-1]["value"][_Y]
+				diff =   (lastY-newY)/lastY
+				print "diff......%.5f"%diff
+				if  abs(diff) > self.new_value:
+					#self.new_flag =  True
+					self.Q4filter_data_out.put(self.buffer_group[-1])
+					self.buffer_group.append( {"length":int(1),"value":(newX,newY),"flag":"new"} )
+				else:
+					self.buffer_group[-1]["length"] += 1
+
+			except Exception,e:
+				self.buffer_group.append( {"length":int(1),"value":(newX,newY),"flag":"new"} )
+
+	def GetData(self):
 		try:
 			recv_segment = self.tcpCliSock.recv(1024)
 			#print recv_segment
 			while '\n' in recv_segment:
-				pos_newline = recv_segment.find('\n')
-				self.buffer_recv.append(recv_segment[:pos_newline] )
+				newline_pos = recv_segment.find('\n')
+				self.buffer_recv.append(recv_segment[:newline_pos] )
 				raw_data = ''.join(self.buffer_recv)
 				if raw_data.startswith("0t:"):
 					self.queue_out.put(raw_data)
-				if raw_data.startswith("0x:"):
+				elif raw_data.startswith("0x:"):
+					print "data source raw_data %s"%raw_data
 					data_str = raw_data[3:]
-					len_data = data_str.find('\0')/8 
+					len_data = len(data_str)/8# data format is 0xppppssss 
+					print len_data
 					#input data now 
 					for i in range(0,len_data):
 						str4X = data_str[i*8:i*8+4]
@@ -217,12 +209,15 @@ class Data_Source(threading.Thread,wx.Object):
 						#self.signal_filter.append_to_ibuffer((data_x,data_y))
 						self.Q4filter_data_in.put((data_x,float(data_y)))
 					#filter data now 
-					self.signal_filter.filter_data()
-				self.buffer_recv = []
-				try:
-					recv_segment = recv_segment[pos_newline+1:]
-				except:
-					pass
+					if self.filter_option == True:
+						self.signal_filter.filter_data()
+					else:
+						self.group_data()
+			self.buffer_recv = []
+			try:
+				recv_segment = recv_segment[newline_pos+1:]
+			except:
+				pass
 			self.buffer_recv.append(recv_segment)
 			#get filtered data 
 			while not self.Q4filter_data_out.empty():

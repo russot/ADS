@@ -80,20 +80,21 @@ class Serial_Reader(threading.Thread):
 	
 
 	def run(self):
-		print "read thread start....\n",self.serial_in
+		#print "read thread start....\n",self.serial_in
 		while True:
 			self.get_data()
 			#self.get_debug_data()
-			time.sleep(0.001)
+			time.sleep(0.0001)
 
 	def get_data(self):
 		if self.dev_type == COM:
 			self.get_com_data()
 		elif self.dev_type == USB:
 			self.get_usb_data()
-		else:
+		elif self.dev_type == SIM:
 			self.get_sim_data()
-
+		else:
+			pass
 
 	def get_com_data(self):
 		try:
@@ -104,14 +105,19 @@ class Serial_Reader(threading.Thread):
 
 	def get_usb_data(self):
 		try:
-			raw_bytes = self.serial_in.read(size=64)
-			self.output(raw_bytes)
-			if str(raw_bytes).startswith('0x:'):
-				datas = struct.unpack('30H', str(raw_bytes)[3:63])
+			raw_ = self.serial_in.read(size=64)#mMaxPacketSize for USB_bulk
+			raw_bytes = ''
+			for x in raw_:
+				raw_bytes +=chr(x)
+			if raw_bytes.startswith('0x::'):
+				datas = struct.unpack('30H', raw_bytes[4:64])#mMaxPacketSize for USB_bulk
 				out = '0x:'
 				for data in datas:
 					out += '%04x'%data
-				print out
+				print "usb__",out
+				self.output(out)
+			else:
+				self.output(raw_bytes)
 
 		except Exception,e:
 			print e
@@ -135,7 +141,7 @@ class Serial_Reader(threading.Thread):
 			self.output(self.out)
 			#print self.out
 			self.out='0x:'
-			time.sleep(0.001)
+			time.sleep(0.0001)
 
 	def up_(self):
 		rand_value_all = 0 
@@ -226,14 +232,14 @@ class Device_Serial(threading.Thread):
 		#start ever loop to deal with write task	
 		while True:
 			self.deal_cmd()
-			time.sleep(0.001)
+			time.sleep(0.0001)
 
 	def deal_cmd(self):
 		for queue_cmd in self.queues[_CMD]:
 			while not queue_cmd.empty():
 				cmd = queue_cmd.get()
 				print ">>>>>>>>>>>$new cmd: %s"%cmd
-				print self.serial[_OUT]
+				#print self.serial[_OUT]
 				self.serial[_OUT].write(cmd)
 
 
@@ -288,9 +294,9 @@ class Motor():
 		time.sleep(0.01)
 		self.cmd_queue.put("adc:pga:A:2")
 		time.sleep(0.01)
-		self.cmd_queue.put("adc:cfg:manual:N")
+		self.cmd_queue.put("adc:cfg:manual:Y")
 		time.sleep(0.01)
-		self.cmd_queue.put("adc:cfg:interval:4000")
+		self.cmd_queue.put("adc:cfg:interval:8000")
 		time.sleep(0.01)
 		self.cmd_queue.put("adc:cfg:channel:0")
 		time.sleep(0.01)
@@ -356,7 +362,7 @@ class Endpoint(threading.Thread):
 				except:
 					pass
 				#~ print count,':___',data,'\n'
-			time.sleep(0.001)
+			time.sleep(0.0001)
 
 	def get_cmd(self):
 		try:
@@ -402,20 +408,23 @@ class Endpoint(threading.Thread):
 			self.motor.run()
 
 		elif command.startswith("accl"):#excute in loop 
-			if command.startswith("accl:plus"):
-				self.motor.accl(100,"plus")
-			elif command.startswith("accl:minus"):
-				self.motor.accl(100,"minus")
+			pass
+			#if command.startswith("accl:plus"):
+			#	self.motor.accl(100,"plus")
+			#elif command.startswith("accl:minus"):
+			#	self.motor.accl(100,"minus")
 
 		elif command.startswith("move"):#excute in loop 
 			
+			pass
 			#~ self.StartEndpoint()
-			if command.startswith("move:plus"):
-				self.motor.move("plus")
-			elif command.startswith("move:minus"):
-				self.motor.move("minus")
+			#if command.startswith("move:plus"):
+			#	self.motor.move("plus")
+			#elif command.startswith("move:minus"):
+			#	self.motor.move("minus")
 
 		elif command.startswith("setup"):#excute in loop 
+			pass
 			self.motor.setup(command)
 
 
@@ -424,6 +433,7 @@ class Endpoint(threading.Thread):
 			#~ self.StartEndpoint()
 			self.FeedDog()
 		elif command.startswith("adc:"):#
+			pass
 			self.motor.adc(command)
 		else:
 			print "!!!>unkown cmd to ENDPOINT"
@@ -464,13 +474,14 @@ class Device_Proxy():
 			return (USB,self.OpenUSB(dev_name))
 		elif dev_name.startswith("com"):
 			return (COM,self.OpenCOM(dev_name))
-		elif dev_name.startswith("sim"):
+		else:
 			return (SIM,self.OpenSIM(dev_name))
 
 
 	def OpenSIM(self,dev_name):
 		print "open serial",dev_name
-		return (sys.stdin,sys.stdout)
+		return (file("sim.txt",'r'),file("out.txt",'w'))
+
 	
 	def OpenCOM(self,dev_name):
 		print "open serial",dev_name

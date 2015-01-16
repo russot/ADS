@@ -143,6 +143,23 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 	def UpdateTable(self):
 		self.eut.UpdateTable(row=REF_ROW,col=0,window=self)
 
+	def UpdateRecord(self):#called upon new data received
+		if not isinstance(self.eut,Test_Record):
+			return
+		recordn_0,recordn_1 = self.eut.GetLastRecord()
+		tables = [[recordn_0,],[recordn_1,]]
+		self.eut.UpdateRecord(col=0,window=self,tables=tables)
+
+	def show_record(self,tables):
+		for table in tables:
+			if not table:
+				continue
+			for record in table:
+				if not record:
+					continue
+				print record.refer.ShowSensor()
+				print record.record.ShowSensor()
+			
 	def UpdateCell(self):
 		self.UpdateTable()
 		self.UpdateField()
@@ -353,7 +370,7 @@ class Eut_Editor(wx.Dialog):
 			sys.stdout = self.debug_out
 			sys.stderr = self.debug_out
 		self.UpdateToggle()
-		print "sheet init ok...."
+		#print "sheet init ok...."
 
 	def Init_Persist(self):#启动数据库持久化线程,通过队列进行保存与取出数据
 		self.persist = (Queue(0),Queue(0))

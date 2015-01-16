@@ -48,6 +48,7 @@ class Signal(wx.Dialog):
 		self.started_flag = False
 		self.thread_source = None
 		self.data_count = 0
+		self.count = 0
 		self.xmax= 0.0
 		self.ymax= 0.0
 		self.SetRefer_entries(table)
@@ -64,8 +65,11 @@ class Signal(wx.Dialog):
 			print "Error: invalid type, should be Eut!"
 			return None
 		self.record.SetPN(eut.GetPN())
+		self.window.window.UpdateRecord()
+
 	def SetSN(self,SN):
 		self.record.SetSN(SN)
+		self.window.window.UpdateRecord()
 
 	def UploadSN(self,SN):
 		self.window.UploadSN(SN)
@@ -88,6 +92,8 @@ class Signal(wx.Dialog):
 	def GetGridColour(self):
 		return self.window.GetGridColour()
 
+	def GetFilterOption(self):
+		return self.filter_option
 		
 	def SetFilterOption(self,option):
 		self.filter_option = option
@@ -171,6 +177,9 @@ class Signal(wx.Dialog):
 		#self.Init_Data()
 
 	def OnNewData(self, event):
+		self.count += 1
+		if  self.count > 5:
+			return
 		if not self.refer_entries:
 			return
 		out = ''
@@ -225,20 +234,21 @@ class Signal(wx.Dialog):
 					status = False
 					self.status = False
 					self.window.SetFail()
-				record_= Refer_Entry(
+				record= Refer_Entry(
 						Xvalue=Xvalue,
 						Yvalue=Yvalue,
 						Xprecision=Xprecision,
 						Yprecision=Yprecision,
 						valid_status=status)
-				record_.SetLength(length)
-				self.data.append(record_)
+				record.SetLength(length)
+				self.data.append(record)
 				self.record.AppendRecord(
 					Record_Entry(
 						refer	= refer_entry,
-						record	= record_
+						record	= record
 						)
 					)
+				self.window.window.UpdateRecordOnce() # signal_control.UpdateRecord()
 				#self.window.DrawData()
 				self.window.Refresh(True)
 
@@ -313,10 +323,7 @@ class Signal(wx.Dialog):
 		'''Xvalue should be None for using Yvalue as index,
 		or integer for using itself as index '''
 		refer_entry =None
-		if Xvalue != None:# use Xvalue as index
-			refer_entry = self.GetRefer_X(Xvalue,Yvalue)
-		else:# use Yvalue as index, and table is sorted by Yvalue
-			refer_entry = self.GetRefer_Y(None,Yvalue)
+		refer_entry = self.GetRefer_Y(Xvalue,Yvalue)
 		return refer_entry # if not found, return None object
 
 class signal_cfgUI(wx.Panel):
@@ -334,7 +341,7 @@ class signal_cfgUI(wx.Panel):
 		self.back_color_btn = wx.Button(self,-1,"Back color")
 		self.grid_color_btn = wx.Button(self,-1,"Grid color")
 		self.filter_option = wx.CheckBox(self,-1,u"Using Filter/\n使用滤波器",(20,20),(160,-1))
-		self.filter_option.SetValue(True)
+		self.filter_option.SetValue(self.signal.GetFilterOption())
 		self.ok_color_btn.SetBackgroundColour(self.signal.GetOkColour())
 		self.bad_color_btn.SetBackgroundColour(self.signal.GetBadColour())
 		self.back_color_btn.SetBackgroundColour(self.signal.GetBackColour())
@@ -496,7 +503,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
 		self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
-		self.SetScreenXsize(Xsize=1200)
+		#self.SetScreenXsize(Xsize=1200)
 
 	def SetGridColour(self,color):
 		self.grid_colour= wx.Colour(color)
@@ -517,14 +524,18 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		modifiers = event.GetModifiers()
 		print "raw_code=",raw_code,";modifiers=",modifiers
 
-		if raw_code == 39 or raw_code == 73 :  # <I> = zoom in 
+		if raw_code == 39 or raw_code == 73 :  # <I> or ->  = zoom in 
 			self.screenXsize += 100 
 			print "X zoom in"
-		elif raw_code == 37 or raw_code ==79 :# <O> = zomm out
+		elif raw_code == 37 or raw_code ==79 :# <O> or  <-  = zomm out
 			self.screenXsize -= 100 
 			print "X zoom out"
-		elif raw_code == 32 or raw_code ==19 :# <O> = zomm out
+		elif raw_code == 3 and modifiers ==2 :# <ctrl>+<Pause>   = run/pause
 			self.OnRunStop(event)
+		elif raw_code == 115 :# <F4> = pause
+			self.Pause()
+		elif raw_code == 113 :# <F4> = pause
+			self.Run()
 		self.Refresh(True)
 
 	def SetScreenXsize(self,Xsize):
@@ -546,6 +557,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 			self.Pause()
 	def Run(self):
 		self.running_flag = True
+		self.menu_run.Toggle() 
 		for signal in self.signals:
 			if not signal:
 				continue
@@ -553,6 +565,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 			
 	def Pause(self):
 		self.running_flag = False
+		self.menu_run.Toggle() 
 		for signal in self.signals:
 			if not signal:
 				continue

@@ -2,7 +2,7 @@
 type,sensor,
 PN,R939-5x,
 model,FTS800_BC959,
-thermo_PN,2939-m0299,
+thermo_PN,010204,
 signal_num,1,
 X_unit,mm,
 Y1_unit,ohm,
