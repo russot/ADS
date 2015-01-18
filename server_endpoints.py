@@ -45,6 +45,7 @@ USB_IDProduct=0x5750
 			
 			
 class Serial_Reader(threading.Thread):
+#----------------------------------------------------------------------------------------------------
 	def __init__(self,serial_in,data_queues,dev_type=USB):
 		threading.Thread.__init__(self)
 		self.data_queues = data_queues
@@ -79,13 +80,15 @@ class Serial_Reader(threading.Thread):
 		print self.xmin,'\t',self.xmax,'\t',self.ymin,'\t',self.ymax,'\t',
 	
 
+#----------------------------------------------------------------------------------------------------
 	def run(self):
 		#print "read thread start....\n",self.serial_in
 		while True:
 			self.get_data()
 			#self.get_debug_data()
-			time.sleep(0.0001)
+			time.sleep(0.001)
 
+#----------------------------------------------------------------------------------------------------
 	def get_data(self):
 		if self.dev_type == COM:
 			self.get_com_data()
@@ -96,36 +99,39 @@ class Serial_Reader(threading.Thread):
 		else:
 			pass
 
+#----------------------------------------------------------------------------------------------------
 	def get_com_data(self):
 		try:
 			data = self.serial_in.readline()
 			self.output(data)
 		except:
 			pass
-
+#----------------------------------------------------------------------------------------------------
 	def get_usb_data(self):
 		try:
 			raw_ = self.serial_in.read(size=64)#mMaxPacketSize for USB_bulk
 			raw_bytes = ''
 			for x in raw_:
 				raw_bytes +=chr(x)
-			if raw_bytes.startswith('0x::'):
-				datas = struct.unpack('30H', raw_bytes[4:64])#mMaxPacketSize for USB_bulk
+			if raw_bytes.startswith('0x:'):
+				datas = struct.unpack('30H', str(raw_bytes)[4:64])#mMaxPacketSize for USB_bulk
 				out = '0x:'
 				for data in datas:
 					out += '%04x'%data
-				print "usb__",out
+				#print "usb__device__________:%s\n",out
 				self.output(out)
 			else:
 				self.output(raw_bytes)
 
 		except Exception,e:
 			print e
-			pass
+
+#----------------------------------------------------------------------------------------------------
 	def output(self,data):
 		for queue in self.data_queues:
 			queue.put(data)
 
+#----------------------------------------------------------------------------------------------------
 	def get_sim_data(self):
 		self.up_()
 		self.max_()
@@ -136,6 +142,7 @@ class Serial_Reader(threading.Thread):
 		self.pull_()
 		self.min_()
 
+#----------------------------------------------------------------------------------------------------
 	def out_(self):
 		if self.count%7 ==0:
 			self.output(self.out)
@@ -143,6 +150,7 @@ class Serial_Reader(threading.Thread):
 			self.out='0x:'
 			time.sleep(0.0001)
 
+#----------------------------------------------------------------------------------------------------
 	def up_(self):
 		rand_value_all = 0 
 		value_ = 0
@@ -163,6 +171,7 @@ class Serial_Reader(threading.Thread):
 		#print thermo.Validate(hex_NTC=0xa90,hex_PT=0x97d)
 
 
+#----------------------------------------------------------------------------------------------------
 	def down_(self):
 		for X in range (int(self.xmin),int(self.xmax)):
 			refer_entry= self.eut_demo.GetReferEntry(Xvalue=(self.xmax+self.xmin-X))
@@ -175,6 +184,7 @@ class Serial_Reader(threading.Thread):
 		out_thermo = '0t:0a8a097d'
 		self.output(out_thermo)
 
+#----------------------------------------------------------------------------------------------------
 	def max_(self):
 		#remain high for sometime
 
@@ -185,6 +195,7 @@ class Serial_Reader(threading.Thread):
 			self.count +=1
 			self.out_()
 
+#----------------------------------------------------------------------------------------------------
 	def min_(self):
 		#remain high for sometime
 		for X in range (1,800):
@@ -195,6 +206,7 @@ class Serial_Reader(threading.Thread):
 			self.out_()
 
 
+#----------------------------------------------------------------------------------------------------
 	def pull_(self):
 		#pull out eut and remain high
 		for X in range (1,30):
@@ -203,6 +215,7 @@ class Serial_Reader(threading.Thread):
 			self.count +=1
 			self.out_()
 	
+#----------------------------------------------------------------------------------------------------
 	def null_(self):
 		for X in range (1,1200):
 			self.out += '%04x%04x'%(self.xmin,4096)
@@ -211,6 +224,7 @@ class Serial_Reader(threading.Thread):
 		
 
 class Device_Serial(threading.Thread):
+#----------------------------------------------------------------------------------------------------
 	def __init__(self,serial=None,queues = [[],[]],type_=USB):
 		threading.Thread.__init__(self)
 		self.serial = serial
@@ -218,10 +232,12 @@ class Device_Serial(threading.Thread):
 		self.type_  = type_
 
 
+#----------------------------------------------------------------------------------------------------
 	def Append(self,cmd_queue,data_queue):
 		self.queues[_CMD].append(cmd_queue)
 		self.queues[_DAT].append(data_queue)
 
+#----------------------------------------------------------------------------------------------------
 	def run(self):
 		#Serial_Writer(self.serial).start()
 		print "device thread start....\n",self.serial
@@ -232,8 +248,9 @@ class Device_Serial(threading.Thread):
 		#start ever loop to deal with write task	
 		while True:
 			self.deal_cmd()
-			time.sleep(0.0001)
+			time.sleep(0.001)
 
+#----------------------------------------------------------------------------------------------------
 	def deal_cmd(self):
 		for queue_cmd in self.queues[_CMD]:
 			while not queue_cmd.empty():
@@ -244,9 +261,11 @@ class Device_Serial(threading.Thread):
 
 
 class Motor():
+#----------------------------------------------------------------------------------------------------
 	def __init__(self,cmd_queue):
 		self.cmd_queue = cmd_queue
 
+#----------------------------------------------------------------------------------------------------
 	def accl(self,accl_speed,accl_dir):
 		print "motor accl....."
 		time.sleep(0.001)
@@ -262,6 +281,7 @@ class Motor():
 			time.sleep(speed)
 		time.sleep(0.001)
 
+#----------------------------------------------------------------------------------------------------
 	def move(self,move_dir):
 		print "motor moving....."
 		time.sleep(0.001)
@@ -272,6 +292,7 @@ class Motor():
 		self.cmd_queue.put(cmd)
 		time.sleep(0.001)
 
+#----------------------------------------------------------------------------------------------------
 	def stop(self):
 		print "motor stopped....."
 		self.cmd_queue.put("adc:stop:")
@@ -279,6 +300,7 @@ class Motor():
 		self.cmd_queue.put("motor:stop:")
 		time.sleep(0.001)
 
+#----------------------------------------------------------------------------------------------------
 	def setup(self,command):
 		print "motor setup....."
 		time.sleep(0.001)
@@ -286,6 +308,7 @@ class Motor():
 		self.cmd_queue.put(cmd)
 		time.sleep(0.001)
 
+#----------------------------------------------------------------------------------------------------
 	def run(self):
 		print "motor running....."
 		self.cmd_queue.put("adc:swt:R")
@@ -306,6 +329,7 @@ class Motor():
 	#	self.cmd_queue.put(cmd)
 		#time.sleep(0.001)
 
+#----------------------------------------------------------------------------------------------------
 	def adc(self,command):
 		print "adc cmd %s....."%command
 		self.cmd_queue.put(command)
@@ -317,6 +341,7 @@ class Motor():
 
 
 class Endpoint(threading.Thread):
+#----------------------------------------------------------------------------------------------------
 	def __init__(self,CliSock):
 		threading.Thread.__init__(self)
 		self.CliSock = CliSock
@@ -330,9 +355,11 @@ class Endpoint(threading.Thread):
 		self.motor = None
 	       
 	
+#----------------------------------------------------------------------------------------------------
 	def FeedDog(self):
 		self.life = 3
 
+#----------------------------------------------------------------------------------------------------
 	def Watchdog(self):
 		if self.run_flag == True:
 			self.life -= 1
@@ -341,6 +368,7 @@ class Endpoint(threading.Thread):
 			self.quit_flag = True
 		else:
 			threading.Timer(5,self.Watchdog).start()
+#----------------------------------------------------------------------------------------------------
 	def run(self):
 		threading.Timer(5,self.Watchdog).start()
 		print "endpoint start...\n"
@@ -362,8 +390,9 @@ class Endpoint(threading.Thread):
 				except:
 					pass
 				#~ print count,':___',data,'\n'
-			time.sleep(0.0001)
+			time.sleep(0.001)
 
+#----------------------------------------------------------------------------------------------------
 	def get_cmd(self):
 		try:
 			recv_segment = self.CliSock.recv(1024) #get command from socket_in 
@@ -383,6 +412,7 @@ class Endpoint(threading.Thread):
 		except:
 			pass
 
+#----------------------------------------------------------------------------------------------------
 	def deal_cmd(self):
 		command = self.queue_cmd_in.get()
 		#print 'command:%s\n' % command
@@ -439,11 +469,13 @@ class Endpoint(threading.Thread):
 			print "!!!>unkown cmd to ENDPOINT"
 			pass
 class Device_Proxy():
+#----------------------------------------------------------------------------------------------------
 	def __init__(self):
 		#threading.Thread.__init__(self)
 		self.routes = {}
 		
 
+#----------------------------------------------------------------------------------------------------
 	def Open(self,dev_name_all):#open device Interface
 		dev_name = dev_name_all.split(":")[0]
 		if not dev_name in self.routes.keys():
@@ -469,6 +501,7 @@ class Device_Proxy():
 			self.routes[dev_name].Append(cmd_queue,data_queue)
 		return [cmd_queue,data_queue]
 
+#----------------------------------------------------------------------------------------------------
 	def OpenDevice(self,dev_name):
 		if dev_name.startswith("usb"):
 			return (USB,self.OpenUSB(dev_name))
@@ -478,11 +511,13 @@ class Device_Proxy():
 			return (SIM,self.OpenSIM(dev_name))
 
 
+#----------------------------------------------------------------------------------------------------
 	def OpenSIM(self,dev_name):
 		print "open serial",dev_name
 		return (file("sim.txt",'r'),file("out.txt",'w'))
 
 	
+#----------------------------------------------------------------------------------------------------
 	def OpenCOM(self,dev_name):
 		print "open serial",dev_name
 		serial_ = dev_name.split(":")
@@ -493,6 +528,7 @@ class Device_Proxy():
 		com.baudrate = string.atoi(baudrate_str)
 		return (com,com)
 	
+#----------------------------------------------------------------------------------------------------
 	def OpenUSB(self,dev_name):
 		print "open usb ",dev_name
 		try:
@@ -531,11 +567,13 @@ gDevices = Device_Proxy()
 
 
 class Server_Endpoints(threading.Thread):
+#----------------------------------------------------------------------------------------------------
 	def __init__(self,host='127.0.0.1',port=20001):
 		threading.Thread.__init__(self)
 		self.host = host
 		self.port = port
 		
+#----------------------------------------------------------------------------------------------------
 	def run(self):
 		tcpSerSock = socket(AF_INET,SOCK_STREAM)
 		tcpSerSock.bind((self.host,self.port))
@@ -545,9 +583,10 @@ class Server_Endpoints(threading.Thread):
 			tcpCliSock,addr=tcpSerSock.accept()
 			new_endpoint = Endpoint(CliSock=tcpCliSock)
 			new_endpoint.start()
-			time.sleep(0.01)
+			time.sleep(0.1)
 		
 class Client_Endpoints(threading.Thread):
+#----------------------------------------------------------------------------------------------------
 	def __init__(self,host='127.0.0.1',port=20001,name=''):
 		threading.Thread.__init__(self)
 		self.host = host
@@ -559,20 +598,27 @@ class Client_Endpoints(threading.Thread):
 		self.buffer_cmd=[]
 		self.queue_ep = Queue(0)
 		self.name = name
+		print "connecting server on port %d OK..."%port
 
+#----------------------------------------------------------------------------------------------------
 	def FeedDog(self):
 		self.CliSock.send("feed:dog\n")
 		self.timer = threading.Timer(1,self.FeedDog).start()
 
+#----------------------------------------------------------------------------------------------------
 	def run(self):
 		self.CliSock.send("open:usb1:115200\n")
-		time.sleep(1.01)
-		self.CliSock.send("run:\n")
-		time.sleep(1.01)
-		#~ time.sleep(3)
-		self.CliSock.send("adc:cfg:manual:N\n")
+		print "write start..\n", self.serial
+		self.serial.write("adc:swt:R")
 		time.sleep(0.01)
-		self.CliSock.send("adc:cfg:interval:2000\n")
+		self.serial.write("adc:pga:R:64")
+		time.sleep(0.1)
+		self.serial.write("adc:pga:A:1")
+		time.sleep(0.1)
+		#~ time.sleep(3)
+		self.CliSock.send("adc:cfg:manual:Y\n")
+		time.sleep(0.01)
+		self.CliSock.send("adc:cfg:interval:8000\n")
 		time.sleep(0.01)
 		self.CliSock.send("adc:cfg:channel:0\n")
 		time.sleep(0.01)
@@ -604,8 +650,8 @@ class Client_Endpoints(threading.Thread):
 					i=0
 					data = []
 					while(True):
-						x = int(raw_data[i*8+3:i*8+7],16)
-						y = int(raw_data[i*8+7:i*8+11],16)
+						x = int(raw_data[i*8+4:i*8+8],16)
+						y = int(raw_data[i*8+8:i*8+12],16)
 						
 						if y > 65536:
 							y -=65536
@@ -622,7 +668,8 @@ class Client_Endpoints(threading.Thread):
 if __name__=='__main__':
 	server = Server_Endpoints(host=IP_ADDRESS,port=PORT)
 	server.start()
-	client1 = Client_Endpoints(host='127.0.0.1',port=PORT,name='c1')
+	time.sleep(1)
+	client1 = Client_Endpoints(host=IP_ADDRESS,port=PORT,name='c1')
 	client1.start()
 	#client2= Client_Endpoints(host='127.0.0.1',port=PORT,name='c2')
 	#time.sleep(1.2)

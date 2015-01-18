@@ -16,6 +16,7 @@ import server_endpoints
 import struct 
 import config_db
 import wx.lib.newevent
+from util import *
 
 #index for x,y
 _X = 0
@@ -63,7 +64,7 @@ class Endpoint():
 class Data_Source(threading.Thread,wx.Object):
 	x10_magic = 65536
 	A1_to_A2  = 10.0
-	new_value = 0.05
+	new_trigger = abs(0.05)
 	def __init__(self,window=None,url='',queue_in=None,queue_out_=None):
 		threading.Thread.__init__(self)
 		self.window = window
@@ -76,11 +77,10 @@ class Data_Source(threading.Thread,wx.Object):
 		self.buffer_recv=[]
 		#~ sys.stdout = self
 		self.feed_flag = True
-		self.data_count = 0
-		self.Q4filter_cmd_in= Queue(-10)
-		self.Q4filter_cmd_out= Queue(-10)
-		self.Q4filter_data_in= Queue(-10)
-		self.Q4filter_data_out= Queue(-10)
+		self.Q4filter_cmd_in= Queue(-1)
+		self.Q4filter_cmd_out= Queue(-1)
+		self.Q4filter_data_in= Queue(-1)
+		self.Q4filter_data_out= Queue(-1)
 		self.not_filted_count = 0
 		self.filter_option = True
 
@@ -153,36 +153,36 @@ class Data_Source(threading.Thread,wx.Object):
 #        liquid (x,   y) data: '0x:xxxxyyyy.............................\n'
 	def group_data(self):
 		while not self.Q4filter_data_in.empty():
-			try:
-				#!!!!input data must be (pos_,value) tuple or list
-				self.not_filted_count += 1
-				if self.not_filted_count - 2000 == 0:#update 4000/screen
-					self.not_filted_count = 0
-					self.Q4filter_data_out.put("sleep")
-					self.Q4filter_data_out.put("trigger")
-					del self.buffer_group
-					self.buffer_group = []
+			#!!!!input data must be (pos_,value) tuple or list
+			self.not_filted_count += 1
+			if self.not_filted_count - 4000 == 0:#update 4000/screen
+				self.not_filted_count = 0
+				self.Q4filter_data_out.put(str("sleep"))
+				self.Q4filter_data_out.put(str("trigger"))
+				del self.buffer_group
+				self.buffer_group = []
 
-				newX,newY__ = self.Q4filter_data_in.get() 
-				#print newX,newY__
-				if newY__ == 0:# avoid error of devide_by_zero
-					newY__ = 0.0001
-				if float(newY__) >= float(self.x10_magic) :
-					newY= (float(newY__)-float(self.x10_magic) )/self.A1_to_A2
-				else:
-					newY= float(Yvalue)
+			newX,newY__ = self.Q4filter_data_in.get() 
+			#print newX,newY__
+			if newY__ == 0:# avoid error of devide_by_zero
+				newY__ = 0.01
+			if float(newY__) >= float(self.x10_magic) :
+				newY= (float(newY__)-float(self.x10_magic) )/self.A1_to_A2
+			else:
+				newY= float(newY__)
+			if not self.buffer_group:
+				self.buffer_group.append( {"length":int(1),"value":(newX,newY),"flag":"new"} )
+			else:
 				lastY=self.buffer_group[-1]["value"][_Y]
-				diff =   (lastY-newY)/lastY
-				print "diff......%.5f"%diff
-				if  abs(diff) > self.new_value:
+				diff =  abs( (lastY-newY)/lastY)
+				if diff > 3.0:
+					continue
+				if  diff > self.new_trigger:
 					#self.new_flag =  True
 					self.Q4filter_data_out.put(self.buffer_group[-1])
 					self.buffer_group.append( {"length":int(1),"value":(newX,newY),"flag":"new"} )
 				else:
 					self.buffer_group[-1]["length"] += 1
-
-			except Exception,e:
-				self.buffer_group.append( {"length":int(1),"value":(newX,newY),"flag":"new"} )
 
 	def GetData(self):
 		try:
@@ -195,10 +195,11 @@ class Data_Source(threading.Thread,wx.Object):
 				if raw_data.startswith("0t:"):
 					self.queue_out.put(raw_data)
 				elif raw_data.startswith("0x:"):
-					print "data source raw_data %s"%raw_data
-					data_str = raw_data[3:]
+					#print "data source raw_data: %s\n"%raw_data[0:123]
+					data_str = raw_data[3:123]
+					#print "data source raw_data: %s\n"%data_str
 					len_data = len(data_str)/8# data format is 0xppppssss 
-					print len_data
+					#print len_data
 					#input data now 
 					for i in range(0,len_data):
 						str4X = data_str[i*8:i*8+4]
@@ -213,18 +214,19 @@ class Data_Source(threading.Thread,wx.Object):
 						self.signal_filter.filter_data()
 					else:
 						self.group_data()
-			self.buffer_recv = []
-			try:
-				recv_segment = recv_segment[newline_pos+1:]
-			except:
-				pass
+				self.buffer_recv = []
+				try:
+					recv_segment = recv_segment[newline_pos+1:]
+				except:
+					pass
 			self.buffer_recv.append(recv_segment)
 			#get filtered data 
-			while not self.Q4filter_data_out.empty():
-				data = self.Q4filter_data_out.get()
-				self.queue_out.put(data)
-				for signal in self.signals:
-					signal.in_data_queue.put(data)
+			if not self.Q4filter_data_out.empty():
+				while not self.Q4filter_data_out.empty():
+					data = self.Q4filter_data_out.get()
+					self.queue_out.put(data)
+					#for signal in self.signals:
+						#signal.in_data_queue.put(data)
 				wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
 				
 		
@@ -236,25 +238,30 @@ class Data_Source(threading.Thread,wx.Object):
 
 ############################################################################################################################################
 if __name__=='__main__':
+	gServer.start()
+	time.sleep(0.5)
+	#app = wx.App()
 	queue_cmd_in = Queue(0)
 	queue_data_out = Queue(9999999) 
 	port = '%d'%(server_endpoints.PORT)
 	ip = '%s'%(server_endpoints.IP_ADDRESS)
-	URL = ip+':'+port+'/'+'usb1'
+	URL = ip+':'+port+'/'+'usb1/1'
 	print URL
 	dsource = Data_Source(window="",
 			url=URL,
 			queue_in =queue_cmd_in ,
 			queue_out_= queue_data_out)
 
+	dsource.filter_option = False
+	dsource.new_trigger = 0.15
 	dsource.start()
 	time.sleep(0.5)
-	queue_cmd_in.put("open:com1:38400\n")
+	queue_cmd_in.put("open:usb1:38400\n")
 	time.sleep(0.5)
-	queue_cmd_in.put("run\n")
+	queue_cmd_in.put("run:\n")
 	while (True):
 		while  not queue_data_out.empty():
-			print "from_data_source............", queue_data_out.get()
-		time.sleep(0.01)
+			print "from_data_source............", queue_data_out.get(),'\n'
+		time.sleep(0.0001)
 
 

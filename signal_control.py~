@@ -60,7 +60,7 @@ class Result_Ctrl(wx.Control):
 		elif self.ok_status == False:
 			result_str= "FAIL"
 			dc.SetTextForeground(wx.Colour(255,0,0,200))
-		elif self.ok_status == None:
+		else:
 			result_str= "......"
 			dc.SetTextForeground(wx.Colour(255,255,0,200))
 		font =self.GetFont()
@@ -241,16 +241,12 @@ class Signal_Control(wx.Panel):   #3
 			pass
 
 	def UpdateRecord(self):
-		#self.count +=1
-		#if self.count > 5:
-		#	return
 		self.info_sheet.UpdateCell()
+		return
 
 	def UpdateRecordOnce(self):
-		#self.count +=1
-		#if self.count > 5:
-		#	return
 		self.info_sheet.UpdateRecord()
+		return
 
 	def SetUnknown(self):
 		self.result.SetUnknown()
@@ -347,14 +343,17 @@ class Signal_Control(wx.Panel):   #3
 	def AdjustSerial(self,x):
 		index = -1
 		digits =  0
-		while  self.eut_serial[index:].isdigit():
+		eut_serial = self.text_serial.GetValue()
+		count = len(eut_serial)
+		while  eut_serial[index:].isdigit() and digits < count:
 			index -= 1
 			digits +=1
-		serial_prefix = self.eut_serial[:index+1]
-		serial_num = string. atoi(self.eut_serial[index+1:])
+		serial_prefix = eut_serial[:index+1]
+		serial_num = string. atoi(eut_serial[index+1:])
 		serial_num += int(x)
-		self.eut_serial = serial_prefix + '%0*d'%(digits, serial_num)
-		self.text_serial.SetValue(self.eut_serial)
+		SN = serial_prefix + '%0*d'%(digits, serial_num)
+		self.SetSN(SN)
+		self.signal_panel.SetSN(SN)
 
 
 	def MoveX(self,direction):
@@ -418,14 +417,8 @@ class Signal_Control(wx.Panel):   #3
 
 
 
-	def OnOptions(self,event):
-
-		self.signal_panel.SetReferColour(wx.Colour(0,250,250,200))
-		self.signal_panel.SetBackColour(wx.Colour(150,50,90,200))
-		self.signal_panel.SetRefer(signal_panel.pupulate_refer_table())
-
-		self.signal_panel.SetMaxValue(1200)
-
+	def SetupOptions(self):
+		self.signal_panel.Setup()
 
 
 	def OnDclick_name(self, evt):
@@ -524,7 +517,7 @@ if __name__=='__main__':
 				size = (x*5,y),
 				id=-1,
 				url = URL,
-				eut_name="Eawdfr2s3WEE",
+				eut_name="",
 				eut_serial="10p8-082wj490",)
 	#panel.populate_data()
 	#panel.signal.SetRefer(signal_panel.pupulate_refer_table())

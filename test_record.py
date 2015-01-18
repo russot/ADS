@@ -83,7 +83,8 @@ class Test_Record():
 		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
 		self.SetSN(SN)
 		self.SetPN(PN)
-		self.SetDefault()
+		self.table_origin_row = 0
+		self.InitRecord()
 
 
 #----------------------------------------------------------------------------------------------------
@@ -163,9 +164,12 @@ class Test_Record():
 		print "recod SN is set to ---->>> ",self.field["SN"][_VALUE]
 
 #----------------------------------------------------------------------------------------------------
-	def SetDefault(self):
+	def InitRecord(self):
 		self.Record_Table = [[],[]]
-		self.last_row = 0
+		self.InitTable()
+
+	def InitTable(self):
+		self.last_row = self.table_origin_row 
 		self.last_index = 0
 
 #----------------------------------------------------------------------------------------------------
@@ -184,7 +188,6 @@ class Test_Record():
 
 #----------------------------------------------------------------------------------------------------
 	def AppendRecord(self,record,table_num=0):
-		# record format: Refer_Entry
 		if isinstance(record,Record_Entry):
 			self.Record_Table[table_num].append(record)
 		else:
@@ -304,10 +307,7 @@ class Test_Record():
 #----------------------------------------------------------------------------------------------------
 	def UpdateHeader(self,row=6,col=0,window=None):
 		for table in self.Record_Table:
-			table_len = len(table)*2+10
-			if window.GetNumberRows() < table_len:
-				window.SetNumberRows(table_len)
-				print "table length %d >>>>>> %d"%(window.GetNumberRows(),table_len)
+			window.SetNumberRows(10)
 			if table is self.Record_Table[0]:
 				col_start = col
 				i    = 1
@@ -321,17 +321,15 @@ class Test_Record():
 				window.SetCellBackgroundColour(row,col_,"Grey")
 				col_ += 1
 		self.last_row = row + 1
+		self.table_origin_row = row + 1
 		print "last row>>>>>>>>>>>>>",self.last_row
 			
 #----------------------------------------------------------------------------------------------------
 	def UpdateRecord(self,col=0,window=None,tables=[]):
+		print "test_record update record.................."
 		for table in tables:
 			if not table:
 				continue
-			table_len = len(table)*2
-			sheet_len =window.GetNumberRows()  
-			window.SetNumberRows(sheet_len + table_len)
-			print "table length %d >>>>>> %d"%(window.GetNumberRows(),sheet_len+table_len)
 			row_ = self.last_row
 			row  = self.last_row
 			if table is tables[0]:
@@ -343,8 +341,10 @@ class Test_Record():
 			for record_entry in table:
 				if not record_entry:
 					continue
-				row_index = (row_-row)/2 +1
-				self.last_index +=row_index
+				sheet_len =window.GetNumberRows()  
+				window.SetNumberRows(sheet_len + 2)
+				print "table length  >>>>>> sheet_len@%d"%(sheet_len+2)
+				self.last_index += 1
 				#print "row,row_,row_index",row,row_,row_index
 				window.SetRowLabelValue(row_,str(self.last_index))
 				window.SetRowLabelValue(row_+1,"")
@@ -353,7 +353,17 @@ class Test_Record():
 
 				(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
 				(Xvalue_,Xprecision_,Yvalue_,Yprecision_,Yoffset_,Ymin_,Ymax_)=record.Values()
-				print record.Values()
+				result = ''
+				if (Xprecision_ > Xprecision) :
+					result += u"X轴(位移)超差\n"
+				if (Yprecision_ > Yprecision) :
+					result += u"Y轴(测量值)超差"
+				if not result:
+					result  = u"PASS"
+					color = "green"
+				else:
+					color = "red"
+				#print record.Values()
 				#show refer values
 				col_ = col_start
 				for value in (Xvalue,Xprecision,Yvalue,Yprecision):
@@ -365,27 +375,18 @@ class Test_Record():
 				col_ = col_start
 				for value in (Xvalue_,Xprecision_,Yvalue_,Yprecision_):
 					value_str = str(round(value,6))
-					print "row, col,str:::::::::",row_+1,col_,value_str
+					#print "row, col,str:::::::::",row_+1,col_,value_str
+					window.SetCellBackgroundColour(row_+1,col_,color)
 					window.SetCellValue(row_+1,col_,value_str)
 					window.SetReadOnly(row_+1,col_,True)
 					col_ += 1
-				result = ''
-				if (Xprecision_ > Xprecision) :
-					result += u"X轴(位移)超差\n"
-				if (Yprecision_ > Yprecision) :
-					result += u"Y轴(测量值)超差"
-				if not result:
-					result  = u"PASS"
-					color = "green"
-				else:
-					color = "red"
 				window.SetCellBackgroundColour(row_+1,col_,color)
 				window.SetCellValue(row_+1,col_,result)
 				window.SetReadOnly(row_+1,col_,True)
 				row_ += 2 # next record_entry
 
 			self.last_row = row_
-		print "last row>>>>>>>>>>>>>",self.last_row
+		#print "last row>>>>>>>>>>>>>",self.last_row
 
 #----------------------------------------------------------------------------------------------------
 	def QueryDB(self, time_pattern,PN_pattern):

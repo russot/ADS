@@ -58,6 +58,7 @@ class Authen():
 				pos=wx.DefaultPosition)
 		dlg.ShowModal()
 		password  = dlg.GetValue()
+		dlg.Destroy()
 		pwd_ = self.md5sum(password)
 		print pwd_
 		f=file('ad01','r')
@@ -87,6 +88,7 @@ class Authen():
 				pos=wx.DefaultPosition)
 		dlg.ShowModal()
 		password  = dlg.GetValue()
+		dlg.Destroy()
 		pwd_ = self.md5sum(password)
 		psw_file.write(pwd_)
 		psw_file.close()
@@ -127,14 +129,16 @@ class PickleZip():
 gZpickle = PickleZip()
 
 		
-class Server_EP(threading.Thread):
-	def __init__(self):
+class Server_(threading.Thread):
+	def __init__(self,commandline):
 		threading.Thread.__init__(self)
-		self.commandline = ''
+		self.commandline = commandline
+		self.setDaemon(True)
 
 	def SetCommandline(self,commandline):
 		self.commandline = commandline
 
 	def run(self):
 		os.system(self.commandline)
+gServer4EP = Server_("python server_ep.py")
 

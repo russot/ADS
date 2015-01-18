@@ -26,6 +26,7 @@ import wx.lib.newevent
 import data_point
 
 from eut import * 
+from util import * 
 from test_record import * 
 from data_source import Data_Source 
 from data_source import MyEvent, EVT_MY_EVENT
@@ -43,11 +44,10 @@ class Signal(wx.Dialog):
 		self.bad_colour= bad_colour
 		self.old_bad_colour = bad_colour
 		self.data = []
-		self.cmd_queue=Queue(-1)
-		self.data_queue=Queue(-1)
+		self.cmd_queue=Queue(-10)
+		self.data_queue=Queue(-10)
 		self.started_flag = False
 		self.thread_source = None
-		self.data_count = 0
 		self.count = 0
 		self.xmax= 0.0
 		self.ymax= 0.0
@@ -65,11 +65,11 @@ class Signal(wx.Dialog):
 			print "Error: invalid type, should be Eut!"
 			return None
 		self.record.SetPN(eut.GetPN())
-		self.window.window.UpdateRecord()
+		self.window.UpdateRecord()
 
 	def SetSN(self,SN):
 		self.record.SetSN(SN)
-		self.window.window.UpdateRecord()
+		self.window.UpdateRecord()
 
 	def UploadSN(self,SN):
 		self.window.UploadSN(SN)
@@ -164,10 +164,13 @@ class Signal(wx.Dialog):
 		self.cmd_queue.put("run:")
 
 	def Init_Data(self):
-		self.data_count = 0
 		self.data = []
 		self.window.SetUnknown()
 		self.window.Refresh(True)
+
+	def OnQueryDB(self,event):
+		QueryUI = Server_("python refer_table.py")
+		QueryUI.start()
 
 	def Pause(self):
 		print "signal pause.....\n"
@@ -176,10 +179,10 @@ class Signal(wx.Dialog):
 			self.data_queue.get()
 		#self.Init_Data()
 
+	def Configure(self,command):
+		self.cmd_queue.put(command)
+
 	def OnNewData(self, event):
-		self.count += 1
-		if  self.count > 5:
-			return
 		if not self.refer_entries:
 			return
 		out = ''
@@ -187,36 +190,9 @@ class Signal(wx.Dialog):
 		value = 0
 		while not self.data_queue.empty():
 			item = self.data_queue.get()
-			if isinstance(item,str):
-				if item.startswith("trigger"):
-					print "signal triggering.........."
-					self.trig_status = True
-					self.Init_Data()
-				elif item.startswith("sleep"):
-					print "signal sleeping.........."
-					if  self.trig_status == True:
-						if self.status != False:
-							self.window.SetPass()
-						self.trig_status = False
-						print "saving.........."
-						self.record.Save2DBZ()
-						self.record.SetDefault()
-						SN = self.record.AdjustSN(1)
-						self.UploadSN(SN)
-						self.Init_Data()
-						time.sleep(0.5)
-						print "saving ok.........."
-				elif item.startswith("0t:"):
-					hex_NTC = int(item[3:7],16)
-					hex_PT  = int(item[7:11],16)
-					(result,temprature,Rntc,Rref)=self.record.SetupThermo(hex_NTC,hex_PT)
-					self.window.window.SetThermo(str(round(temprature,3)))
-					self.window.window.SetThermoValue(str(round(Rntc,3)))
-					self.window.window.SetThermoRefer(str(round(Rref,3)))
-
-
-			elif isinstance(item,dict):
-				self.data_count += 1
+			if isinstance(item,dict):
+				if self.trig_status == False:
+					continue
 				Xvalue,Yvalue_ = item["value"]
 				Yvalue = gPGA.find_result4R(Yvalue_)
 				#print "Yvalue of R:",Yvalue
@@ -224,9 +200,10 @@ class Signal(wx.Dialog):
 				if length > 200:
 					length = 50
 				refer_entry  = self.GetReferEntry(Xvalue,Yvalue)
-				if length > 10:
-					print "new data .............",Xvalue,Yvalue,length
-					print "searched refer_entry X,Y:",refer_entry.GetXvalue(),refer_entry.GetYvalue()
+				if not refer_entry:
+					return
+				#print "new data .............",Xvalue,Yvalue,length
+				#print "searched refer_entry X,Y:",refer_entry.GetXvalue(),refer_entry.GetYvalue()
 				Xprecision,Yprecision,xstatus,ystatus = refer_entry.Validate(Xvalue,Yvalue)
 				if xstatus==True and ystatus==True:
 					status = True
@@ -250,7 +227,33 @@ class Signal(wx.Dialog):
 					)
 				self.window.window.UpdateRecordOnce() # signal_control.UpdateRecord()
 				#self.window.DrawData()
-				self.window.Refresh(True)
+			else:
+				if item.startswith("trigger"):
+					print "signal triggering.........."
+					self.trig_status = True
+					self.Init_Data()
+					self.record.InitRecord()
+					self.window.UpdateRecord()
+					self.window.SetUnknown()
+				elif item.startswith("sleep"):
+					print "signal sleeping.........."
+					if  self.trig_status == True:
+						self.trig_status = False
+						if self.status != False:
+							self.window.SetPass()
+						print "saving.........."
+						self.record.Save2DBZ()
+						SN = self.record.AdjustSN(1)
+						self.UploadSN(SN)
+						print "saving ok.........."
+				elif item.startswith("0t:"):
+					hex_NTC = int(item[3:7],16)
+					hex_PT  = int(item[7:11],16)
+					(result,temprature,Rntc,Rref)=self.record.SetupThermo(hex_NTC,hex_PT)
+					self.window.window.SetThermo(str(round(temprature,3)))
+					self.window.window.SetThermoValue(str(round(Rntc,3)))
+					self.window.window.SetThermoRefer(str(round(Rref,3)))
+			self.window.Refresh(True)
 
 
 	def GetRefer_X(self,Xvalue=0,Yvalue=0):
@@ -363,10 +366,10 @@ class signal_cfgUI(wx.Panel):
 		self.hsizer.Add((20,20))
 		self.hsizer.Add(self.bad_color_btn)
 		self.hsizer2= wx.BoxSizer(wx.HORIZONTAL|wx.ALIGN_CENTER)# 创建一个分割窗
+		self.hsizer2.Add((20,20))
 		self.hsizer2.Add(self.back_color_btn)
 		self.hsizer2.Add((20,20))
 		self.hsizer2.Add(self.grid_color_btn)
-		self.hsizer2.Add((20,20))
 		self.topsizer.Add((40,20))
 		self.topsizer.Add(self.hsizer)		
 		self.topsizer.Add((40,20))
@@ -488,22 +491,25 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#self.menu_save = self.popmenu1.Append(wx.NewId(), u"保存数据", u"保存数据到数据库" )
 		self.menu_run = self.popmenu1.Append(wx.NewId(), u"运行.当前点", u"运行与暂停", kind=wx.ITEM_CHECK)
 		self.popmenu1.AppendSeparator()
-		self.menu_query_ui = self.popmenu1.Append(wx.NewId(), u"数据库查询", u"组合查询已存储数据")
+		#self.menu_query_ui = self.popmenu1.Append(wx.NewId(), u"数据库查询", u"组合查询已存储数据")
 		#self.menu_query_current = self.popmenu1.Append(wx.NewId(), u"当前数据查询", u"查询正在测试的数据")
-		self.popmenu1.AppendSeparator()
+		#self.popmenu1.AppendSeparator()
 		self.menu_eut = self.popmenu1.Append(wx.NewId(), u"Sensor选择", u"被测件选择")
 		self.menu_setup = self.popmenu1.Append(wx.NewId(), u"配置", u"测试参数配置")
 		self.Bind(wx.EVT_CONTEXT_MENU, self.OnRightDown)
 		self.Bind(wx.EVT_MENU, self.OnRunStop,self.menu_run)
 		#self.Bind(wx.EVT_MENU, self.OnShowCurrent,self.menu_query_current)
 		self.Bind(wx.EVT_MENU, self.OnSetup,self.menu_setup)
-		self.Bind(wx.EVT_MENU, self.OnSelectEut,self.menu_query_ui)
+		#self.Bind(wx.EVT_MENU, self.OnQueryDB,self.menu_query_ui)
 		self.Bind(wx.EVT_MENU, self.OnSelectEut,self.menu_eut)
 		#self.Bind(wx.EVT_WHEEL, self.OnZoom)
 		#self.Bind(wx.EVT_MENU, self.OnSave,self.menu_save)
 		self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 
 		#self.SetScreenXsize(Xsize=1200)
+
+	def UpdateRecord(self):
+		self.window.UpdateRecord()
 
 	def SetGridColour(self,color):
 		self.grid_colour= wx.Colour(color)
@@ -614,15 +620,12 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		refer_tables = self.eut.GetReferTable()
 		i=0
 		for signal in self.signals:#map refer_tables to signals as 1:1
-			try:
-				signal.SetRefer_entries(refer_tables[i]) #first
-				self.SetScreenXsize(signal.GetMaxX())    #second
-				signal.SetPN(eut)
-				i += 1
-			except Exception,e:
-				print "map signal%d's refers failed.."%i
-				print e
-				pass
+			if not signal:
+				continue
+			signal.SetRefer_entries(refer_tables[i]) #first
+			self.SetScreenXsize(signal.GetMaxX())    #second
+			signal.SetPN(eut)
+			i += 1
 
 	def SetGridColour(self,colour):
 		self.grid_colour= colour
@@ -736,8 +739,6 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		Eut_editor = Eut_Editor(self)
 		Eut_editor.ShowModal()
 		eut = Eut_editor.GetEut()
-		if evt.GetId() == self.menu_query_ui.GetId():
-			return True
 		if not isinstance(eut,Eut) or not eut.GetPN():
 			print u"错误：无效的Sensor!"
 			wx.MessageBox(u"错误：无效的Sensor!",

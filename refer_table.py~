@@ -164,6 +164,7 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.UpdateTable()
 		self.UpdateField()
 		#print "update_cell end ", self.eut.field
+		self.Refresh(True)
 
 
 
@@ -175,6 +176,8 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 	def show(self,PN):
 		self.InitSheet()
 		self.eut.RestoreFromDBZ(PN)
+		if isinstance(self.eut,Test_Record):
+			self.eut.InitTable()
 		self.UpdateCell()
 
 	def QueryDB(self, model_pattern,PN_pattern):
@@ -678,12 +681,12 @@ class Eut_Editor(wx.Dialog):
 
 
 if __name__=='__main__':
-	gModule = False
+	gModule = True
 
 	app = wx.App()
 	frm = Eut_Editor()
-	frm.SetSize((1280,800))
-
+	frm.SetSize(wx.DisplaySize())
+	frm.Maximize()
 	frm.Show(True)
 	app.SetTopWindow(frm)
 

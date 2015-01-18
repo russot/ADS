@@ -90,11 +90,6 @@ class Frame(wx.Frame):   #3
 
 		self.AddSignals(1)
 		#print "add signal OK"
-		self.server_ep = Server_EP()
-		self.server_ep.setDaemon(True)
-		self.server_ep.SetCommandline("python server_ep.py")
-		self.server_ep.start()
-		
 
 	def OnResize(self,evt):
 		self.Relayout()
@@ -139,8 +134,9 @@ class Frame(wx.Frame):   #3
 		self.menuBar.Append(self.menu2, u"&Set设置")
 		
 		DBmenu = wx.Menu()
-		DBmenu.Append(wx.ID_ABOUT, u"&Query查询")
+		self.menu_QueryDB = DBmenu.Append(wx.NewId(),u"&Query查询")
 		self.menuBar.Append(DBmenu, u"&DataBase数据库")
+
 		
 		helpmenu = wx.Menu()
 		helpmenu.Append(wx.ID_ABOUT, "About")
@@ -151,7 +147,9 @@ class Frame(wx.Frame):   #3
 		#self.Bind(wx.EVT_MENU, self.OnOpenSession, self.menu_open)
 		self.Bind(wx.EVT_MENU, self.OnAbout, id=wx.ID_ABOUT)
 		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setUPSW)
-		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setAPSW)
+		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setUPSW)
+		self.Bind(wx.EVT_MENU, self.OnSetupOptions, self.menu_option)
+		self.Bind(wx.EVT_MENU, self.OnQueryDB, self.menu_QueryDB)
 
 		self.statusBar = self.CreateStatusBar()#1 创建状态栏 
 		
@@ -174,7 +172,17 @@ class Frame(wx.Frame):   #3
 	def OnRightDown(self,event):
 		pos = self.ScreenToClient(event.GetPosition())
 		self.PopupMenu(self.popmenu1, pos)
-	
+
+	def OnQueryDB(self,event):
+		QueryUI = Server_("python refer_table.py")
+		QueryUI.start()
+
+	def OnSetupOptions(self,event):
+		for signal in self.signals:
+			if not signal:
+				return
+			signal.SetupOptions()
+
 	def OnSetPassword(self,event):
 
 		if event.GetId() == self.menu_setUPSW.GetId():
@@ -400,6 +408,8 @@ class Frame(wx.Frame):   #3
 
 ####################################################################################################
 if __name__=='__main__':
+	gServer4EP.start()
+	time.sleep(0.5)
 	app = wx.App()
 	frm = Frame(None, -1)
 
