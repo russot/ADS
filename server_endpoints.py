@@ -86,7 +86,7 @@ class Serial_Reader(threading.Thread):
 		while True:
 			self.get_data()
 			#self.get_debug_data()
-			time.sleep(0.001)
+			time.sleep(0.0002)
 
 #----------------------------------------------------------------------------------------------------
 	def get_data(self):
@@ -353,7 +353,9 @@ class Endpoint(threading.Thread):
 		self.life = 3
 		self.device_queue = [Queue(-1),Queue(-1)]
 		self.motor = None
-	       
+		self.count = 0
+		self.last_time = time.time()
+		self.datas = []
 	
 #----------------------------------------------------------------------------------------------------
 	def FeedDog(self):
@@ -373,7 +375,7 @@ class Endpoint(threading.Thread):
 		threading.Timer(5,self.Watchdog).start()
 		print "endpoint start...\n"
 		self.CliSock.setblocking(0)
-		self.count = 0
+		out = ''
 		while True:
 			if self.quit_flag == True:
 				print "ep quiting....\n"
@@ -383,13 +385,17 @@ class Endpoint(threading.Thread):
 			while not self.queue_cmd_in.empty():
 				self.deal_cmd()
 			while  self.run_flag and  (not self.device_queue[_DAT].empty() ) :
-				data = self.device_queue[_DAT].get() # get data from data_queue of device
-			#	print data+'\n'
-				try:
-					self.CliSock.send(data+'\0'+'\n')
-				except:
-					pass
-				#~ print count,':___',data,'\n'
+			 	# get data from data_queue of device
+				out += self.device_queue[_DAT].get()+'\n'
+				self.count += 1
+				if self.count == 8:
+					try:
+						self.CliSock.send(out)
+					except:
+						pass
+					self.count = 0
+					out = ''
+					#~ print count,':___',data,'\n'
 			time.sleep(0.001)
 
 #----------------------------------------------------------------------------------------------------

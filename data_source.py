@@ -64,7 +64,7 @@ class Endpoint():
 class Data_Source(threading.Thread,wx.Object):
 	x10_magic = 65536
 	A1_to_A2  = 10.0
-	new_trigger = abs(0.05)
+	new_trigger = abs(0.02)
 	def __init__(self,window=None,url='',queue_in=None,queue_out_=None):
 		threading.Thread.__init__(self)
 		self.window = window
@@ -88,6 +88,8 @@ class Data_Source(threading.Thread,wx.Object):
 		#self.signal_filter.start()
 		self.signals = []
 		self.buffer_group=[]
+		self.last_time = time.time()
+		self.data_count = 0
 	def write(self,TE):
 		pass
 
@@ -112,8 +114,8 @@ class Data_Source(threading.Thread,wx.Object):
 			self.deal_cmd()
 			if self.run_flag == True : # get data  from endpoint by socket, and upload to UI
 				self.GetData()
+			else:
 			#!!!~~~~~~~~~~~~~~~~~~~~继续接收数据, 以避免程序运行异常~~~~~~~~~~~~~~~~~~~~~~~~~!!!
-			else: 
 				try:
 					recv_segment = self.tcpCliSock.recv(1024)
 				except:
@@ -154,14 +156,6 @@ class Data_Source(threading.Thread,wx.Object):
 	def group_data(self):
 		while not self.Q4filter_data_in.empty():
 			#!!!!input data must be (pos_,value) tuple or list
-			self.not_filted_count += 1
-			if self.not_filted_count - 4000 == 0:#update 4000/screen
-				self.not_filted_count = 0
-				self.Q4filter_data_out.put(str("sleep"))
-				self.Q4filter_data_out.put(str("trigger"))
-				del self.buffer_group
-				self.buffer_group = []
-
 			newX,newY__ = self.Q4filter_data_in.get() 
 			#print newX,newY__
 			if newY__ == 0:# avoid error of devide_by_zero
@@ -175,7 +169,7 @@ class Data_Source(threading.Thread,wx.Object):
 			else:
 				lastY=self.buffer_group[-1]["value"][_Y]
 				diff =  abs( (lastY-newY)/lastY)
-				if diff > 3.0:
+				if diff > 2.0:
 					continue
 				if  diff > self.new_trigger:
 					#self.new_flag =  True
@@ -183,56 +177,73 @@ class Data_Source(threading.Thread,wx.Object):
 					self.buffer_group.append( {"length":int(1),"value":(newX,newY),"flag":"new"} )
 				else:
 					self.buffer_group[-1]["length"] += 1
+			if len(self.buffer_group) %50 == 0:#update 4000/screen
+				self.Q4filter_data_out.put(str("sleep"))
+				self.Q4filter_data_out.put(str("trigger"))
+				del self.buffer_group
+				self.buffer_group = []
+
 
 	def GetData(self):
 		try:
 			recv_segment = self.tcpCliSock.recv(1024)
-			#print recv_segment
-			while '\n' in recv_segment:
-				newline_pos = recv_segment.find('\n')
-				self.buffer_recv.append(recv_segment[:newline_pos] )
-				raw_data = ''.join(self.buffer_recv)
-				if raw_data.startswith("0t:"):
-					self.queue_out.put(raw_data)
-				elif raw_data.startswith("0x:"):
-					#print "data source raw_data: %s\n"%raw_data[0:123]
-					data_str = raw_data[3:123]
-					#print "data source raw_data: %s\n"%data_str
-					len_data = len(data_str)/8# data format is 0xppppssss 
-					#print len_data
-					#input data now 
+		except Exception, e:
+			return 
+
+		#print recv_segment
+		while '\n' in recv_segment:
+			newline_pos = recv_segment.find('\n')
+			self.buffer_recv.append(recv_segment[:newline_pos] )
+			raw_data = ''.join(self.buffer_recv)
+			if raw_data.startswith("0t:"):
+				self.queue_out.put(raw_data)
+			elif raw_data.startswith("0x:"):
+				self.data_count += 1
+				now = time.time()
+				if now - self.last_time >= 3:
+					print "soure data rates: %d/sec"%(self.data_count*5)
+					self.data_count = 0
+					self.last_time = now
+				#print "data source raw_data: %s\n"%raw_data[0:123]
+				data_str = raw_data[3:123]
+				#print "data source raw_data: %s\n"%data_str
+				len_data = len(data_str)/12# data format is 0xppppssss 
+				#print len_data
+				#input data now 
+				try:
 					for i in range(0,len_data):
-						str4X = data_str[i*8:i*8+4]
-						str4Y = data_str[i*8+4:i*8+8]
+						str4X = data_str[i*12:i*12+4]
+						str4Y = data_str[i*12+4:i*12+8]
+						str4len = data_str[i*12+8:i*12+12]
 						data_x = int(str4X,16)
 						data_y = int(str4Y,16)
-						#print str4X,str4Y,data_x,data_y
+						data_len = int(str4len,16)
+						#print "%s %s %s >>>>>>\t\t%d\t%d\t%d "%(str4X,str4Y,str4len,data_x,data_y,data_len)
 						#self.signal_filter.append_to_ibuffer((data_x,data_y))
-						self.Q4filter_data_in.put((data_x,float(data_y)))
+						self.Q4filter_data_in.put((data_x,float(data_y),data_len))
 					#filter data now 
-					if self.filter_option == True:
-						self.signal_filter.filter_data()
-					else:
-						self.group_data()
-				self.buffer_recv = []
-				try:
-					recv_segment = recv_segment[newline_pos+1:]
 				except:
 					pass
-			self.buffer_recv.append(recv_segment)
-			#get filtered data 
-			if not self.Q4filter_data_out.empty():
-				while not self.Q4filter_data_out.empty():
-					data = self.Q4filter_data_out.get()
-					self.queue_out.put(data)
-					#for signal in self.signals:
-						#signal.in_data_queue.put(data)
-				wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
+				if self.filter_option == True:
+					self.signal_filter.filter_data()
+				else:
+					self.group_data()
+			self.buffer_recv = []
+			try:
+				recv_segment = recv_segment[newline_pos+1:]
+			except:
+				pass
+		self.buffer_recv.append(recv_segment)
+		#get filtered data 
+		if not self.Q4filter_data_out.empty():
+			while not self.Q4filter_data_out.empty():
+				data = self.Q4filter_data_out.get()
+				self.queue_out.put(data)
+				#for signal in self.signals:
+					#signal.in_data_queue.put(data)
+			wx.PostEvent(self.window,MyEvent(60001)) #tell GUI to update
 				
 		
-		except Exception, e:
-			pass 
-
 
 
 
@@ -253,7 +264,7 @@ if __name__=='__main__':
 			queue_out_= queue_data_out)
 
 	dsource.filter_option = False
-	dsource.new_trigger = 0.15
+	dsource.new_trigger = 0.05
 	dsource.start()
 	time.sleep(0.5)
 	queue_cmd_in.put("open:usb1:38400\n")
@@ -262,6 +273,6 @@ if __name__=='__main__':
 	while (True):
 		while  not queue_data_out.empty():
 			print "from_data_source............", queue_data_out.get(),'\n'
-		time.sleep(0.0001)
+		time.sleep(0.001)
 
 

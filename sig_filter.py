@@ -22,8 +22,9 @@ import struct
 class Grouping_Filter(threading.Thread):
 	x10_magic = 0x10000# 0x1000, means data x10 in mcu
 	A1_to_A2 = 10.0
-	sleep_trig_level = 200
-	step_trig_level = 10
+	sleep_trig_level = 4000
+	step_trig_level = 20
+	new_value = 0.03
 	err= -999999
 	def __init__(self,queue_cmd_in,queue_cmd_out,queue_data_in,queue_out):
 		threading.Thread.__init__(self)
@@ -36,17 +37,14 @@ class Grouping_Filter(threading.Thread):
 
 		self.count = 0
 		self.data_count = 0
-		self.new_value = 0.15
 		self.step_count = 0
 
 		self.run_flag =  False
 		self.step_flag =  False
 		self.running_flag= False
 		self.loop_flag =  False
-		self.new_flag =  False
 		self.trigger_flag =  False
-		self.cur_refer = 0
-		self.last_refer = 0
+		self.trigger_steps = 5
 		#below is x10 constants , depending on circuits OP part
 
 		self.time_now = time.time()
@@ -88,110 +86,96 @@ class Grouping_Filter(threading.Thread):
 
 	def grouping_data(self):
 		while not self.queue_data_in.empty():
-			#print  self.queue_data_in.get()
-			try:
+			Xvalue,Yvalue,Data_len = self.queue_data_in.get() 
+			#print  Xvalue,Yvalue,Data_len
+			self.data_count += Data_len 
+			if Yvalue == 0:# avoid error of devide_by_zero
+				continue
+			if float(Yvalue) >= float(self.x10_magic) :
+				data_new = (float(Yvalue)-float(self.x10_magic) )/self.A1_to_A2
+			else:
+				data_new = float(Yvalue)
+			if len(self.buffer_group) != 0:
 				#!!!!input data must be (pos_,value) tuple or list
-				Xvalue,Yvalue = self.queue_data_in.get() 
+				delta_time = time.time()- self.last_time
+				if delta_time >= 3:
+					print " data rates: %d/sec"%(self.data_count/delta_time)
+					self.last_time = time.time()
+					self.data_count = 0
+
 				#print Xvalue,Yvalue
-				if Yvalue == 0:# avoid error of devide_by_zero
-					Yvalue = 0.0001
-				if float(Yvalue) >= float(self.x10_magic) :
-					data_new = (float(Yvalue)-float(self.x10_magic) )/self.A1_to_A2
-				else:
-					data_new = float(Yvalue)
 				data_last=self.buffer_group[-1]["value"][-1]
 				diff_ =   (data_last-data_new)/data_last  
 				if  abs(diff_) > self.new_value:
-					self.new_flag =  True
-					self.buffer_group.append( {"length":int(1),"value":(Xvalue,data_new),"flag":"new"} )
+					self.buffer_group.append( {"length":int(Data_len),"value":(Xvalue,data_new),"flag":"new"} )
 				else:
-					self.buffer_group[-1]["length"] += 1
+					self.buffer_group[-1]["length"] += Data_len
 
-			except Exception,e:
-				pass
-				#print  e
-				self.new_flag =  True
-				self.buffer_group.append( {"length":int(1),"value":(Xvalue,data_new),"flag":"new"} )
+			else:
+				self.buffer_group.append( {"length":int(Data_len),"value":(Xvalue,data_new),"flag":"new"} )
+			# update flags upon each data_points
+			self.update_filter()
 
 
 	def get_last_step(self):
+		step= None
 		buf_len = len(self.buffer_group) 
 		for i in range(0,buf_len-1):
 			last = -2-i
 			if self.buffer_group[last]["length"] > self.step_trig_level :
-				return  last
-		return self.err
+				step  =  last
+				break
+		return step
 
 	def get_last_sleep(self):
+		step = None
 		buf_len = len(self.buffer_group) 
 		for i in range(0,buf_len-1):
 			last = -2-i
 			if self.buffer_group[last]["length"] > self.sleep_trig_level :
-				return  last
-		return self.err
+				step  =  last
+				break
+		return step
 
 	def update_filter(self):
-		try:
-			if self.buffer_group[-1]["length"] >= self.sleep_trig_level and self.buffer_group[-1]["flag"] == "step":
-				self.trigger_flag = False
-				self.step_count   = 0
-				#print "sleeping........."
-				self.queue_out.put( "sleep")
-				self.buffer_group[-1]["flag"] = "sleep"
-				last_step = self.get_last_step()
-				if self.buffer_group[last_step]["flag"]=="step":
-					cur_value = self.buffer_group[-1]["value"][-1]
-					last_step_value = self.buffer_group[last_step]["value"][-1]
-					# going back to start point again,it circled once!
-					if (cur_value < last_step_value) and (self.running_flag == True):
-						#print "circled once ..........\n"
-						#self.queue_out.put( "circle")
-						self.running_flag =  False
-						del self.buffer_group
-						self.buffer_group = []
-	
-			if self.buffer_group[-1]["length"] >= self.step_trig_level and self.buffer_group[-1]["flag"] == "new":
-				self.buffer_group[-1]["flag"] = "step"
-			#	try:
-			#		print "step value<<<<<<<<<<<<<<<<<<<<",self.buffer_group[-1]["value"][-1]
-			#	except:
-			#		pass
-				#print "stepping........."
-				
+		if self.buffer_group[-1]["length"] > self.step_trig_level and self.buffer_group[-1]["flag"] == "new":
+		 	self.buffer_group[-1]["flag"] = "step"
+		 	#print "length of buffer[-1]:%d\t%d\n"%(self.buffer_group[-1]["value"][-1],self.buffer_group[-1]["length"])
 
-				#two consequent steps generates a trigger, for bypassing noises
-				last_step = self.get_last_step()
-				if self.buffer_group[last_step]["flag"]=="step" and self.trigger_flag == False :
-					#print "triggering ........."
-					self.step_count += 1
-					if self.step_count == 5:
-						self.trigger_flag = True
-					self.queue_out.put( "trigger")
-					cur_value = self.buffer_group[-1]["value"][-1]
-					last_step_value = self.buffer_group[last_step]["value"][-1]
-					if (cur_value > last_step_value) and (self.running_flag == False):
-						#print "started ..........\n"
-						#self.queue_out.put( "start")
-						self.running_flag =  True
-						self.last_refer = 0
-						self.cur_refer = 1
-						#reserve last_step_-1 and conseqence, remove noises
-						#print len(self.buffer_group)
-					last_step = self.get_last_sleep()
-					#for item in self.buffer_group[last_sleep:-1]:
-						#self.queue_out.put(item)
-			
-				if self.trigger_flag == True:
-					for item in self.buffer_group[last_step:-1]:
-						self.queue_out.put(item)
-		except Exception,e:
-			pass
-			#print  e
+		 	#5 consequent steps generates a trigger, for bypassing noises
+		 	last_step = self.get_last_step()
+			if not last_step:
+				return
+		 	if (self.buffer_group[last_step]["flag"]=="step") and (self.trigger_flag == False) :
+		 		self.step_count += 1
+		 		if self.step_count == self.trigger_steps:
+		 			print "triggering ........."
+		 			self.trigger_flag = True
+		 			self.queue_out.put( "trigger")
+		 			last_step = self.get_last_sleep()# the right last unsend step=last_sleep
+		 
+		 	if self.trigger_flag == True:
+		 		for item in self.buffer_group[last_step:-1]:
+		 			print item
+		 			self.queue_out.put(item)
+
+		#print self.buffer_group[-1]["flag"],'\t',len(self.buffer_group),'\t',self.step_count
+		if (self.buffer_group[-1]["length"] >= self.sleep_trig_level) and self.buffer_group[-1]["flag"] == 'step':
+		 	#self.queue_out.put(self.buffer_group[-1]) #put last step
+		 	self.buffer_group[-1]["flag"] = "sleep"
+		 	print "sleeping........."
+		 	if self.trigger_flag == True:
+		 		self.queue_out.put(self.buffer_group[-1])
+		 		self.queue_out.put("sleep")
+		 		self.trigger_flag = False
+		 		self.step_count   = 0
+		 		del self.buffer_group
+		 		self.buffer_group = []
 
 
 	def filter_data(self):
 		self.grouping_data()
-		self.update_filter()
+		#self.update_filter()
 		#self.validate()
 				
 ####################################################################################################

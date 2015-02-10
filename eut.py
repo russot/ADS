@@ -40,6 +40,21 @@ class Eut():
 	def GetPN(self):
 		return self.field["PN"][_VALUE]
 
+	def GetYunit(self):
+		return self.field["Y1_unit"][_VALUE]
+
+	def GetRange(self):
+		min_ = self.Refer_Table[0][ 0].GetYvalue()
+		max_ = self.Refer_Table[0][-1].GetYvalue()
+		return (min_,max_)
+
+	def HasNTC(self):
+		if self.field["thermo_PN"][_VALUE] !='':
+			return True
+		else:
+			return False
+
+
 	def GetThermoModel(self):
 		PN = self.field["thermo_PN"][_VALUE]
 		thermo_sensor = Thermo_Sensor()

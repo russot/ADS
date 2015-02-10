@@ -207,12 +207,13 @@ class Signal_Control(wx.Panel):   #3
 
 
 		#下面进行行为动作绑定
-		self.text_name.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_name)
-		self.text_name.Bind(wx.EVT_KEY_DOWN, self.OnKeyRun)
+		#self.text_name.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_name)
+		#self.text_name.Bind(wx.EVT_KEY_DOWN, self.OnKeyRun)
 		self.debug_out.Bind(wx.EVT_KEY_DOWN, self.OnClearDebug)
+		#self.Bind(wx.EVT_KEY_DOWN, self.OnKey)
 		self.text_serial.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_serial)
-		self.text_serial.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-		self.text_serial.Bind(wx.EVT_KEY_UP, self.OnKeyUp)
+		self.text_serial.Bind(wx.EVT_KEY_DOWN, self.OnSerialKey)
+		#self.text_serial.Bind(wx.EVT_KEY_UP, self.OnKeyUp)
 		self.sp_window.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.OnSplit)
 		self.data_window.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.OnSplit)
 		
@@ -257,6 +258,9 @@ class Signal_Control(wx.Panel):   #3
 	def SetFail(self):
 		self.result.SetFail()
 
+	def OnKey(self,event):
+		"""KeyDown event is sent first"""
+		self.signal_panel.OnKeyDown(event)
 
 	def OnClearDebug(self,event):
 		"""KeyDown event is sent first"""
@@ -385,7 +389,7 @@ class Signal_Control(wx.Panel):   #3
 		print "save data"
 		self.Data_Persist(self.signal_panel.data_store)
 
-	def OnKeyDown(self, event):
+	def OnSerialKey(self, event):
 		"""KeyDown event is sent first"""
 
 		raw_code = event.GetRawKeyCode()
@@ -441,6 +445,7 @@ class Signal_Control(wx.Panel):   #3
 
 	def UploadSN(self,SN):
 		self.SetSN(SN)
+		self.Refresh(True)
 
 
 	def SetSN(self,SN):

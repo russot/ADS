@@ -1,31 +1,41 @@
-#config_db.py
-data_db ="sqlite3_all.db"
-data_table_name = "data"
-eut_db ="sqlite3_eut.db"
-eut_table_name = "eut"
+# -*- coding: utf-8 -*-
+#!python
+
+from decimal import *
+
+
 
 #constants for RELAYS
-R4RELAY  = 0.2
+gRDSon  = 0.05000
+gRcon  = 0.05000
 
 #constants for ADC resolution , A2 channel amplifier
-ADC_BITS = 12
-K_A2	 = 10
 
 #index for circuit component
 _RR  = 0
 _RA1 = 1
-_RA2 = 2
+_RAH = 2
 _RH  = 3
 _RL  = 4
+_REF = 5
+_RUH = 6
+#for PT thermo 
+_RPH = 7
+_RPAH= 8
+_RPAL= 9
+#for  NTC  
+_RNH = 10
+
 
 #index for circuit node
-_VR = 0
+_VREF = 0
 _VADC = 1
 
 #index for gain
 _GAIN = 0
-_A1i = 1
-_A2i = 2
+_Rpar = 0
+_Rx = 1
+_RV = 2
 
 #index for RR_par  
 _R = 0
@@ -38,16 +48,16 @@ _MAX = 1
 
 #index for solutions
 _VMIN  = 0
-_VMIN_M  = 1
-_VMAX_M  = 2
-_VMAX  = 3
-_IR = 4
-_IG = 5 
+_VMIN_R  = 1
+_VMAX  = 2
+_IR = 3
+_IG = 4 
 
 
 #index for config
-_I_  = 0
+_G_  = 0
 _R_  = 1
+_CODE_  = 2
 
 _RR_  = 0
 _RA1_  = 1
@@ -66,49 +76,45 @@ def find(list_,item):
 
 class  Pga():
 	def __init__(self,Rs,Vrefs):
+		getcontext().prec = 20
+		self.ADC_BITS = 12
 		self.Rs = Rs
 		self.Vrefs = Vrefs
 		self.config = [None,None,None,None]
 		self.gains=[]
 		self.init_gains()
 		self.init_RR_series()
+		self.Vresolv = self.Vrefs[_VADC]/pow(2,self.ADC_BITS)
 
+#----------------------------------------------------------------------------------------------------
 	def init_gains(self):
 		#self.init_gains_serial()
 		self.init_gains_par()
 
-#	def init_gains_serial(self):
-#		if not self.Rs:
-#			return
-#		j=0
-#		for i in range(0,pow(2,len(Rs[_RA1])) ):
-#			r_ = float(0)
-#			series = self.find_series(i)
-#			for r_j in series:
-#				r_ +=  Rs[_RA1][r_j]
-#
-#			k2 = float(r_)+1
-#			self.gains.append( [k2,series,j] )
-#		self.gains.sort(key=lambda x:x[_GAIN])
 
 	def init_gains_par(self):
 		if not self.Rs:
 			return
-		j=0
-		for i in range(0,pow(2,len(Rs[_RA1])) ):
-			r_par = pow(2,32)
+		for i in range(0,pow(2,len(self.Rs[_RA1])) ):
+			r_par = 3.4E38
 			par_series = self.find_series(i)
 			for r_j in par_series:
-				r_par = (float(r_par) * Rs[_RA1][r_j]) /(float(r_par) + Rs[_RA1][r_j])
+				Rx =  Rs[_RA1][r_j] + gRDSon
+				r_par = r_par * Rx / (r_par + Rx)
 
-			k1= float(r_par)+1
-			self.gains.append( [k1,par_series,j] )
+			R_AH = float(self.Rs[_RAH][0])
+			k1= float(r_par+R_AH)/r_par
+			self.gains.append( [k1,par_series,r_par] )
+		self.gains.append( [1,None,3.4E38]) #for RA1 being all open
 		self.gains.sort(key=lambda x:x[_GAIN])
 
+#----------------------------------------------------------------------------------------------------
 	def find_series(self,i):
 		result =[]
 		remain = i
-		ser = (1,2,4,8,16,32,64,128)
+		ser = []
+		for i in range(0,16):
+			ser.append(pow(2,i))
 		index = len(ser)
 		for x in range(1,index+1):
 			if not (remain - ser[index-x])<0 :
@@ -116,233 +122,351 @@ class  Pga():
 				result.append(index-x)
 				if remain == 0 :
 					break
-
 		return result
 
+#----------------------------------------------------------------------------------------------------
 	def init_RR_series(self):
 		if not self.Rs:
 			return
-		j=0
 		self.RR_par=[]
-		for i in range(0,pow(2,len(Rs[_RR])) ):
-			r_par = pow(2,32)
+		for i in range(0,pow(2,len(self.Rs[_RR])) ):
+			r_par = 3.4E38
 			par_series = self.find_series(i)
 			for r_j in par_series:
-				Rx = Rs[_RR][r_j] + R4RELAY  
-				r_par = (float(r_par) * Rx ) /(float(r_par) + Rx)
+				Rx = Rs[_RR][r_j] + gRDSon
+				r_par = r_par * Rx  / (r_par + Rx)
 
-			self.RR_par.append( [r_par,par_series,j] )
-		self.RR_par.sort(key=lambda x:x[_GAIN])
+			self.RR_par.append( [r_par,par_series] )
+		self.RR_par.sort(key=lambda x:x[_Rpar])
 
 	
+#----------------------------------------------------------------------------------------------------
 	def show_gains(self):
 		self.show_gains_par()
 
 	def show_gains_par(self):
 		index = 0
 		last_gain = self.gains[0]
-		for gain in self.gains:
+		for gain in self.gains[0:]:
 			index +=1
-			i = gain[_A1i]
-			if gain[_GAIN]/last_gain[_GAIN] > 1.2:
-				print '%03d:%03.3f %03.4f\t'%(
-					index,
-					gain[_GAIN],
-					gain[_GAIN]/last_gain[_GAIN])
-				print 'RA1=', i 
-			last_gain = gain
-
-	def show_gains__(self):
-		index = 0
-		last_gain = self.gains[0]
-		for gain in self.gains:
-			index +=1
-			i = gain[_A1i]
-			j = gain[_A2i]
-			if gain[_GAIN]/last_gain[_GAIN] > 1.2:
-				print '%03d:%03.3f %03.4f\t%s\t%s'%(
+			if gain[_GAIN]/last_gain[_GAIN] > 0.2:
+				print '%03d:%.5f %.5f\t%.5f'%(
 					index,
 					gain[_GAIN],
 					gain[_GAIN]/last_gain[_GAIN],
-					'RA1=%03.3f@%d'%( Rs[_RA1][i] ,i) ,
-					'RA2=%03.3f@%d'%( Rs[_RA2][j] ,j) )
+					gain[_RV])
+				print 'RA=', gain[_Rx]
 			last_gain = gain
 
 
 
+#----------------------------------------------------------------------------------------------------
 	def find_solution(self,range_,unit):
 
-		if unit=='Ohm':	
+		if unit=='Ohm' or  unit=='ohm':	
 			self.unit = 'Ohm'
-			return self.find_solution4R(range_)
-		if unit=='Volt':	
+			self.find_solution4R(range_)
+		elif unit=='Volt'or  unit=='volt' :	
 			self.unit = 'Volt'
-			return self.find_solution4U(range_)
-		if unit=='Amp':	
+			self.find_solution4U(range_)
+		elif unit=='Amp' or  unit=='amp' :	
 			self.unit = 'Amp'
-			return self.find_solution4I(range_)
-		pass
+			self.find_solution4I(range_)
+		return self.GetCode()
 
+
+#----------------------------------------------------------------------------------------------------
 	def find_solution4R(self,range_):
-		Min = range_[_MIN]*0.99
-		Min_M = range_[_MIN]
-		Max_L = range_[_MAX]*0.99
-		Max = range_[_MAX]*1.01
-		RH = float(self.Rs[_RH][0])
-		RL = float(self.Rs[_RL][0])
-		Vref = self.Vrefs[_VR]*RL/(RH + RL)
-		Vresolv = self.Vrefs[_VADC]/pow(2,ADC_BITS)
+		Rmin   = float(range_[_MIN])*float(0.99)
+		Rmin_r = float(range_[_MIN])
+		Rmax   = float(range_[_MAX])*float(1.01)
+		RH     = float(self.Rs[_RH][0])
+		RL     = float(self.Rs[_RL][0])
+		Rref   = float(self.Rs[_REF][0])
+		Rcon   = float(gRcon)
+		Vref   = float(self.Vrefs[_VREF])
 		solutions=[]
 		for ir in range(0,len(self.RR_par)):
 			RRi= self.RR_par[ir][_R]
-			gain4_min = (RRi+Min)/RRi
-			gain4_min_M = (RRi+Min_M)/RRi
-			gain4_max_L = (RRi+Max_L)/RRi
-			gain4_max = (float(RRi)+Max)/float(RRi)
-			V1min = Vref*gain4_min
-			V1min_M = Vref*gain4_min_M
-			V1max_L = Vref*gain4_max_L
-			V1max = Vref*gain4_max
+			Vi_min = float(Rmin+Rcon)/float(RRi+Rref+Rmin+Rcon)
+			Vi_min_r = float(Rmin_r+Rcon)/float(RRi+Rref+Rmin_r+Rcon)
+			Vi_max = float(Rmax+Rcon)/float(RRi+Rref+Rmax+Rcon)
 			ig = len(self.gains)
 			while 1:
 				ig -=1
 				if ig < 0:
 					break
 				gain  = self.gains[ig][_GAIN]
-				V2min = V1min * gain
-				V2min_M = V1min_M * gain
-				V2max_L = V1max_L * gain
-				V2max = V1max * gain
-				if V2max <= self.Vrefs[_VADC]*0.97  and (V2min_M-V2min)*K_A2 >= 3*Vresolv:
-					solutions.append([V2min,V2min_M,V2max_L,V2max,ir,ig])
+				Vo_min = Vi_min * gain
+				Vo_min_r = Vi_min_r * gain
+				Vo_max = Vi_max * gain
+				if Vo_max <= self.Vrefs[_VADC]*0.97  and (Vo_min_r-Vo_min) >= 4*self.Vresolv:
+					solutions.append([Vo_min,Vo_min_r,Vo_max,ir,ig])
 					break
-		solutions.sort(key=lambda x:x[_VMAX]-x[_VMIN])
-		try:
-			solution = solutions[-1]
-			solution.append(solution[_VMIN_M]-solution[_VMIN])
-			solution.append(solution[_VMAX]-solution[_VMAX_M])
-		except:
+		if not solutions:
 			print "%.3f--%.3f solution not found."%(range_[_MIN],range_[_MAX])
 			return
-		ig = solution[_IG]
+		#solution found 
+		solutions.sort(key=lambda x:x[_VMAX]-x[_VMIN])
+		best_solution = solutions[-1]
+		ig = best_solution[_IG]
 		a1_gain = self.gains[ig][_GAIN]
-		a1i= self.gains[ig][_A1i]
-		ra1= [] 
-		for x in a1i:
-			ra1.append((x,self.Rs[_RA1][x]))
-
-		ir = solution[_IR]
-		rr = self.RR_par[ir][_R]
-		rr1= []
+		Rai= self.gains[ig][_Rx]
+		Ra= [] 
+		Ra_code = 0
+		if len(Rai) > 0:
+			for x in Rai:
+				Ra.append((x,self.Rs[_RA1][x]))
+				Ra_code += pow(2,x)
+		ir = best_solution[_IR]
+		Rpar = self.RR_par[ir][_R]
+		Rr= []
+		Rr_code = 0
 		for x in self.RR_par[ir][_SER]:
-			rr1.append((x,self.Rs[_RR][x]))
+			Rr.append((x,self.Rs[_RR][x]))
+			Rr_code += pow(2,x)
 
-		out  = "range \t\t%05.3f~%05.3ffound: delta %.5f:%.5f\n"%(range_[_MIN],range_[_MAX],solution[-2],solution[-1])
-		out += "ADC input\t %05.3f-%05.3f,"%(solution[_VMIN], solution[_VMAX])
-		out += " gain %0.4f\n"%(self.gains[ig][_GAIN])
-		out += "RR=%.3f@%d\t"%(rr,ir)
-		out += "RH=%.3f@%d\t"%(RH,0)
-		out += "RL=%.3f@%d\t"%(RL,0)
+		out  = "range \t\t%05.3f~%05.3f\tfound with delta %.5f\n"%(range_[_MIN],range_[_MAX],best_solution[_VMIN_R]-best_solution[_VMIN])
+		out += "ADC input\t %05.3f-%05.3f,"%(best_solution[_VMIN], best_solution[_VMAX])
+		out += "gain %0.4f\n"%(self.gains[ig][_GAIN])
+		out += "RR=%.5f@%d\t"%(Rpar,ir)
 		print out
-		print  "RR1=",rr1
-		print  "RA1=",ra1
-		self.config[_RR_]  = (rr1,rr)
-		self.config[_RA1_] = (ra1,a1_gain)
+		print  "RR=",Rr
+		print  "RA1=",Ra
+		self.config[_RR_]  = (Rpar,Rr,Rr_code)
+		self.config[_RA1_] = (a1_gain,Ra,Ra_code)
 		self.config[_RA2_] = ([],1)
-		self.config[_RANGE_] = (solution[_VMIN],solution[_VMAX])
+		self.config[_RANGE_] = (best_solution[_VMIN],best_solution[_VMAX])
 
+	def Get_Hex2R(self,value_hex):
+		#print self.config
+
+		Vref = float(self.Vrefs[_VREF])
+		Rref   = float(self.Rs[_REF][0])
+		Rcon   = float(gRcon)
+		Volt_A1out= float(self.Vrefs[_VADC])*float(value_hex)/float(pow(2,self.ADC_BITS))
+		A1_gain   = float(self.config[_RA1_][_G_])
+		Volt_Rout  = Volt_A1out/A1_gain
+		Rpar = self.config[_RR_][_G_]
+		Ri = (Volt_Rout*(Rref+Rpar+Rcon) - Vref*Rcon)/(Vref-Volt_Rout)
+		return Ri
+
+	def Get_R2Hex(self,value_R):
+		#print self.config
+		R_ = float(value_R)
+		Vref   = float(self.Vrefs[_VREF])
+		Rref   = float(self.Rs[_REF][0])
+		Rpar   = float(self.config[_RR_][_G_])
+		Rcon   = float(gRcon)
+		A1_gain= float(self.config[_RA1_][_G_])
+		Volt_Rout  = Vref*(R_+Rcon)/(R_+Rcon+Rref+Rpar)
+		Volt_A1out = Volt_Rout*A1_gain 
+		ratio   = Volt_A1out/float(self.Vrefs[_VADC])
+		hexValue   = int(ratio*float(pow(2,self.ADC_BITS)))
+		return hexValue 
+#----------------------------------------------------------------------------------------------------
 	def find_solution4U(self,range_):
 		VMax = range_[_MAX]*1.01
-		RUH = float(300*2)
-		RUL = float(10/2+0.01)
-		RAH = float(18)
-		RAL = float(2)
-		K1 = RUL/(RUH+RUL)
-		K2 = (RAH+RAL)/RAL
-		Vresolv = self.Vrefs[_VADC]/pow(2,ADC_BITS)
-		V1max = VMax * K1 * K2
-		ig = len(self.gains)
-		while 1:
-			ig -=1
-			if ig < 0:
-				break
-			gain  = self.gains[ig][_GAIN]
-			V2max = V1max * gain
-			if V2max <= self.Vrefs[_VADC]*0.97 :
-				solution=[V2max,ig]
-				break
-		ig = solution[-1]
+		RUH = self.Rs[_RUH][0]
+		Rcon   = float(gRcon)
+		solutions=[]
+		for ir in range(0,len(self.RR_par)):
+			RRi= self.RR_par[ir][_R] + gRDSon
+			Vi_max = float(VMax)*RRi/float(RRi+RUH+Rcon)
+			ig = len(self.gains)
+			while 1:
+				ig -=1
+				if ig < 0:
+					break
+				gain  = self.gains[ig][_GAIN]
+				Vo_max = Vi_max * gain
+				if Vo_max <= self.Vrefs[_VADC]*0.97:
+					solutions.append([0.001,0.001,Vo_max,ir,ig])
+					break
+		if not solutions:
+			print "%.3f--%.3f solution not found."%(range_[_MIN],range_[_MAX])
+			return
+		solutions.sort(key=lambda x:x[_VMAX])
+		best_solution = solutions[-1]
+
+		ig = best_solution[_IG]
 		a1_gain = self.gains[ig][_GAIN]
-		a1i= self.gains[ig][_A1i]
-		ra1= [] 
+		a1i= self.gains[ig][_Rx]
+		Ra= [] 
+		Ra_code = 0
 		for x in a1i:
-			ra1.append((x,self.Rs[_RA1][x]))
+			Ra.append((x,self.Rs[_RA1][x]))
+			Ra_code += pow(2,x)
 
-		out  = "range \t\t%05.3f~%05.3ffound: %.5f\n"%(range_[_MIN],range_[_MAX],solution[-1])
-		out += "ADC input\t %05.3f-%05.3f,"%(0,solution[-2])
-		out += " gain %0.4f\n"%(self.gains[ig][_GAIN])
+		ir = best_solution[_IR]
+		Rpar = self.RR_par[ir][_R]
+		Rr= []
+		Rr_code = 0
+		for x in self.RR_par[ir][_SER]:
+			Rr.append((x,self.Rs[_RR][x]))
+			Rr_code += pow(2,x)
+
+		out  = "range \t\t%05.3f~%05.3f\tfound with delta %.5f\n"%(range_[_MIN],range_[_MAX],best_solution[_VMIN_R]-best_solution[_VMIN])
+		out += "ADC input\t %05.3f-%05.3f,"%(best_solution[_VMIN], best_solution[_VMAX])
+		out += "gain %0.4f\n"%(self.gains[ig][_GAIN])
+		out += "RR=%.5f@%d\t"%(Rpar,ir)
 		print out
-		print  "RA1=",ra1
-		self.config[_RR_]  = None
-		self.config[_RA1_] = (ra1,a1_gain)
+		print  "RR=",Rr
+		print  "RA1=",Ra
+		self.config[_RR_]  = (Rpar,Rr,Rr_code)
+		self.config[_RA1_] = (a1_gain,Ra,Ra_code)
 		self.config[_RA2_] = ([],1)
-		self.config[_RANGE_] = (0,solution[1])
+		self.config[_RANGE_] = (best_solution[_VMIN],best_solution[_VMAX])
 
-	def find_solution4I(self,range_):
-		IMax = range_[_MAX]*1.01
-		VMax = 0.005*IMax
-		RAH = float(18)
-		RAL = float(2)
-		K1 = (RAH+RAL)/RAL
-		Vresolv = self.Vrefs[_VADC]/pow(2,ADC_BITS)
-		V1max = VMax * K1
-		ig = len(self.gains)
-		while 1:
-			ig -=1
-			if ig < 0:
-				break
-			gain  = self.gains[ig][_GAIN]
-			V2max = V1max * gain
-			if V2max <= self.Vrefs[_VADC]*0.97 :
-				solution=[V2max,ig]
-				break
-		ig = solution[-1]
-		a1_gain = self.gains[ig][_GAIN]
-		a1i= self.gains[ig][_A1i]
-		ra1= [] 
-		for x in a1i:
-			ra1.append((x,self.Rs[_RA1][x]))
-
-		out  = "range \t\t%05.3f~%05.3ffound: %.5f\n"%(range_[_MIN],range_[_MAX],solution[-1])
-		out += "ADC input\t %05.3f-%05.3f,"%(0,solution[-2])
-		out += " gain %0.4f\n"%(self.gains[ig][_GAIN])
-		print out
-		print  "RA1=",ra1
-		self.config[_RR_]  = None
-		self.config[_RA1_] = (ra1,a1_gain)
-		self.config[_RA2_] = ([],1)
-		self.config[_RANGE_] = (0,solution[1])
-
-	def find_result4R(self,value_hex):
+	def Get_Hex2U(self,value_hex):
 		#print self.config
-		RH = float(self.Rs[_RH][0])
-		RL = float(self.Rs[_RL][0])
-		Vref = self.Vrefs[_VR]*RL/(RH + RL)
+		RUH    = self.Rs[_RUH][0]
+		Rcon   = float(gRcon)
+		Rpar_  = self.config[_RR_][_G_] + gRDSon
+		Volt_Aout= float(self.Vrefs[_VADC])*float(value_hex)/float(pow(2,self.ADC_BITS))
+		A_gain   = float(self.config[_RA1_][_G_])
+		Volt_Ain  = Volt_Aout/A_gain
+		#Volt_Ain  = Vi * Rpar/(Rpar+RUH+Rcon)
+		Vin = Volt_Ain  * (Rpar_+RUH+Rcon) / Rpar_
+		return Vin
 
-		Volt_A2out= self.Vrefs[_VADC]*value_hex/pow(2,ADC_BITS)
-		A2_gain   = self.config[_RA2_][_R_]
-		Volt_A1out  = Volt_A2out/A2_gain
-		A1_gain   = self.config[_RA1_][_R_]
-		Volt_Rout  = Volt_A1out/A1_gain
-		RR = self.config[_RR_][_R_]
-		Ri = Volt_Rout/Vref*RR - RR 
-		return Ri
+	def Get_U2Hex(self,Vin):
+		#print self.config
+		RUH    = self.Rs[_RUH][0]
+		Rcon   = float(gRcon)
+		Rpar_  = self.config[_RR_][_G_] + gRDSon
+		A_gain = float(self.config[_RA1_][_G_])
+		Volt_Ain  = Vin * Rpar_/(Rpar_+RUH+Rcon)
+		Volt_Aout = Volt_Ain  * A_gain
+		HexValue  = Volt_Aout / self.Vrefs[_VADC] *float(pow(2,self.ADC_BITS))
+		#Volt_Ain  = Vi * Rpar/(Rpar+RUH+Rcon)
+		return int(HexValue)
+
+#----------------------------------------------------------------------------------------------------
+	def find_solution4I(self,range_):
+		Imax = range_[_MAX]*1.01
+		solutions=[]
+		for ir in range(0,len(self.RR_par)):
+			RRi= self.RR_par[ir][_R] + gRDSon
+			Vi_max = Imax*RRi
+			ig = len(self.gains)
+			while 1:
+				ig -=1
+				if ig < 0:
+					break
+				gain  = self.gains[ig][_GAIN]
+				Vo_max = Vi_max * gain
+				if Vo_max <= self.Vrefs[_VADC]*0.97:
+					solutions.append([0.001,0.001,Vo_max,ir,ig])
+					break
+		if not solutions:
+			print "%.3f--%.3f solution not found."%(range_[_MIN],range_[_MAX])
+			return
+		solutions.sort(key=lambda x:x[_VMAX])
+		best_solution = solutions[-1]
+
+		ig = best_solution[_IG]
+		a1_gain = self.gains[ig][_GAIN]
+		a1i= self.gains[ig][_Rx]
+		Ra= [] 
+		Ra_code = 0
+		for x in a1i:
+			Ra.append((x,self.Rs[_RA1][x]))
+			Ra_code += pow(2,x)
+
+		ir = best_solution[_IR]
+		Rpar = self.RR_par[ir][_R]
+		Rr= []
+		Rr_code = 0
+		for x in self.RR_par[ir][_SER]:
+			Rr.append((x,self.Rs[_RR][x]))
+			Rr_code += pow(2,x)
+
+		out  = "range \t\t%05.3f~%05.3f\tfound with delta %.5f\n"%(range_[_MIN],range_[_MAX],best_solution[_VMIN_R]-best_solution[_VMIN])
+		out += "ADC input\t %05.3f-%05.3f,"%(best_solution[_VMIN], best_solution[_VMAX])
+		out += "gain %0.4f\n"%(self.gains[ig][_GAIN])
+		out += "RR=%.5f@%d\t"%(Rpar,ir)
+		print out
+		print  "RR=",Rr
+		print  "RA1=",Ra
+		self.config[_RR_]  = (Rpar,Rr,Rr_code )
+		self.config[_RA1_] = (a1_gain,Ra,Ra_code)
+		self.config[_RA2_] = ([],1)
+		self.config[_RANGE_] = (best_solution[_VMIN],best_solution[_VMAX])
+
+	def Get_Hex2I(self,value_hex):
+		#print self.config
+		Rpar_    = self.config[_RR_][_G_] + gRDSon
+		A_gain   = float(self.config[_RA1_][_G_])
+		Volt_Aout= float(self.Vrefs[_VADC])*float(value_hex)/float(pow(2,self.ADC_BITS))
+		Volt_Ain  = Volt_Aout/A_gain
+		#Volt_Ain  = Vi * Rpar/(Rpar+RUH+Rcon)
+		Iin = Volt_Ain  / Rpar_
+		return Iin
+
+	def Get_I2Hex(self,Iin):
+		#print self.config
+		Rpar_  = self.config[_RR_][_G_]+ gRDSon
+		A_gain = float(self.config[_RA1_][_G_])
+		Volt_Ain  = Iin * Rpar_
+		Volt_Aout = Volt_Ain  * A_gain
+		HexValue  = Volt_Aout / self.Vrefs[_VADC] *float(pow(2,self.ADC_BITS))
+		#Volt_Ain  = Vi * Rpar/(Rpar+RUH+Rcon)
+		return int(HexValue)
+
+#----------------------------------------------------------------------------------------------------
+	def Get_Hex2Rpt(self,value_hex):
+		Vadc = float(self.Vrefs[_VADC])
+		Vref = float(self.Vrefs[_VREF])
+		Rph   = float(self.Rs[_RPH][0])
+		Rpah   = float(self.Rs[_RPAH][0])
+		Rpal   = float(self.Rs[_RPAL][0])
+		Volt_Aout= Vadc*float(value_hex)/float(pow(2,self.ADC_BITS))
+		Again   = (Rpah+Rpal)/Rpal
+		Vrpt  = Volt_Aout/Again
+		Rpt =  Rph*Vrpt/(Vref*(1-Vrpt/Vref))
+		return Rpt
+
+	def Get_Rpt2Hex(self,Rpt):
+		Vadc = float(self.Vrefs[_VADC])
+		Vref = float(self.Vrefs[_VREF])
+		Rph   = float(self.Rs[_RPH][0])
+		Rpah   = float(self.Rs[_RPAH][0])
+		Rpal   = float(self.Rs[_RPAL][0])
+		Again   = (Rpah+Rpal)/Rpal
+		Vrpt  = Vref*Rpt/(Rpt+Rph)
+		Vao= Vrpt*Again
+		HexValue  = Vao/Vadc*float(pow(2,self.ADC_BITS))
+		return int(HexValue)
+
+	def Get_Hex2Rntc(self,value_hex):
+		Vadc = float(self.Vrefs[_VADC])
+		Vref  = float(self.Vrefs[_VREF])
+		Rnh   = float(self.Rs[_RNH][0])
+		Vntc  = Vadc*float(value_hex)/float(pow(2,self.ADC_BITS))
+		Rntc  = Vntc*Rnh/(Vref-Vntc)
+		return Rntc
+
+	def Get_Rntc2Hex(self,Rntc):
+		Vadc = float(self.Vrefs[_VADC])
+		Vref = float(self.Vrefs[_VREF])
+		Rnh   = float(self.Rs[_RNH][0])
+		Vntc  = Vref*Rntc/(Rntc+Rnh)
+		HexValue  = Vntc/Vadc*float(pow(2,self.ADC_BITS))
+		return int(HexValue)
+
+	def GetCode(self):
+		Rr_code = self.config[_RR_][_CODE_]
+		Ra_code = self.config[_RA1_][_CODE_]
+		print "Rr code: 0x%x \t Ra code: 0x%x"%(Rr_code, Ra_code)
+		return (Rr_code, Ra_code)
+
 
 #	def find_result4R(self,value_hex):
 #		print self.config
 #		RH = float(self.Rs[_RH][0])
 #		RL = float(self.Rs[_RL][0])
-#		Vref = self.Vrefs[_VR]*RL/(RH + RL)
+#		Vref = self.Vrefs[_VREF]*RL/(RH + RL)
 #
 #		Volt_A2out= self.Vrefs[_VADC]*value_hex/pow(2,ADC_BITS)
 #		A2_gain   = self.config[_RA2_][_R_]
@@ -352,46 +476,53 @@ class  Pga():
 #		RR = self.config[_RR_][_R_]
 #		Ri = Volt_Rout/Vref*RR - RR 
 #		return Ri
-RA1_series = (0.200,0.511,1.2,2.4,3.3,3.3+3.9,18,47)
+RA1_series = (float(200),
+		float(511),
+		float(1200),
+		float(2400),
+		float(3300),
+		float(7200),
+		float(18000),
+		float(47000))
 #RA1_series = (2,4,8,16,32,180,220,250)
-RA2_series = (0,3,15,30+30,210+30)
-RR_series = (10/2,22/2,22*2,300/2,300*2,3900/2,3900*2,18000)
-RH_series = (18000,)
-RL_series = (200,)
-Rs = [None,None,None,None,None]
-Rs[_RA1] = RA1_series
-Rs[_RA2] = RA2_series
+RR_series = (float(5),
+		float(10),
+		float(22),
+		float(100),
+		float(300),
+		float(1200),
+		float(7800),
+		float(18000))
+RAH_series = (float(7200),)
+RH_series = (float(18000),)
+RL_series = (float(2000),)
+REF_series = (float(50),)
+RUH_series = (float(5000),)
+#PT NTC series
+RPH_series =  (float(12000),)
+RPAH_series =  (float(10000),)
+RPAL_series =  (float(1000),)
+RNH_series  = (float(2000),)
+Rs = [None,None,None,None,None,None,None,None,None,None,None,None]
 Rs[_RR]  = RR_series
+Rs[_RA1] = RA1_series
+Rs[_RAH] = RAH_series
 Rs[_RH]  = RH_series
 Rs[_RL]  = RL_series
+Rs[_REF]  = REF_series
+Rs[_RPH]  = RPH_series
+Rs[_RPAH]  = RPAH_series
+Rs[_RPAL]  = RPAL_series
+Rs[_RNH]  = RNH_series
 
 Vrefs = [None,None]
-Vrefs[_VR]=2.483
-Vrefs[_VADC]=3.3
+Vrefs[_VREF]=3.2
+Vrefs[_VADC]=3.2
 gPGA = Pga(Rs=Rs,Vrefs=Vrefs)
 
 
 if __name__=='__main__':
-	#RA1_series = (0.010,0.2,0.22+0.22,0.36+0.36,0.36+0.62,1+0.36,1+0.82,2.2+0.18)
-	#RA1_series = (0.20,0.511,1.2,3.3,3.3+3.9,18,47,47*2)
-	RA1_series = (0.200,0.511,1.2,2.4,3.3,3.3+3.9,18,47)
-	#RA1_series = (2,4,8,16,32,180,220,250)
-	RA2_series = (0,3,15,30+30,210+30)
-	RR_series = (10/2,22/2,22*2,300/2,300*2,3900/2,3900*2,18000)
-	RH_series = (18000,)
-	RL_series = (200,)
-	Rs = [None,None,None,None,None]
-	Rs[_RA1] = RA1_series
-	Rs[_RA2] = RA2_series
-	Rs[_RR]  = RR_series
-	Rs[_RH]  = RH_series
-	Rs[_RL]  = RL_series
-	
-	Vrefs = [None,None]
-	Vrefs[_VR]=2.483
-	Vrefs[_VADC]=3.3
-	PGA1 = Pga(Rs=Rs,Vrefs=Vrefs)
-	PGA1.show_gains()
+	gPGA.show_gains()
 	for range_,unit in (
 			((5.6,190.6),'Ohm'),
 			((10,1000),'Ohm'),
@@ -406,16 +537,45 @@ if __name__=='__main__':
 			((500,20000),'Ohm'),
 			((1000,100000),'Ohm'),
 			((2000,200000),'Ohm'),
-			((0,5),'Volt'),
-			((0,10),'Volt'),
-			((0,15),'Volt'),
-			((0,10),'Amp'),
-			((4,20),'Amp'),
+		#	((0,5),'Volt'),
+		#	((0,10),'Volt'),
+		#	((0,15),'Volt'),
+		#	((0,10),'Amp'),
+		#	((4,20),'Amp'),
 			((5000,500000),'Ohm'),):
-		PGA1.find_solution(range_,unit)
-
-	print PGA1.find_series(1)
-	print PGA1.find_series(128)
-	print PGA1.find_series(255)
+		gPGA.find_solution(range_,unit)
+		hex_ = 0x0e00
+		Rfind = gPGA.Get_Hex2R(0xe00)
+		Hfind = gPGA.Get_R2Hex(Rfind)
+		print "hex_0x%x-->R_%.5f-->hex_0x%x"%(hex_,Rfind,Hfind)
+	print gPGA.find_series(1)
+	print gPGA.find_series(128)
+	print gPGA.find_series(255)
 		
+	for range_,unit in (
+			#((0,5),'Volt'),
+			#((0,10),'Volt'),
+			#((0,15),'Volt'),
+			((0,0.010),'Amp'),
+			((0.004,0.020),'Amp'),
+			):
+		gPGA.find_solution(range_,unit)
+		gPGA.GetCode()
+		hex_ = 0x0e00
+		volt = gPGA.Get_Hex2I(0xe00)
+		Hfind = gPGA.Get_I2Hex(volt)
+		print "hex_0x%x-->U_%.5f-->hex_0x%x"%(hex_,volt,Hfind)
 
+	hex_ = 0x0d00
+	Rpt_last = gPGA.Get_Hex2Rpt(hex_)
+	count = 0
+	for i in range(0,800):
+		hex_ += 1
+		count +=1
+		Rpt = gPGA.Get_Hex2Rpt(hex_)
+		if Rpt - Rpt_last >= 3.98:
+			print u"%d bits/\xb0C"%count
+			break
+		print 'RPT_%.5f : 0x%x'%(Rpt,gPGA.Get_Rpt2Hex(Rpt))
+		Rntc = gPGA.Get_Hex2Rntc(hex_)
+		print 'RNTC_%.5f : 0x%x'%(Rntc,gPGA.Get_Rntc2Hex(Rntc))

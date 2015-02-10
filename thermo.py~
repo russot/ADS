@@ -4,7 +4,7 @@
 import math
 from refer_entry import Refer_Entry
 from thermo_sensor import *
-
+from pga import gPGA
 
 
 
@@ -48,31 +48,13 @@ class Thermo():
 		print u"OK:设置NTC_%s 成功!"%PN
 		return True
 #----------------------------------------------------------------------------------------------------
-#below method based on PT circuit 
-	def GetRpt(self,hex_value):
-		RA2H = 2000.0
-		RA2L = 200.0
-		RA1L = 200.0
-		RRH  = 18000.0
-		RRL  = 200.0
-		Vref = 2.487
-		VADC = 3.263
-		Hex_Max = 4096.0
-		A2_Vout = VADC*hex_value/Hex_Max
-		A1_Vout = A2_Vout*RA2L/(RA2H+RA2L)
-		A1_Vin  = Vref*RRL/(RRH+RRL)
-		AMP1 = A1_Vout/A1_Vin
-		Rpt  = AMP1*RA1L-RA1L
-		print "Rpt current:%5.8f"%(A1_Vout/(Rpt+RA1L))
-		print "A2out:%.5f,A1out:%.5f,A1in:%.5f,Rpt:%.5f"%(A2_Vout,A1_Vout,A1_Vin,Rpt)
-		return Rpt
 
-	def GetTemprature(self,hex_value):
+	def GetTemprature(self,hex_PT):
 		err_msg = u"Error: 无法测温，因为无PT1000电阻，请在NTC数据库中输入PT1000电阻!"
 		if not self.init_ok:
 			print err_msg
 			return None
-		Rpt = self.GetRpt(hex_value)
+		Rpt = gPGA.Get_Hex2Rpt(hex_PT):
 		self.temprature = self.PT.GetT(Rpt)
 
 		print "temprature is %8.2f now"%self.temprature
@@ -80,22 +62,12 @@ class Thermo():
 
 #----------------------------------------------------------------------------------------------------
 #below method based on NTC circuit 
-	def GetRntc(self,hex_value,Amp1):
-		RH = 2000.0
-		Vref = 2.5
-		VADC = 3.3
-		Hex_Max = 4096.0
-		A2_Vout = VADC*hex_value/Hex_Max
-		A1_Vout = A2_Vout
-		A1_Vin  = A1_Vout/Amp1
-	#	A1_Vin  = Vref*Rntc/(Rntc+RH)
-	#	Rntc*A1_Vin +RH*A1_Vin  =Vref*Rntc
-	#	Rntc(A1_Vin-Vref) = -RH*A1_Vin
-		Rntc= RH*A1_Vin/(Vref-A1_Vin)
+	def GetRntc(self,hex_NTC):
+		Rntc= gPGA.Get_Hex2Rntc(hex_NTC)
 		return Rntc
 
 	def Validate(self,hex_NTC,hex_PT):
-		Rntc = self.GetRntc(hex_value=hex_NTC,Amp1=1.2)
+		Rntc = self.GetRntc(hex_value=hex_NTC)
 		temprature = self.GetTemprature(hex_PT)
 		Rref = self.NTC.GetR(temprature)
 		precision = self.NTC.GetPrecision()

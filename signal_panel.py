@@ -56,7 +56,9 @@ class Signal(wx.Dialog):
 		self.Bind(EVT_MY_EVENT, self.OnNewData)
 		self.trig_status = False
 		self.record = Test_Record()
+		#self.NewRecordSN = ''
 		self.status = None
+		self.eut = None
 		self.thermo = Thermo()
 		self.filter_option = True
 
@@ -64,6 +66,7 @@ class Signal(wx.Dialog):
 		if not isinstance(eut,Eut):
 			print "Error: invalid type, should be Eut!"
 			return None
+		self.eut = eut
 		self.record.SetPN(eut.GetPN())
 		self.window.UpdateRecord()
 
@@ -131,7 +134,7 @@ class Signal(wx.Dialog):
 			ymin = self.refer_entries[ 0].GetYvalue()
 			ymax = self.refer_entries[-1].GetYvalue()
 			self.SetMaxValue(xmax,ymax)
-			gPGA.find_solution(range_=(ymin,ymax),unit="Ohm")
+			#gPGA.find_solution(range_=(ymin,ymax),unit="Ohm")
 			for x in self.refer_entries:
 				print "signal refers value X,Y",x.GetXvalue(),x.GetYvalue()
 		else:
@@ -148,6 +151,30 @@ class Signal(wx.Dialog):
 	def GetMaxX(self):
 		return self.xmax
 
+	def SetupHW(self):
+		cmd_map     =   {'Ohm':'R','ohm':'R',
+				'Vol':'U','vol':'U',
+				'Amp':'I','amp':'I',
+				}
+
+		#根据单位设置RUI
+		unit = self.eut.GetYunit()
+		sw_cmd = "adc:swt:%s:"%(cmd_map[unit[:3]])
+		print sw_cmd
+		self.cmd_queue.put(sw_cmd)
+		time.sleep(0.01)
+
+		#根据range_设置PGA
+		range_ = self.eut.GetRange()
+		r_code,a_code =  gPGA.find_solution(range_,unit)
+		pga_cmd = "adc:pga:r:%d:a:%d"%(r_code,a_code)
+		print pga_cmd
+		self.cmd_queue.put(pga_cmd)
+		time.sleep(0.01)
+
+		
+
+
 	def Run(self):
 		if self.started_flag != True:
 			self.thread_source = Data_Source(self,self.url,self.cmd_queue,self.data_queue)
@@ -158,6 +185,10 @@ class Signal(wx.Dialog):
 			open_cmd = "open:%s:%s"%(serial_name,'115200')
 			print open_cmd
 			self.cmd_queue.put(open_cmd)
+			time.sleep(0.01)
+			#set hard ware below
+			self.SetupHW()
+
 		 # flush outdated data
 		while not self.data_queue.empty():
 			self.data_queue.get()
@@ -181,6 +212,14 @@ class Signal(wx.Dialog):
 
 	def Configure(self,command):
 		self.cmd_queue.put(command)
+	
+	def SampleThermo(self):
+		if not self.eut.HasNTC():
+			return
+		thermo_cmd = "adc:temp:\r"
+		print thermo_cmd
+		self.cmd_queue.put(thermo_cmd)
+
 
 	def OnNewData(self, event):
 		if not self.refer_entries:
@@ -197,8 +236,9 @@ class Signal(wx.Dialog):
 				Yvalue = gPGA.find_result4R(Yvalue_)
 				#print "Yvalue of R:",Yvalue
 				length = item["length"]
-				if length > 200:
-					length = 50
+				if length > 100 or item['flag'] == 'step':
+					length = 100
+
 				refer_entry  = self.GetReferEntry(Xvalue,Yvalue)
 				if not refer_entry:
 					return
@@ -229,22 +269,24 @@ class Signal(wx.Dialog):
 				#self.window.DrawData()
 			else:
 				if item.startswith("trigger"):
-					print "signal triggering.........."
+					print "'signal' triggering.........."
 					self.trig_status = True
 					self.Init_Data()
 					self.record.InitRecord()
 					self.window.UpdateRecord()
 					self.window.SetUnknown()
+					NewRecordSN = self.record.AdjustSN(1)
+					self.UploadSN(NewRecordSN) 
+					#收到触发信号，可以采集温度信号了!
+					self.SampleThermo()
 				elif item.startswith("sleep"):
-					print "signal sleeping.........."
+					print "'signal' sleeping.........."
 					if  self.trig_status == True:
 						self.trig_status = False
 						if self.status != False:
 							self.window.SetPass()
 						print "saving.........."
 						self.record.Save2DBZ()
-						SN = self.record.AdjustSN(1)
-						self.UploadSN(SN)
 						print "saving ok.........."
 				elif item.startswith("0t:"):
 					hex_NTC = int(item[3:7],16)
@@ -471,7 +513,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		super(Signal_Panel, self).__init__(parent, id,size=size)
 		#panel 创建
 		self.window = window
-		self.SetupScrolling(scroll_x=True, scroll_y=True, rate_x=20, rate_y=20)
+		self.SetupScrolling(scroll_x=True, scroll_y=False, rate_x=20, rate_y=20)
 		self.SetupScrolling() 
 		if signals:
 			self.SetSignals(signals)
@@ -531,10 +573,10 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		print "raw_code=",raw_code,";modifiers=",modifiers
 
 		if raw_code == 39 or raw_code == 73 :  # <I> or ->  = zoom in 
-			self.screenXsize += 100 
+			self.screenXsize += 20 
 			print "X zoom in"
 		elif raw_code == 37 or raw_code ==79 :# <O> or  <-  = zomm out
-			self.screenXsize -= 100 
+			self.screenXsize -= 20 
 			print "X zoom out"
 		elif raw_code == 3 and modifiers ==2 :# <ctrl>+<Pause>   = run/pause
 			self.OnRunStop(event)
@@ -553,6 +595,10 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.PopupMenu(self.popmenu1, pos)
 
 	def OnRunStop(self, evt):
+		if not self.eut:
+			wx.MessageBox(u"错误：无效的Sensor!\n  请先设置sensor!",
+				style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+
 		if self.running_flag != True:
 			self.running_flag = True
 			print "running..........."
@@ -614,6 +660,8 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.window.UploadSN(SN)
 
 	def SetEut(self,eut):
+		if not isinstance(eut,Eut):
+			return
 		self.eut = eut
 		#self.SetRefer(self.eut.GetReferTable())
 
