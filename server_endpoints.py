@@ -124,7 +124,8 @@ class Serial_Reader(threading.Thread):
 				self.output(raw_bytes)
 
 		except Exception,e:
-			print e
+			pass
+			#print e
 
 #----------------------------------------------------------------------------------------------------
 	def output(self,data):
@@ -258,6 +259,7 @@ class Device_Serial(threading.Thread):
 				print ">>>>>>>>>>>$new cmd: %s"%cmd
 				#print self.serial[_OUT]
 				self.serial[_OUT].write(cmd)
+				time.sleep(0.01)
 
 
 class Motor():
@@ -311,17 +313,13 @@ class Motor():
 #----------------------------------------------------------------------------------------------------
 	def run(self):
 		print "motor running....."
-		self.cmd_queue.put("adc:swt:R")
-		time.sleep(0.01)
-		self.cmd_queue.put("adc:pga:R:64")
-		time.sleep(0.01)
-		self.cmd_queue.put("adc:pga:A:2")
-		time.sleep(0.01)
-		self.cmd_queue.put("adc:cfg:manual:Y")
+		self.cmd_queue.put("adc:cfg:manual:N")
 		time.sleep(0.01)
 		self.cmd_queue.put("adc:cfg:interval:8000")
 		time.sleep(0.01)
 		self.cmd_queue.put("adc:cfg:channel:0")
+		time.sleep(0.01)
+		self.cmd_queue.put("motor:stop:")
 		time.sleep(0.01)
 		self.cmd_queue.put("adc:run:")
 		time.sleep(0.01)
@@ -469,7 +467,8 @@ class Endpoint(threading.Thread):
 			#~ self.StartEndpoint()
 			self.FeedDog()
 		elif command.startswith("adc:"):#
-			pass
+			self.motor.adc(command)
+		elif command.startswith("vout:"):#
 			self.motor.adc(command)
 		else:
 			print "!!!>unkown cmd to ENDPOINT"

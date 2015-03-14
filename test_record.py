@@ -68,7 +68,7 @@ class Test_Record():
 	def __init__(self,PN='',SN='',Record_Table=[[],[]]):
 		create_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
 		self.Record_Table = Record_Table
-		self.result = 'pass'
+		self.result = 'Pass'
 		self.field = {}
 		self.field["PN"] = [PN,(0,0)]
 		self.field["SN"] = [SN,(0,1)]
@@ -78,6 +78,7 @@ class Test_Record():
 		self.field["NTCvalue"] =['',(2,1)]
 		self.field["NTCrefer"] =['',(2,2)]
 		self.field["NTCresult"] =['',(2,3)]
+		self.field["result"] =['',(2,4)]
 		self.field["X_unit"] = ["mm",(REF_ROW-2,0)]
 		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2)]
 		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
@@ -85,13 +86,49 @@ class Test_Record():
 		self.SetPN(PN)
 		self.table_origin_row = 0
 		self.InitRecord()
+		gThermo.SetPT(Demo_PT)
 
+#----------------------------------------------------------------------------------------------------
+	def GetResult4NTC(self):
+		return self.field["NTCresult"][_VALUE]
+
+#----------------------------------------------------------------------------------------------------
+	def GetResult(self):
+		return self.field["result"][_VALUE]
+
+#----------------------------------------------------------------------------------------------------
+	def SetResultPass(self):
+		self.field["result"][_VALUE] = "Pass" 
+		self.result = 'Pass'
+
+#----------------------------------------------------------------------------------------------------
+	def SetResultFail(self):
+		self.field["result"][_VALUE] = "Fail" 
+		self.result = 'Fail'
+
+#----------------------------------------------------------------------------------------------------
+	def GetPN(self):
+		return self.field["PN"][_VALUE] 
 
 #----------------------------------------------------------------------------------------------------
 	def Show(self):
 		out=''
 		out += self.ShowField()
 		out += self.ShowRecord()
+		return out
+
+#----------------------------------------------------------------------------------------------------
+	def GetRecord(self):
+		out=[]
+		try:
+			for table in self.Record_Table:
+				if not table:
+					continue
+				for record_entry in table:
+					record = record_entry.GetRecord()
+					out.append(record)
+		except:
+			pass
 		return out
 
 #----------------------------------------------------------------------------------------------------
@@ -146,7 +183,6 @@ class Test_Record():
 		print "setup PN end...................................................................................................."
 		if gEut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
 			gThermo.SetNTC(gEut.field["thermo_PN"][_VALUE])
-			gThermo.SetPT(Demo_PT)
 
 		self.field["PN"][_VALUE]   = gEut.field["PN"][_VALUE]
 		self.field["model"][_VALUE]   = gEut.field["model"][_VALUE]
@@ -276,12 +312,13 @@ class Test_Record():
 	#					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 	#				return
 	#		break
-		print "obj len ......",len(gZpickle.dumps(self))
+		obj_dbz = gZpickle.dumps(self)
+		print "obj len ......",len(obj_dbz)
 		record_bz = (self.field["PN"][_VALUE],
 				self.field["SN"][_VALUE],
 				self.field["time"][_VALUE],
 				self.result,
-				gZpickle.dumps(self)) 
+				obj_dbz ) 
 		db_cursor.execute("insert into %s values (?,?,?,?,?)"%(self.table_name),record_bz)
 		db_con.commit()
 		db_con.close()
@@ -290,7 +327,7 @@ class Test_Record():
 
 #----------------------------------------------------------------------------------------------------
 	def UpdateTable(self,row=6,col=0,window=None):
-		print "update record table"
+		#print "update record table"
 #		if not  self.field["PN"][_VALUE]:
 #			print "Error:invlid PN!"
 #			return 
@@ -322,11 +359,11 @@ class Test_Record():
 				col_ += 1
 		self.last_row = row + 1
 		self.table_origin_row = row + 1
-		print "last row>>>>>>>>>>>>>",self.last_row
+		#print "last row>>>>>>>>>>>>>",self.last_row
 			
 #----------------------------------------------------------------------------------------------------
 	def UpdateRecord(self,col=0,window=None,tables=[]):
-		print "test_record update record.................."
+		#print "test_record update record.................."
 		for table in tables:
 			if not table:
 				continue
@@ -343,7 +380,7 @@ class Test_Record():
 					continue
 				sheet_len =window.GetNumberRows()  
 				window.SetNumberRows(sheet_len + 2)
-				print "table length  >>>>>> sheet_len@%d"%(sheet_len+2)
+				#print "table length  >>>>>> sheet_len@%d"%(sheet_len+2)
 				self.last_index += 1
 				#print "row,row_,row_index",row,row_,row_index
 				window.SetRowLabelValue(row_,str(self.last_index))
@@ -353,18 +390,19 @@ class Test_Record():
 
 				(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
 				(Xvalue_,Xprecision_,Yvalue_,Yprecision_,Yoffset_,Ymin_,Ymax_)=record.Values()
-				result = ''
-				if (Xprecision_ > Xprecision) :
-					result += u"X轴(位移)超差\n"
-				if (Yprecision_ > Yprecision) :
-					result += u"Y轴(测量值)超差"
-				if not result:
-					result  = u"PASS"
-					color = "green"
-				else:
-					color = "red"
 				#print record.Values()
 				#show refer values
+				color = "light gray"
+				if record.GetLength() == 100:
+					result = ''
+					if (Yprecision_ > Yprecision) :
+						result = u" Y轴(测量值)超差"
+						color = "red"
+					else:
+						result  = u"Y:PASS"
+						color = "green"
+					if (Xprecision_ > Xprecision) :
+						result += u"; X轴(位移)超差\n"
 				col_ = col_start
 				for value in (Xvalue,Xprecision,Yvalue,Yprecision):
 					value_str = str(round(value,6))
@@ -381,7 +419,8 @@ class Test_Record():
 					window.SetReadOnly(row_+1,col_,True)
 					col_ += 1
 				window.SetCellBackgroundColour(row_+1,col_,color)
-				window.SetCellValue(row_+1,col_,result)
+				if record.GetLength() == 100:
+					window.SetCellValue(row_+1,col_,result)
 				window.SetReadOnly(row_+1,col_,True)
 				row_ += 2 # next record_entry
 
@@ -393,18 +432,28 @@ class Test_Record():
 		db_con   =sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor=db_con.cursor()
-		
-		SELECT = "SELECT PN,SN,time FROM %s WHERE time LIKE '%%%s%%' and PN LIKE '%%%s%%'" %( 
-			self.table_name,time_pattern,PN_pattern)
+		if time_pattern.find("Fail") >= 0:
+			time_pattern = time_pattern.strip("Fail")
+			SELECT = "SELECT PN,SN,time,result FROM %s WHERE time LIKE '%%%s%%' and PN LIKE '%%%s%%' and result LIKE '%%Fail%%'" %( 
+				self.table_name,time_pattern,PN_pattern)
+		elif time_pattern.find("Pass") >= 0:
+			time_pattern = time_pattern.strip("Pass")
+			SELECT = "SELECT PN,SN,time,result FROM %s WHERE time LIKE '%%%s%%' and PN LIKE '%%%s%%' and result LIKE '%%Pass%%'" %( 
+				self.table_name,time_pattern,PN_pattern)
+		else:
+			SELECT = "SELECT PN,SN,time,result FROM %s WHERE time LIKE '%%%s%%' and PN LIKE '%%%s%%'" %( 
+				self.table_name,time_pattern,PN_pattern)
+
 		db_cursor.execute(SELECT)
 	
 		entries =db_cursor.fetchall()
 		db_con.close()
 		column_format = (
 				(1,u"序号",50),#column_num,view_text,width
-				(2,u"PN/\n料号",180),
-				(3,u"SN/流水号",120), 
-				(4,u"time/时间",120),) 
+				(2,u"PN/\n料号",150),
+				(3,u"SN/流水号",100), 
+				(4,u"time/时间",100), 
+				(5,u"result/结果",50),) 
 		return (entries,column_format) # fields of each should be matched
 
 

@@ -304,6 +304,7 @@ class Thermo_Sensor():
 
 	#calculate Thermo from Resistor value
 	def GetT(self,Rvalue):
+		tx = 0.001
 		x0 = self.Refer_Table[0]
 		for x1 in self.Refer_Table:
 			#!!!!~~~Xvalue=R, Yvalue=T~~~!!!!!!!

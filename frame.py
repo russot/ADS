@@ -3,22 +3,19 @@
 """Create a Frame instance and display image.""" 
 import sys 
 import wx 
-import os 
-from wx import xrc 
-import urllib
+#import os 
 from signal_control import Signal_Control
-import pickle
 import string 
-import wx.lib.scrolledpanel as scrolledpanel
-import threading 
-from Queue import Queue
-import sqlite3 as sqlite
-import config_db
+#import wx.lib.scrolledpanel as scrolledpanel
+#import threading 
+#from Queue import Queue
+#import sqlite3 as sqlite
+#import config_db
 from time import sleep
 from util import *
 
 import server_endpoints
-
+import wx.animate
 
 
 
@@ -90,6 +87,30 @@ class Frame(wx.Frame):   #3
 
 		self.AddSignals(1)
 		#print "add signal OK"
+		self.Show(True)
+		print "now show logo"	
+		self.ShowLogo()
+
+		self.timer = wx.Timer(self,-1)
+		self.Bind(wx.EVT_TIMER,self.OnTimer,self.timer)
+		self.timer.Start(5000,False)
+
+	def OnTimer(self,event):
+		self.curGif.Stop()
+		self.curGif.Show(False)
+
+	def ShowLogo(self):
+		self.ShowGif('logo.gif')
+
+
+	def ShowGif(self,fpath):
+		mm  = wx.DisplaySize()
+		img = wx.Image(fpath, wx.BITMAP_TYPE_GIF)
+		x0  = (mm[0] - img.GetWidth())/2
+		y0  = (mm[1] - img.GetHeight())/2
+		self.curGif = wx.animate.GIFAnimationCtrl(self,-1,fpath,(x0,y0),(img.GetWidth(), img.GetHeight()))
+		self.curGif.GetPlayer().UseBackgroundColour(True)
+		self.curGif.Play()
 
 	def OnResize(self,evt):
 		self.Relayout()

@@ -24,12 +24,13 @@ import wx.lib.scrolledpanel as scrolledpanel
 import wx.lib.imagebrowser as imagebrowser
 from dialog_query import Dialog_Query
 import wx.lib.newevent
-from signal_panel import Signal_Panel,Signal
-import signal_panel
+#from signal_panel import Signal_Panel,Signal
+#import signal_panel
 
 import server_endpoints
 
-from refer_table import *
+from refer_sheet import Refer_Sheet 
+from refer_table import * 
 from data_source import Data_Source 
 from data_source import MyEvent, EVT_MY_EVENT
 
@@ -43,6 +44,8 @@ class Result_Ctrl(wx.Control):
 		self.timer = wx.Timer(self,-1)
 		self.Bind(wx.EVT_TIMER,self.OnTimer,self.timer)
 		self.timer.Start(1000,False)
+		self.vout = 0.001
+		self.data_rates = 0
 
 	def OnPaint(self,event):
 		self.redraw()
@@ -68,7 +71,7 @@ class Result_Ctrl(wx.Control):
 		font.SetWeight(wx.FONTWEIGHT_BOLD)
 		dc.SetFont(font)
 		dc.DrawText(result_str,0,0)
-		#now,show time 
+		#now,show Time & Vout
 		font.SetPointSize(12)
 		font.SetWeight(wx.FONTWEIGHT_BOLD)
 		dc.SetFont(font)
@@ -77,6 +80,11 @@ class Result_Ctrl(wx.Control):
 		dc.DrawText(time_str,0,42)
 		time_str = time.strftime('%H:%M:%S',time.localtime(time.time()))
 		dc.DrawText(time_str,0,62)
+		data_rates_str = '%d pts./sec.'%self.data_rates
+		dc.DrawText(data_rates_str,0,82)
+		dc.SetTextForeground(wx.Colour(200,90,200,200))
+		vout_str = 'Vout:%02.3fV'%self.vout
+		dc.DrawText(vout_str,0,102)
 		
 	def SetUnknown(self):
 		self.ok_status = None
@@ -86,6 +94,12 @@ class Result_Ctrl(wx.Control):
 
 	def SetFail(self):
 		self.ok_status = False
+
+	def SetVout(self,vout):
+		self.vout = vout
+
+	def SetDataRates(self,data_rates):
+		self.data_rates = data_rates
 
 
 ############################################################################################################################################
@@ -176,9 +190,9 @@ class Signal_Control(wx.Panel):   #3
 		self.text_name.SetBackgroundColour( self.GetBackgroundColour())
 		self.text_name.SetForegroundColour("purple")
 		self.text_serial = wx.TextCtrl(self,-1,eut_serial,style=(wx.TE_READONLY))
-		self.text_thermo = wx.TextCtrl(self,-1,"eut_name1",style=(wx.TE_READONLY))
-		self.text_NTC_ref= wx.TextCtrl(self,-1,"NTC5000_B3950",style=(wx.TE_READONLY))
-		self.text_NTC_measured = wx.TextCtrl(self,-1,"50",style=(wx.TE_READONLY))
+		self.text_thermo = wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
+		self.text_NTC_ref= wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
+		self.text_NTC_measured = wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
 
 		self.sizer_info = wx.BoxSizer(wx.VERTICAL)
 		for label_name,txt in ((u"型号/PN",self.text_name),
@@ -193,9 +207,9 @@ class Signal_Control(wx.Panel):   #3
 			self.sizer_info.Add(txt,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 			self.sizer_info.Add((100,20))
 
-		self.sizer_info.Add((100,200))
+		self.sizer_info.Add((100,180))
 		self.result = Result_Ctrl(parent=self,id=-1)
-		self.sizer_info.Add(self.result,3,wx.EXPAND|wx.LEFT|wx.RIGHT)
+		self.sizer_info.Add(self.result,10,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		
 		self.SetSizer(self.topsizer)
@@ -221,7 +235,7 @@ class Signal_Control(wx.Panel):   #3
 		#self.Bind(EVT_MY_EVENT, self.OnNewData)
 
 	
-		self.SetThermo(20.0)
+		#self.SetThermo(20.0)
 
 		self.count =0
 
@@ -242,11 +256,13 @@ class Signal_Control(wx.Panel):   #3
 			pass
 
 	def UpdateRecord(self):
-		self.info_sheet.UpdateCell()
+		record = self.signal_panel.GetRecord()
+		record.InitTable()
+		self.info_sheet.SetEut(record)
 		return
 
 	def UpdateRecordOnce(self):
-		self.info_sheet.UpdateRecord()
+		self.info_sheet.UpdateRecordOnce()
 		return
 
 	def SetUnknown(self):
@@ -450,12 +466,22 @@ class Signal_Control(wx.Panel):   #3
 
 	def SetSN(self,SN):
 		self.text_serial.SetValue(SN)
+		self.info_sheet.UpdateCell()
 
 	def SetThermo(self,thermo):
 		self.text_thermo.SetValue(str(float(thermo)))
 
 	def SetThermoValue(self,value):
 		self.text_NTC_measured.SetValue(value)
+					
+	def ShowVout(self,Vout):
+		self.result.SetVout(Vout)
+		self.result.Refresh(True)
+		#print "show vout%.3f"%Vout
+
+	def ShowDataRates(self,data_rates):
+		self.result.SetDataRates(data_rates)
+		self.result.Refresh(True)
 
 	def SetThermoRefer(self,refer):
 		self.text_NTC_ref.SetValue(refer)

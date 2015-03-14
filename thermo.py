@@ -57,7 +57,7 @@ class Thermo():
 		Rpt = gPGA.Get_Hex2Rpt(hex_PT)
 		self.temprature = self.PT.GetT(Rpt)
 
-		print "temprature is %8.2f now"%self.temprature
+		#print "temprature is %.3f now"%self.temprature
 		return self.temprature
 
 #----------------------------------------------------------------------------------------------------
@@ -67,16 +67,18 @@ class Thermo():
 		return Rntc
 
 	def Validate(self,hex_NTC,hex_PT):
-		Rntc = self.GetRntc(hex_value=hex_NTC)
+		Rntc = gPGA.Get_Hex2Rntc(hex_NTC)
 		temprature = self.GetTemprature(hex_PT)
 		Rref = self.NTC.GetR(temprature)
-		precision = self.NTC.GetPrecision()
+		precision =float( self.NTC.GetPrecision())
 		offset = abs(Rntc-Rref)/Rref
-		if offset > precision:
+		if offset > precision :
 			result = False
 		else:
 			result = True
-		print precision,offset,"pre & real"
+		print "precision refer & real:",precision,'\t',offset,result
+		print "Rntc & Rref:",Rntc,'\t',Rref
+		print "hex_NTC & hex_PT:",hex_NTC,'\t',hex_PT
 		return (result,temprature,Rntc,Rref)
 	
 ############################################################################################################################################

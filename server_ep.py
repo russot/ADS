@@ -19,7 +19,7 @@ import eut
 import refer_entry 
 import usb.core
 import usb.util
-from server_endpoints import Server_Endpoints
+from server_endpoints_new import Server_Endpoints
 
 PORT=8088
 IP_ADDRESS = '127.0.0.1'

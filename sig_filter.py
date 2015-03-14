@@ -20,9 +20,9 @@ import struct
 
 ############################################################################################################################################
 class Grouping_Filter(threading.Thread):
-	x10_magic = 0x10000# 0x1000, means data x10 in mcu
+	x10_magic = 0x8000# 0x8000, means data x10 in mcu
 	A1_to_A2 = 10.0
-	sleep_trig_level = 4000
+	sleep_trig_level = 8000
 	step_trig_level = 20
 	new_value = 0.03
 	err= -999999
@@ -86,33 +86,32 @@ class Grouping_Filter(threading.Thread):
 
 	def grouping_data(self):
 		while not self.queue_data_in.empty():
-			Xvalue,Yvalue,Data_len = self.queue_data_in.get() 
-			#print  Xvalue,Yvalue,Data_len
+			newX,newY_,Data_len = self.queue_data_in.get() 
+			#print  newX,newY_,Data_len
 			self.data_count += Data_len 
-			if Yvalue == 0:# avoid error of devide_by_zero
+			if newY_ == 0:# avoid error of devide_by_zero
 				continue
-			if float(Yvalue) >= float(self.x10_magic) :
-				data_new = (float(Yvalue)-float(self.x10_magic) )/self.A1_to_A2
+			if newY_ > self.x10_magic :
+				newY = (float(newY_)-float(self.x10_magic) )/self.A1_to_A2
 			else:
-				data_new = float(Yvalue)
-			if len(self.buffer_group) != 0:
+				newY = float(newY_)
+			if len(self.buffer_group) == 0:
+				self.buffer_group.append( {"length":int(Data_len),"value":(newX,newY),"flag":"new"} )
+			else:
 				#!!!!input data must be (pos_,value) tuple or list
 				delta_time = time.time()- self.last_time
 				if delta_time >= 3:
-					print " data rates: %d/sec"%(self.data_count/delta_time)
+					#print " data rates: %d/sec"%(self.data_count/delta_time)
 					self.last_time = time.time()
 					self.data_count = 0
 
-				#print Xvalue,Yvalue
-				data_last=self.buffer_group[-1]["value"][-1]
-				diff_ =   (data_last-data_new)/data_last  
+				#print newX,newY_
+				lastY=self.buffer_group[-1]["value"][-1]
+				diff_ =   (lastY-newY)/lastY  
 				if  abs(diff_) > self.new_value:
-					self.buffer_group.append( {"length":int(Data_len),"value":(Xvalue,data_new),"flag":"new"} )
+					self.buffer_group.append( {"length":int(Data_len),"value":(newX,newY),"flag":"new"} )
 				else:
 					self.buffer_group[-1]["length"] += Data_len
-
-			else:
-				self.buffer_group.append( {"length":int(Data_len),"value":(Xvalue,data_new),"flag":"new"} )
 			# update flags upon each data_points
 			self.update_filter()
 
@@ -156,7 +155,7 @@ class Grouping_Filter(threading.Thread):
 		 
 		 	if self.trigger_flag == True:
 		 		for item in self.buffer_group[last_step:-1]:
-		 			print item
+		 			#print item
 		 			self.queue_out.put(item)
 
 		#print self.buffer_group[-1]["flag"],'\t',len(self.buffer_group),'\t',self.step_count

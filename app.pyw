@@ -19,6 +19,7 @@ class MyApp(wx.App):
 #		image = wx.Image('background_1024_768.jpg', wx.BITMAP_TYPE_JPEG)   
 		self.frame = Frame(parent=None, id=-1, title='VR auto system' )
 		self.frame.Show() 
+		#threading.Timer(1,self.frame.ShowLogo).start()
 		print "App Init...\n"
 		return True 
 

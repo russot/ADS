@@ -1,0 +1,219 @@
+001:1.00000 1.00000	339999999999999996123846586046231871488.00000
+RA= None
+Rmin:5.544
+Rmin_r:5.600
+Rmax:192.506
+Rref:50.000
+Rcon:0.050
+Vref:3.187
+Vadc:3.187
+Vresolv:0.000778
+sol len 49152
+1 gain--r None
+range 		5.600~190.600	found with delta 0.00276
+ADC input	 0.306-2.502,gain 1.0000
+RR=2.73774@0	
+RR= [(15, 18000.0), (14, 47000.0), (13, 94000.0), (12, 99999999999.0), (11, 7800.0), (10, 3900.0), (9, 3300.0), (8, 2000.0), (7, 200.0), (6, 300.0), (5, 511.0), (4, 1200.0), (3, 100.0), (2, 22.0), (1, 10.0), (0, 5.0)]
+RA1= []
+Rr code: 0xffff 	 Ra code: 0x0
+hex_0xe00-->R_369.11415-->hex_0xe00
+Rmin:148.500
+Rmin_r:150.000
+Rmax:7948.700
+Rref:50.000
+Rcon:0.050
+Vref:3.187
+Vadc:3.187
+Vresolv:0.000778
+sol len 65416
+1 gain--r None
+range 		150.000~7870.000	found with delta 0.00340
+ADC input	 0.383-2.803,gain 1.0000
+RR=1038.27886@65304	
+RR= [(14, 47000.0), (13, 94000.0), (12, 99999999999.0), (11, 7800.0), (9, 3300.0), (8, 2000.0)]
+RA1= []
+Rr code: 0x7b00 	 Ra code: 0x0
+hex_0xe00-->R_7617.90199-->hex_0xe00
+Rmin:198.000
+Rmin_r:200.000
+Rmax:20200.000
+Rref:50.000
+Rcon:0.050
+Vref:3.187
+Vadc:3.187
+Vresolv:0.000778
+sol len 65460
+1 gain--r None
+range 		200.000~20000.000	found with delta 0.00263
+ADC input	 0.286-2.899,gain 1.0000
+RR=1958.38126@65438	
+RR= [(13, 94000.0), (12, 99999999999.0), (8, 2000.0)]
+RA1= []
+Rr code: 0x3100 	 Ra code: 0x0
+hex_0xe00-->R_14058.61879-->hex_0xe00
+Rmin:297.000
+Rmin_r:300.000
+Rmax:30300.000
+Rref:50.000
+Rcon:0.050
+Vref:3.187
+Vadc:3.187
+Vresolv:0.000778
+sol len 65496
+1 gain--r None
+range 		300.000~30000.000	found with delta 0.00261
+ADC input	 0.284-2.897,gain 1.0000
+RR=2985.60413@65482	
+RR= [(14, 47000.0), (13, 94000.0), (12, 99999999999.0), (9, 3300.0)]
+RA1= []
+Rr code: 0x7200 	 Ra code: 0x0
+hex_0xe00-->R_21249.17891-->hex_0xe00
+Rmin:495.000
+Rmin_r:500.000
+Rmax:20200.000
+Rref:50.000
+Rcon:0.050
+Vref:3.187
+Vadc:3.187
+Vresolv:0.000778
+sol len 65512
+1 gain--r None
+range 		500.000~20000.000	found with delta 0.00377
+ADC input	 0.433-2.757,gain 1.0000
+RR=3099.80764@65489	
+RR= [(15, 18000.0), (13, 94000.0), (10, 3900.0)]
+RA1= []
+Rr code: 0xa400 	 Ra code: 0x0
+hex_0xe00-->R_22048.60351-->hex_0xe00
+Rmin:990.000
+Rmin_r:1000.000
+Rmax:101000.000
+Rref:50.000
+Rcon:0.050
+Vref:3.187
+Vadc:3.187
+Vresolv:0.000778
+sol len 8178
+1 gain--r None
+range 		1000.000~100000.000	found with delta 0.00235
+ADC input	 0.253-2.862,gain 1.0000
+RR=11432.45499@65520	
+RR= [(15, 18000.0), (14, 47000.0), (13, 94000.0), (12, 99999999999.0)]
+RA1= []
+Rr code: 0xf000 	 Ra code: 0x0
+hex_0xe00-->R_80377.13495-->hex_0xe00
+Rmin:1980.000
+Rmin_r:2000.000
+Rmax:202000.000
+Rref:50.000
+Rcon:0.050
+Vref:3.187
+Vadc:3.187
+Vresolv:0.000778
+sol len 2896
+1 gain--r None
+range 		2000.000~200000.000	found with delta 0.00286
+ADC input	 0.315-2.926,gain 1.0000
+RR=18000.05000@65527	
+RR= [(15, 18000.0)]
+RA1= []
+Rr code: 0x8000 	 Ra code: 0x0
+hex_0xe00-->R_126350.30000-->hex_0xe00
+range 		0.000~5.000	found with delta 0.00000
+ADC input	 0.001-3.056,gain 1.0000
+RR=7202.40049@65517	
+RR= [(13, 94000.0), (11, 7800.0)]
+RA1= []
+Rr code: 0x2800 	 Ra code: 0x0
+hex_0xe00-->R_50766.75342-->hex_0xe00
+range 		0.000~10.000	found with delta 0.00000
+ADC input	 0.001-3.072,gain 1.0000
+RR=2054.29325@65447	
+RR= [(15, 18000.0), (11, 7800.0), (9, 3300.0)]
+RA1= []
+Rr code: 0x8a00 	 Ra code: 0x0
+hex_0xe00-->R_14730.00273-->hex_0xe00
+range 		0.000~15.000	found with delta 0.00000
+ADC input	 0.001-3.082,gain 1.0000
+RR=1200.15394@65357	
+RR= [(15, 18000.0), (14, 47000.0), (10, 3900.0), (8, 2000.0)]
+RA1= []
+Rr code: 0xc500 	 Ra code: 0x0
+hex_0xe00-->R_8751.02758-->hex_0xdff
+range 		0.000~0.010	found with delta 0.00000
+ADC input	 0.001-3.083,gain 1.0000
+RR=305.17208@64679	
+RR= [(15, 18000.0), (11, 7800.0), (9, 3300.0), (5, 511.0), (4, 1200.0)]
+RA1= []
+Rr code: 0x8a30 	 Ra code: 0x0
+hex_0xe00-->R_2486.15457-->hex_0xe00
+range 		0.004~0.020	found with delta 0.00000
+ADC input	 0.001-3.091,gain 1.0000
+RR=152.97367@63279	
+RR= [(15, 18000.0), (14, 47000.0), (11, 7800.0), (8, 2000.0), (7, 200.0), (4, 1200.0)]
+RA1= []
+Rr code: 0xc990 	 Ra code: 0x0
+hex_0xe00-->R_1420.76569-->hex_0xe00
+Rmin:4950.000
+Rmin_r:5000.000
+Rmax:505000.000
+Rref:50.000
+Rcon:0.050
+Vref:3.187
+Vadc:3.187
+Vresolv:0.000778
+sol len 648
+1 gain--r None
+range 		5000.000~500000.000	found with delta 0.00277
+ADC input	 0.303-2.915,gain 1.0000
+RR=47000.05000@65531	
+RR= [(14, 47000.0)]
+RA1= []
+Rr code: 0x4000 	 Ra code: 0x0
+hex_0xe00-->R_329350.30000-->hex_0xe00
+[0]
+[7]
+[7, 6, 5, 4, 3, 2, 1, 0]
+range 		0.000~0.010	found with delta 0.00000
+ADC input	 0.001-3.083,gain 1.0000
+RR=305.17208@64679	
+RR= [(15, 18000.0), (11, 7800.0), (9, 3300.0), (5, 511.0), (4, 1200.0)]
+RA1= []
+Rr code: 0x8a30 	 Ra code: 0x0
+Rr code: 0x8a30 	 Ra code: 0x0
+hex_0xe00-->U_0.00914-->hex_0xe00
+range 		0.004~0.020	found with delta 0.00000
+ADC input	 0.001-3.091,gain 1.0000
+RR=152.97367@63279	
+RR= [(15, 18000.0), (14, 47000.0), (11, 7800.0), (8, 2000.0), (7, 200.0), (4, 1200.0)]
+RA1= []
+Rr code: 0xc990 	 Ra code: 0x0
+Rr code: 0xc990 	 Ra code: 0x0
+hex_0xe00-->U_0.01822-->hex_0xdff
+RPT_963.26780 : 0xd01
+RNTC_16927.11864 : 0xd01
+RPT_963.57265 : 0xd02
+RNTC_16954.30809 : 0xd02
+RPT_963.87750 : 0xd02
+RNTC_16981.56863 : 0xd03
+RPT_964.18237 : 0xd04
+RNTC_17008.90052 : 0xd04
+RPT_964.48724 : 0xd05
+RNTC_17036.30406 : 0xd05
+RPT_964.79213 : 0xd06
+RNTC_17063.77953 : 0xd06
+RPT_965.09702 : 0xd06
+RNTC_17091.32720 : 0xd06
+RPT_965.40193 : 0xd08
+RNTC_17118.94737 : 0xd08
+RPT_965.70684 : 0xd08
+RNTC_17146.64032 : 0xd09
+RPT_966.01177 : 0xd09
+RNTC_17174.40633 : 0xd0a
+RPT_966.31670 : 0xd0b
+RNTC_17202.24571 : 0xd0b
+RPT_966.62165 : 0xd0c
+RNTC_17230.15873 : 0xd0c
+RPT_966.92660 : 0xd0c
+RNTC_17258.14570 : 0xd0d
+14 bits/C

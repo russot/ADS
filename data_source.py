@@ -62,9 +62,10 @@ class Endpoint():
 
 ############################################################################################################################################
 class Data_Source(threading.Thread,wx.Object):
-	x10_magic = 65536
+	x10_magic = 0x8000
 	A1_to_A2  = 10.0
-	new_trigger = abs(0.02)
+	new_trigger = abs(0.03)
+	step_trig = 20
 	def __init__(self,window=None,url='',queue_in=None,queue_out_=None):
 		threading.Thread.__init__(self)
 		self.window = window
@@ -86,10 +87,13 @@ class Data_Source(threading.Thread,wx.Object):
 
 		self.signal_filter = sig_filter.Grouping_Filter(self.Q4filter_cmd_in,self.Q4filter_cmd_out,self.Q4filter_data_in,self.Q4filter_data_out)
 		#self.signal_filter.start()
-		self.signals = []
-		self.buffer_group=[]
-		self.last_time = time.time()
-		self.data_count = 0
+		self.signals     = []
+		self.buffer_group= []
+		self.last_time   = time.time()
+		self.data_count  = 0
+		self.data_len_    = 0
+		self.triggered = False
+
 	def write(self,TE):
 		pass
 
@@ -156,30 +160,37 @@ class Data_Source(threading.Thread,wx.Object):
 	def group_data(self):
 		while not self.Q4filter_data_in.empty():
 			#!!!!input data must be (pos_,value) tuple or list
-			newX,newY__ = self.Q4filter_data_in.get() 
+			newX,newY__,length = self.Q4filter_data_in.get() 
 			#print newX,newY__
 			if newY__ == 0:# avoid error of devide_by_zero
-				newY__ = 0.01
-			if float(newY__) >= float(self.x10_magic) :
+				continue
+			if newY__ > self.x10_magic:
 				newY= (float(newY__)-float(self.x10_magic) )/self.A1_to_A2
 			else:
 				newY= float(newY__)
-			if not self.buffer_group:
-				self.buffer_group.append( {"length":int(1),"value":(newX,newY),"flag":"new"} )
+			if len(self.buffer_group) == 0:
+				self.buffer_group.append( {"length":int(length),"value":(newX,newY),"flag":"new"} )
 			else:
 				lastY=self.buffer_group[-1]["value"][_Y]
 				diff =  abs( (lastY-newY)/lastY)
-				if diff > 2.0:
-					continue
 				if  diff > self.new_trigger:
 					#self.new_flag =  True
 					self.Q4filter_data_out.put(self.buffer_group[-1])
-					self.buffer_group.append( {"length":int(1),"value":(newX,newY),"flag":"new"} )
+					self.buffer_group.append( {"length":int(length),"value":(newX,newY),"flag":"new"} )
 				else:
-					self.buffer_group[-1]["length"] += 1
-			if len(self.buffer_group) %50 == 0:#update 4000/screen
-				self.Q4filter_data_out.put(str("sleep"))
+					self.buffer_group[-1]["length"] += length
+			if self.buffer_group[-1]["length"] > self.step_trig:
+				self.buffer_group[-1]["flag"] = "step" 
+
+			self.data_len_ += length
+			#print "dat_len_:%d"%self.data_len_
+			if self.data_len_ > 100 and self.triggered == False:
 				self.Q4filter_data_out.put(str("trigger"))
+				self.triggered = True
+			if self.data_len_ > 8000:#update 4000/screen
+				self.data_len_ = 0
+				self.triggered = False
+				self.Q4filter_data_out.put(str("sleep"))
 				del self.buffer_group
 				self.buffer_group = []
 
@@ -197,13 +208,9 @@ class Data_Source(threading.Thread,wx.Object):
 			raw_data = ''.join(self.buffer_recv)
 			if raw_data.startswith("0t:"):
 				self.queue_out.put(raw_data)
+			elif raw_data.startswith("0v:"):
+				self.Q4filter_data_out.put(raw_data)
 			elif raw_data.startswith("0x:"):
-				self.data_count += 1
-				now = time.time()
-				if now - self.last_time >= 3:
-					print "soure data rates: %d/sec"%(self.data_count*5)
-					self.data_count = 0
-					self.last_time = now
 				#print "data source raw_data: %s\n"%raw_data[0:123]
 				data_str = raw_data[3:123]
 				#print "data source raw_data: %s\n"%data_str
@@ -218,12 +225,20 @@ class Data_Source(threading.Thread,wx.Object):
 						data_x = int(str4X,16)
 						data_y = int(str4Y,16)
 						data_len = int(str4len,16)
+						self.data_count += data_len 
 						#print "%s %s %s >>>>>>\t\t%d\t%d\t%d "%(str4X,str4Y,str4len,data_x,data_y,data_len)
 						#self.signal_filter.append_to_ibuffer((data_x,data_y))
 						self.Q4filter_data_in.put((data_x,float(data_y),data_len))
 					#filter data now 
 				except:
 					pass
+				now = time.time()
+				if now - self.last_time >= 3:
+					#print "soure data rates: %d/sec"%(self.data_count*5)
+					self.window.SetDataRates(self.data_count/(now - self.last_time))
+					self.data_count = 0
+					self.last_time = now
+
 				if self.filter_option == True:
 					self.signal_filter.filter_data()
 				else:
@@ -264,7 +279,7 @@ if __name__=='__main__':
 			queue_out_= queue_data_out)
 
 	dsource.filter_option = False
-	dsource.new_trigger = 0.05
+	dsource.new_trigger = 0.03
 	dsource.start()
 	time.sleep(0.5)
 	queue_cmd_in.put("open:usb1:38400\n")

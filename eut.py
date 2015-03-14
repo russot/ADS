@@ -32,10 +32,36 @@ class Eut():
 		self.field["model"]=[model,(0,2)]
 		self.field["thermo_PN"] = [thermo_PN,(2,0)]
 		self.field["signal_num"] =[ 2,(2,1)]
+		self.field["head_length"] =[ 32,(2,2)]
+		self.field["total_length"] =[ 532,(2,3)]
 		self.field["X_unit"] = ["mm",(REF_ROW-2,0)]
 		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2)]
 		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
 		self.Refer_Table = Refer_Table
+
+	def GetTotalLength(self):
+		value =  self.field["total_length"][_VALUE]
+		return float(value)
+
+	def GetHeadLength(self):
+		value =  self.field["head_length"][_VALUE]
+		return float(value)
+
+	def GetXlength(self):
+		x0_ = float(self.Refer_Table[0][ 0].GetXvalue())
+		xn_ = float(self.Refer_Table[0][-1].GetXvalue())
+		xmax = xn_
+		if x0_ > xn_:
+			xmax = x0_
+		return xmax
+
+	def GetXrange(self):
+		head_length  = self.GetHeadLength()
+		Xlength      = self.GetXlength()
+		total_length = self.GetTotalLength()
+		XHigh = total_length - Xlength + head_length
+		XLow  = total_length 
+		return (int(XHigh),int(XLow))
 
 	def GetPN(self):
 		return self.field["PN"][_VALUE]
@@ -168,6 +194,10 @@ class Eut():
 				continue
 			table.sort(key=lambda x:x.GetYvalue())
 		db_con.close()
+		try:
+			print "X range:",self.GetXrange()
+		except:
+			pass
 		#print "field after restore from DB",self.field
 
 	def Save2DBZ(self):
@@ -341,6 +371,7 @@ class Eut():
 
 
 	def ShowRefer(self):
+		
 		try:
 			out = ''
 			for table in self.Refer_Table:
