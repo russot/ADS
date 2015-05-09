@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-#!python
 import glob
 import string
 

@@ -1,5 +1,4 @@
 #-*- coding: utf-8 -*-
-#!python
 """Signal UI component .""" 
 import sys 
 import wx 
@@ -12,8 +11,6 @@ from socket import *
 import const
 from Queue import Queue
 import math
-from data_point import Data_Point,Data_Real,Data_Validated
-from data_validator import Data_Validator_Linear
 
 import wx.lib.agw.balloontip as btip
 import struct 
@@ -22,10 +19,7 @@ import config_db
 import sqlite3 as sqlite
 import wx.lib.scrolledpanel as scrolledpanel
 import wx.lib.imagebrowser as imagebrowser
-from dialog_query import Dialog_Query
 import wx.lib.newevent
-#from signal_panel import Signal_Panel,Signal
-#import signal_panel
 
 import server_endpoints
 
@@ -33,16 +27,19 @@ from refer_sheet import Refer_Sheet
 from refer_table import * 
 from data_source import Data_Source 
 from data_source import MyEvent, EVT_MY_EVENT
+import util
 
 
 class Result_Ctrl(wx.Control):
-	def __init__(self,parent=None,id=-1,size=(400,400),image_fn=None):
+	def __init__(self,parent=None,id=-1,size=(100,100),image_fn=None):
 		super(Result_Ctrl, self).__init__(parent, id,size=size,style=wx.NO_BORDER)
 		self.back_color = parent.GetBackgroundColour()
 		self.Bind(wx.EVT_PAINT, self.OnPaint)
-		self.ok_status = True
+		self.ok_status = None
+		#self.ok_status = True
 		self.timer = wx.Timer(self,-1)
 		self.Bind(wx.EVT_TIMER,self.OnTimer,self.timer)
+		self.Bind(wx.EVT_LEFT_DCLICK,self.OnToggle)
 		self.timer.Start(1000,False)
 		self.vout = 0.001
 		self.data_rates = 0
@@ -53,38 +50,47 @@ class Result_Ctrl(wx.Control):
 	def OnTimer(self,event):
 		self.Refresh(True)
 	
+	def OnToggle(self,event):
+		if self.ok_status == True:
+			self.ok_status = False
+		elif self.ok_status == False:
+			self.ok_status = None 
+		elif self.ok_status == None:
+			self.ok_status = True 
+		self.Refresh(True)
+	
 	def redraw(self):
 		dc = wx.PaintDC(self)
 		brush = wx.Brush(self.back_color)
 		dc.SetBackground(brush)
 		if self.ok_status == True:
-			result_str = "PASS"
+			result_str = u"PASS"
 			dc.SetTextForeground(wx.Colour(0,200,0,200))
 		elif self.ok_status == False:
-			result_str= "FAIL"
+			result_str= u" N G "
 			dc.SetTextForeground(wx.Colour(255,0,0,200))
 		else:
-			result_str= "......"
-			dc.SetTextForeground(wx.Colour(255,255,0,200))
+			result_str= u"□□□□"
+			dc.SetTextForeground(wx.Colour(0,0,200,200))
 		font =self.GetFont()
-		font.SetPointSize(30)
+		font.SetPointSize(35)
 		font.SetWeight(wx.FONTWEIGHT_BOLD)
 		dc.SetFont(font)
-		dc.DrawText(result_str,0,0)
+		dc.DrawText(result_str,0,-5)
 		#now,show Time & Vout
-		font.SetPointSize(12)
+		font.SetPointSize(13)
 		font.SetWeight(wx.FONTWEIGHT_BOLD)
 		dc.SetFont(font)
 		dc.SetTextForeground(wx.Colour(20,90,90,200))
 		time_str = time.strftime('%Y-%m-%d',time.localtime(time.time()))
-		dc.DrawText(time_str,0,42)
+		dc.DrawText(time_str,0,45)
 		time_str = time.strftime('%H:%M:%S',time.localtime(time.time()))
-		dc.DrawText(time_str,0,62)
+		dc.DrawText(time_str,0,65)
 		data_rates_str = '%d pts./sec.'%self.data_rates
-		dc.DrawText(data_rates_str,0,82)
+		dc.DrawText(data_rates_str,0,85)
 		dc.SetTextForeground(wx.Colour(200,90,200,200))
 		vout_str = 'Vout:%02.3fV'%self.vout
-		dc.DrawText(vout_str,0,102)
+		dc.DrawText(vout_str,0,105)
 		
 	def SetUnknown(self):
 		self.ok_status = None
@@ -112,52 +118,35 @@ class Signal_Control(wx.Panel):   #3
 		super(Signal_Control, self).__init__(parent=parent, id=id,size=size)
 		#panel 创建
 		self.eut_serial = eut_serial #persist~~~~~~~~~~~~~~~~~~
+		self.parent = parent
 		self.url_name = url
 		self.mincircle = 0
 		self.data_count = 0
-
-		#~ self.tip =btip.BalloonTip(message=u"双右击->>Setup Dialog\n双左击->>run/pause\n")
-		#~ self.tip.SetStartDelay(1000)
-		#~ self.tip.SetTarget(self)
-		
-		#os.system("server_ep.py")
-
-		#print "sig ctrl init1"
-		#self.queue_cmd =  Queue(-1) # 创建一个无限长队列,用于输入命令
-		#self.queue_data=  Queue(-1)# 创建一个无限长队列,用于输出结果
-		#self.thread_source = Data_Source(self,self.url_name,self.queue_cmd,self.queue_data)
-		self.started_flag = False
-		self.running_flag = False
 		self.move_flag = False
 		self.acc_flag = False
-		self.response = ""
-		self.cmd_line = ""
 
-
-		# 创建字体改善UI
-		font = self.GetFont()
-		font.SetPointSize(13)
 		
-		#print "sig ctrl init2"
-		self.topsizer = wx.BoxSizer(wx.HORIZONTAL)
-
+		Dx,Dy = wx.DisplaySize()
 		# 创建主分割窗
-		self.sp_window = wx.SplitterWindow(self)
-		self.sp_window.SetMinimumPaneSize(1)  
+		self.sizer_info = wx.BoxSizer(wx.VERTICAL)
+		#self.sp_window = wx.SplitterWindow(parent=self,size=(Dx-130,Dy-20))
 		#创建上分割窗
-		self.data_window = wx.SplitterWindow(self.sp_window)#创建一个分割窗
-		self.data_window.SetMinimumPaneSize(1)  #创建一个分割窗
-		#创建debug窗口栏
-		self.debug_window  = wx.ScrolledWindow(self.sp_window)
-		#self.debug_window.SetScrollbars(1,1,100,100)
-		self.sizer_debug  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
+		self.sp_window = wx.SplitterWindow(parent=self,size=(Dx-130,Dy-20),style=wx.wx.SP_LIVE_UPDATE)
+		self.data_window = wx.SplitterWindow(parent=self.sp_window,style=wx.SP_LIVE_UPDATE)
+		self.data_window.SetMinimumPaneSize(1)
+		self.sp_window.SetMinimumPaneSize(1)
+		self.debug_window  = wx.ScrolledWindow(self.sp_window) #创建debug窗口栏
+		self.debug_window.SetScrollbars(1,1,100,100)
+		self.sizer_debug  = wx.BoxSizer(wx.VERTICAL)
 		self.debug_window.SetSizer(self.sizer_debug)
 		self.debug_out   = wx.TextCtrl(self.debug_window,-1,style=(wx.TE_MULTILINE|wx.TE_RICH2|wx.HSCROLL) )
+		self.debug_out.SetEditable(False)
 		self.sizer_debug.Add(self.debug_out,1,wx.EXPAND|wx.ALL)
 
 		#指定 DEBUG 窗口
-		sys.stdout = self.debug_out
-		sys.stderr = self.debug_out
+		#sys.stdout = self.debug_out
+		#sys.stderr = self.debug_out
+		print "\nsignal window size: ",size
 		#创建信息栏
 		#print "sig ctrl init3"
 		self.info_lane  = wx.ScrolledWindow(self.data_window,-1)
@@ -165,83 +154,130 @@ class Signal_Control(wx.Panel):   #3
 		self.sizer_sheet  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.info_lane.SetSizer(self.sizer_sheet)
 		self.info_sheet   = Refer_Sheet(self.info_lane,None)
+		self.info_sheet.AutoSizeColumns(True)
 		self.sizer_sheet.Add(self.info_sheet,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 		
 	
 		#创建信号栏
+		font = self.GetFont()
+		font.SetPointSize(11)
+		self.text_name = wx.TextCtrl(self,-1,eut_name,style=(wx.TE_READONLY))
+		self.text_serial = wx.TextCtrl(self,-1,eut_serial,style=(wx.TE_READONLY))
+		self.text_thermo = wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
+		self.text_NTC_ref= wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
+		self.text_NTC_measured = wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
+		self.labels= []
+		for label_name,txt in ((u"料号/PN",self.text_name),
+				(u"编号/SN",self.text_serial),
+				(u"温度/TEMP",self.text_thermo),
+				(u"热敏电阻参考\nNTC refer value",self.text_NTC_ref),
+				(u"热敏电阻实测\nNTC measured",self.text_NTC_measured),):
+			label=wx.StaticText(self,-1,label_name)
+			self.labels.append(label)
+			label.SetFont(font)
+			txt.SetFont(font)
+			self.sizer_info.Add(label)
+			self.sizer_info.Add(txt,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
+			self.sizer_info.Add((10,20))
 		self.signal_window  = wx.ScrolledWindow(self.data_window,-1)
 		self.signal_window.SetScrollbars(1,1,100,100)
 		self.signal_panel_sizer  = wx.BoxSizer(wx.VERTICAL)# 创建一个窗口管理器
 		self.signal_window.SetSizer(self.signal_panel_sizer)
 		signals=[]
 		s1 =Signal(url="127.0.0.1:8088/usb1/1")
-		s2 =Signal()
 		s2 = None
+		print "\nset record init"
 		self.info_sheet.SetEut(s1.record)
-		self.signal_panel   = Signal_Panel(parent=self.signal_window,id=-1,size=size,signals=[s1,s2],window=self)
-		self.signal_panel.SetBackColour("Black")
+		self.signal_panel   = Signal_Panel(parent=self.signal_window,id=-1,size=(Dx,Dy),signals=[s1,s2],window=self)
 		self.signal_panel_sizer.Add(self.signal_panel,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		#加入信号栏/信息栏 分割窗
-		self.data_window.SplitVertically(self.signal_window,self.info_lane,-10)
+		#self.data_window.SplitVertically(self.signal_window,self.info_lane,Dx-500)
+		#self.sp_window.SplitHorizontally(self.data_window,self.debug_window,Dy-20)
+		self.data_window.SplitVertically(self.signal_window,self.info_lane,-100)
 		self.sp_window.SplitHorizontally(self.data_window,self.debug_window,-100)
+		self.out_window_height = 0
+		self.sheet_window_height = 400 
+		self.FixSplit__()
 
-		self.text_name = wx.TextCtrl(self,-1,eut_name,style=(wx.TE_READONLY))
 		self.text_name.SetBackgroundColour( self.GetBackgroundColour())
 		self.text_name.SetForegroundColour("purple")
-		self.text_serial = wx.TextCtrl(self,-1,eut_serial,style=(wx.TE_READONLY))
-		self.text_thermo = wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
-		self.text_NTC_ref= wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
-		self.text_NTC_measured = wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
 
-		self.sizer_info = wx.BoxSizer(wx.VERTICAL)
-		for label_name,txt in ((u"型号/PN",self.text_name),
-				(u"编号/SN",self.text_serial),
-				(u"温度/Temprature.",self.text_thermo),
-				(u"热敏电阻/\nNTC Resistor",self.text_NTC_ref),
-				(u"热敏电阻实测/\nNTC measured",self.text_NTC_measured),):
-			label = wx.StaticText(self,-1,label_name)
-			label.SetFont(font)
-			txt.SetFont(font)
-			self.sizer_info.Add(label)
-			self.sizer_info.Add(txt,1,wx.EXPAND|wx.LEFT|wx.RIGHT)
-			self.sizer_info.Add((100,20))
+		# 创建字体改善UI
 
-		self.sizer_info.Add((100,180))
+		self.sizer_info.Add((10,180))
 		self.result = Result_Ctrl(parent=self,id=-1)
 		self.sizer_info.Add(self.result,10,wx.EXPAND|wx.LEFT|wx.RIGHT)
 
 		
+		self.topsizer = wx.BoxSizer(wx.HORIZONTAL)
 		self.SetSizer(self.topsizer)
-		self.topsizer.Add(self.sp_window,15,wx.EXPAND|wx.ALL)
+		self.topsizer.Add(self.sp_window,10,wx.EXPAND|wx.DOWN)
 		self.topsizer.Add(self.sizer_info,2)
-
-		#self.Eut_editor = Refer_Editor(self)
 
 
 
 		#下面进行行为动作绑定
-		#self.text_name.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_name)
-		#self.text_name.Bind(wx.EVT_KEY_DOWN, self.OnKeyRun)
-		self.debug_out.Bind(wx.EVT_KEY_DOWN, self.OnClearDebug)
-		#self.Bind(wx.EVT_KEY_DOWN, self.OnKey)
-		self.text_serial.Bind(wx.EVT_LEFT_DCLICK, self.OnDclick_serial)
+		self.Bind(EVT_MY_EVENT, self.OnNewInfo)
+		self.text_serial.Bind(wx.EVT_LEFT_DCLICK, self.OnSetSerial)
 		self.text_serial.Bind(wx.EVT_KEY_DOWN, self.OnSerialKey)
-		#self.text_serial.Bind(wx.EVT_KEY_UP, self.OnKeyUp)
 		self.sp_window.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.OnSplit)
 		self.data_window.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGED, self.OnSplit)
-		
-		#self.Bind(wx.EVT_LEFT_DCLICK, self.OnShowCurrent)
-		#self.Bind(EVT_MY_EVENT, self.OnNewData)
+		self.SetAutoLayout(True)
+		self.sp_window.SetAutoLayout(True)
+		self.data_window.SetAutoLayout(True)
+		# 设置控制焦点
+		self.focus_timer = wx.Timer(self,-1)
+		self.Bind(wx.EVT_TIMER, self.SetFocus,self.focus_timer)
+		self.focus_timer.Start(1000)
+		self.signal_panel.SetFocus()
 
-	
-		#self.SetThermo(20.0)
+	def FixSplit__(self):
+		Dx,Dy = wx.DisplaySize()
+		self.data_window.SetSashPosition(-1-self.sheet_window_height,True)
+		self.sp_window.SetSashPosition(-1-self.out_window_height,True)
+		self.signal_panel.Refresh(True)
 
-		self.count =0
+	def SetFocus(self,event):
+		self.signal_panel.SetFocus()
+
+	def ShowNTC(self,show=True):
+		if show == False:
+			self.text_NTC_ref.Show(False)
+			self.text_NTC_measured.Show(False)
+			self.labels[3].Show(False)
+			self.labels[4].Show(False)
+		else:
+			self.text_NTC_ref.Show(True)
+			self.text_NTC_measured.Show(True)
+			self.labels[3].Show(True)
+			self.labels[4].Show(True)
+
+	def SelectComponent(self):
+		self.signal_panel.SelectEut()
+
+	def ToggleRun(self):
+		self.parent.Refresh(True)
+		self.signal_panel.ToggleRun()
+		self.info_sheet.UpdateCell()
+		if util.gRunning:
+			self.ShowFullScreen(True)
+		else:
+			self.ShowFullScreen(False)
+
+	def ShowFullScreen(self,full=True):
+		self.parent.ShowFullScreen(full)
+
+
+	def FixSplit(self,fix=True):
+		print "\nSplit fixed, not changable.....\n"
+		self.FixSplit__()
+		#self.data_window.SetSashInvisible(fix)
+		#self.sp_window.SetSashInvisible(fix)
 
 	def OnSplit(self,event):
 		#print "splitter changed!  ))))))))))))))))))))))))"
-		self.signal_panel.Refresh(True)
+		threading.Timer(0.1,self.FixSplit__).start()
 
 	def OnPass(self,event):
 		try:
@@ -257,7 +293,6 @@ class Signal_Control(wx.Panel):   #3
 
 	def UpdateRecord(self):
 		record = self.signal_panel.GetRecord()
-		record.InitTable()
 		self.info_sheet.SetEut(record)
 		return
 
@@ -265,72 +300,35 @@ class Signal_Control(wx.Panel):   #3
 		self.info_sheet.UpdateRecordOnce()
 		return
 
-	def SetUnknown(self):
-		self.result.SetUnknown()
 
-	def SetPass(self):
-		self.result.SetPass()
-
-	def SetFail(self):
-		self.result.SetFail()
-
-	def OnKey(self,event):
-		"""KeyDown event is sent first"""
-		self.signal_panel.OnKeyDown(event)
-
-	def OnClearDebug(self,event):
-		"""KeyDown event is sent first"""
-		raw_code = event.GetRawKeyCode()
-		modifiers = event.GetModifiers()
-
-		if raw_code == 88 and modifiers==2: # <ctrl>+<x> to clear Debug text
-			self.debug_out.SetValue("")
-
-		self.signal_panel.OnKeyDown(event)
-#	def OnShowCurrent(self,event):
-#		print "************************************************************\n"
-#		print time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-#		print u"位置\t数值\t参考值\t参考精度\t  实际精度\t结果"
-#		out = ''
-#		x_pos = 0
-#		last_pos = len(self.signal_panel.data_store)-1
-#		copy_count = 1
-#		last_data= self.signal_panel.data_store[0]
-#		for data in self.signal_panel.data_store[1:]:
-#			x_pos += 1
-#			if data.GetValue() == last_data.GetValue() and x_pos!=last_pos:
-#				copy_count += 1
-#			elif last_data.GetValue() > 0:
-#				valid = last_data.GetValid()
-#				value = last_data.GetValue()
-#				position   = last_data.GetPos()
-#				value_refer= last_data.GetValue_refer()
-#				precision_refer= last_data.GetPrecision_refer()
-#				precision= last_data.GetPrecision()
-#				#输出到控制台
-#				if valid:
-#					valid_view = u"Pass"
-#
-#				else:
-#					valid_view = u"Fail"
-#					self.debug_out.SetStyle( self.debug_out.GetNumberOfLines(),
-#							-1,
-#							wx.TextAttr("yellow","red"))
-#				line_cur  =  "%4d\t"   % position
-#				line_cur +=  "%5.2f\t" % value
-#				line_cur +=  "%5.2f\t" % value_refer
-#				line_cur +=  "%5.4f\t    " % precision_refer
-#				line_cur +=  "%5.4f \t"% precision
-#				line_cur +=  "%s\n"   % valid_view
-#				print line_cur 
-#				self.debug_out.SetStyle( self.debug_out.GetNumberOfLines(),
-#						-1,
-#						wx.TextAttr("black","white"))
-#
-#				copy_count = 1
-#			last_data = data
-#
+	def clear_out(self):
+		self.debug_out.SetValue("")
 		
+	def OnSetDebug(self,event):
+		self.SetDebug()
+
+	def SetDebug(self):
+		if self.out_window_height != 200:
+			self.out_window_height = 200
+		else:
+			self.out_window_height = 0
+		threading.Timer(0.1,self.FixSplit__).start()
+
+	def HideSheetField(self):
+		if util.gHideField != True:
+			util.gHideField = True
+		else:
+			util.gHideField = False
+		self.info_sheet.UpdateCell()
+
+	def SetSheet(self):
+		if self.sheet_window_height != 400:
+			self.sheet_window_height = 400
+		else:
+			self.sheet_window_height = 800
+		threading.Timer(0.1,self.FixSplit__).start()
+		print "set sheet"
+
 	def OnRightDown(self,event):
 		pos = self.ScreenToClient(event.GetPosition())
 		self.PopupMenu(self.popmenu1, pos)
@@ -400,10 +398,6 @@ class Signal_Control(wx.Panel):   #3
 			self.acc_flag = False
 			print "move_x stopped..."
 			self.queue_cmd.put("stop:")
-	def OnSave(self, event):
-		"""KeyDown event is sent first"""
-		print "save data"
-		self.Data_Persist(self.signal_panel.data_store)
 
 	def OnSerialKey(self, event):
 		"""KeyDown event is sent first"""
@@ -435,20 +429,28 @@ class Signal_Control(wx.Panel):   #3
 
 
 
+	def OnNewInfo(self, evt):
+		PN,SN,thermo,NTC_refer,NTC_value,NTCresult,result = self.signal_panel.GetInfo()
+		self.SetPN(PN)
+		self.SetSN(SN)
+		self.SetThermo(thermo)
+		self.SetNTCrefer(NTC_refer)
+		self.SetNTCvalue(NTC_value)
+		if result == None or result == '':
+			self.result.SetUnknown()
+		elif result == False or result == 'Fail':
+			self.result.SetFail()
+		elif result == True or result == 'Pass':
+			self.result.SetPass()
+		self.result.Refresh(True)
 
 
 	def SetupOptions(self):
 		self.signal_panel.Setup()
 
-
-	def OnDclick_name(self, evt):
-		dlg =  wx.TextEntryDialog(None,u"请输入产品名称",u"名称输入",self.text_name.GetValue(),style=wx.OK|wx.CANCEL)
-		if dlg.ShowModal() == wx.ID_OK :
-			self.SetName(dlg.GetValue())
-		dlg.Destroy()
-		self.result.Refresh()
-
-	def OnDclick_serial(self, evt):
+	def OnSetSerial(self, evt):
+		if not util.gAuthen.Authenticate(util.USER):
+			return
 		dlg =  wx.TextEntryDialog(None,u"请输入序列号",u"序列号输入",self.text_serial.GetValue(),style=wx.OK|wx.CANCEL)
 		if dlg.ShowModal() == wx.ID_OK :
 			SN = dlg.GetValue()
@@ -456,12 +458,12 @@ class Signal_Control(wx.Panel):   #3
 			self.signal_panel.SetSN(SN)
 		dlg.Destroy()
 
-	def SetName(self, name):
-		self.text_name.SetValue(name)
-
 	def UploadSN(self,SN):
 		self.SetSN(SN)
 		self.Refresh(True)
+
+	def SetPN(self, name):
+		self.text_name.SetValue(name)
 
 
 	def SetSN(self,SN):
@@ -469,10 +471,25 @@ class Signal_Control(wx.Panel):   #3
 		self.info_sheet.UpdateCell()
 
 	def SetThermo(self,thermo):
-		self.text_thermo.SetValue(str(float(thermo)))
+		if not thermo:
+			return False
+		thermo_ = round(float(thermo),2)
+		self.text_thermo.SetValue(str(thermo_))
+		return True
 
-	def SetThermoValue(self,value):
-		self.text_NTC_measured.SetValue(value)
+	def SetNTCrefer(self,refer):
+		if not refer:
+			return False
+		refer_=round(float(refer),2)
+		self.text_NTC_ref.SetValue(str(refer_))
+		return True
+
+	def SetNTCvalue(self,value):
+		if not value:
+			return False
+		value_ = round(float(value),2)
+		self.text_NTC_measured.SetValue(str(value_))
+		return True
 					
 	def ShowVout(self,Vout):
 		self.result.SetVout(Vout)
@@ -482,9 +499,6 @@ class Signal_Control(wx.Panel):   #3
 	def ShowDataRates(self,data_rates):
 		self.result.SetDataRates(data_rates)
 		self.result.Refresh(True)
-
-	def SetThermoRefer(self,refer):
-		self.text_NTC_ref.SetValue(refer)
 
 #	def populate_data(self):
 #		rand_value_all = 0 

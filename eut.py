@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-#!python
 """Signal UI component .""" 
+import wxversion
+wxversion.select("3.0")
 import wx 
 import wx.grid 
 import wx.lib.sheet 
@@ -8,7 +9,8 @@ import re
 import time
 import config_db
 import sqlite3 as sqlite
-from util import gAuthen,gZip,gZpickle 
+#from util import gAuthen,gZip,gZpickle 
+import util
 from refer_entry import Refer_Entry
 from thermo_sensor import *
 
@@ -16,6 +18,7 @@ from thermo_sensor import *
 #index for named cells
 _VALUE	= int(0)
 _RC	= int(1)
+_STR	= int(2)
 
 #index for refer table RC
 REF_ROW = 6
@@ -27,16 +30,16 @@ class Eut():
 	db_name = config_db.eut_db
 	def __init__(self,model='',PN='',SN='',Refer_Table=[[],[]],thermo_PN=''):
 		self.field={}
-		self.field["PN"] = [PN,(0,0)]
-		self.field["Ver"] = [SN,(0,1)]
-		self.field["model"]=[model,(0,2)]
-		self.field["thermo_PN"] = [thermo_PN,(2,0)]
-		self.field["signal_num"] =[ 2,(2,1)]
-		self.field["head_length"] =[ 32,(2,2)]
-		self.field["total_length"] =[ 532,(2,3)]
-		self.field["X_unit"] = ["mm",(REF_ROW-2,0)]
-		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2)]
-		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
+		self.field["PN"] = [PN,(0,0),u"料号"]
+		self.field["Ver"] = [SN,(0,1),u"版本"]
+		self.field["model"]=[model,(0,2),u"型号"]
+		self.field["thermo_PN"] = [thermo_PN,(2,0),u"NTC料号"]
+		self.field["signal_num"] =[ 2,(2,1),u"信号数量"]
+		self.field["head_length"] =[ 32,(2,2),u"浮子长度"]
+		self.field["total_length"] =[ 532,(2,3),u"总长度"]
+		self.field["X_unit"] = ["mm",(REF_ROW-2,0),u"位置单位"]
+		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2),u"信号1单位"]
+		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2),u"信号2单位"]
 		self.Refer_Table = Refer_Table
 
 	def GetTotalLength(self):
@@ -85,7 +88,7 @@ class Eut():
 		PN = self.field["thermo_PN"][_VALUE]
 		thermo_sensor = Thermo_Sensor()
 		thermo_sensor.RestoreFromDBZ(PN)
-		return str(thermo_sensor.field["model"][_VALUE])
+		return str(thermo_sensor.field[u"model"][_VALUE])
 
 
 	def GetRefer( index=(0,0) ):#parameter is  a tuple of (index,table_num)
@@ -134,7 +137,11 @@ class Eut():
 		while True:
 			row += 1
 			col_ = col
-			Xvalue = window.GetCellValue(row,col_)
+
+			try:
+				Xvalue = window.GetCellValue(row,col_)
+			except:
+				break
 			if len(Xvalue) == 0:
 				break
 			col_ += 1
@@ -186,7 +193,7 @@ class Eut():
 		eut_b = db_cursor.fetchone()
 		#print eut_b
 
-		obj_x = gZpickle.loads(eut_b[3]) 
+		obj_x = util.gZpickle.loads(eut_b[3]) 
 		self.field = obj_x.field
 		self.Refer_Table = obj_x.Refer_Table 
 		for table in self.Refer_Table:
@@ -223,18 +230,18 @@ class Eut():
 						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 					return
 			break
-		print "obj len ......",len(gZpickle.dumps(self))
+		#print "obj len ......",len(gZpickle.dumps(self))
 		eut_bz = (self.field["PN"][_VALUE],
 				self.field["Ver"][_VALUE],
 				self.field["model"][_VALUE],
-				gZpickle.dumps(self)) 
+				util.gZpickle.dumps(self)) 
 		db_cursor.execute("insert into %s values (?,?,?,?)"%(self.table_name),eut_bz)
 		db_con.commit()
 		db_con.close()
 
 	def UpdateTable(self,row,col,window):
 		for table in self.Refer_Table:
-			table_len = len(table)+10
+			table_len = len(table)+7
 			if window.GetNumberRows() < table_len:
 				window.SetNumberRows(table_len)
 				print "table length %d >>>>>> %d"%(window.GetNumberRows(),table_len)
@@ -245,10 +252,13 @@ class Eut():
 				col_start = col + REF_COL
 				i    = 2
 			col_ = col_start
-			for name in (u"位置/mm",u"位偏移/mm",u"Sensor%d值"%(i),u"精度",u"修正值"):
+			signal_ref =u"信号%d标准值\n%s"%(i,window.GetCellValue(row-1,col_+2))
+			window.SetRowSize(row,40)
+			for width,name in ((50,u"位置\nmm"),(50,u"位偏移\n±mm"),(90,signal_ref),(50,u"精度\n%"),(50,u"修正值")):
 				window.SetCellValue(row,col_,name)
 				window.SetReadOnly(row,col_,True)
 				window.SetCellBackgroundColour(row,col_,"Grey")
+				window.SetColSize(col_,width)
 				col_ +=1
 			row_ = row
 			for refer_entry in table:

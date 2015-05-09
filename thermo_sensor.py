@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-#!python
 """Signal UI component .""" 
 import os 
+import wxversion
+wxversion.select("3.0")
 import wx 
 import wx.grid 
 import wx.lib.sheet 
@@ -11,7 +12,8 @@ import re
 from thread_sqlite import Thread_Sql
 import config_db
 import sqlite3 as sqlite
-from util import gAuthen,gZip,gZpickle 
+#from util import gAuthen,gZip,gZpickle 
+import util
 from refer_entry import Refer_Entry
 
 
@@ -23,6 +25,7 @@ from refer_entry import Refer_Entry
 #index for named cells
 _VALUE	= int(0)
 _RC	= int(1)
+_STR	= int(2)
 
 #index for refer table RC
 REF_ROW = 6
@@ -34,14 +37,14 @@ class Thermo_Sensor():
 	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
 	table_name =config_db.thermo_table_name
 	db_name = config_db.eut_db
-	def __init__(self,PN="",model="",value=0,precision=0,X_unit=u"\xb0C",Y_unit=u"ohm",table=[]):
+	def __init__(self,PN="",model="",value=0,precision=0,X_unit=u"℃",Y_unit=u"Ω",table=[]):
 		self.field = {}
-		self.field["PN"]= [PN,(0,0)]
-		self.field["model"]= [model,(0,1)]
-		self.field["value"]= [value,(2,0)]
-		self.field["precision"]=[precision,(2,1)]
-		self.field["X_unit"] = [X_unit,(REF_ROW-2,0)]
-		self.field["Y_unit"] = [Y_unit,(REF_ROW-2,2)]
+		self.field["PN"]= [PN,(0,0),u"料号"]
+		self.field["model"]= [model,(0,1),u"型号"]
+		self.field["value"]= [value,(2,0),u"标准值"]
+		self.field["precision"]=[precision,(2,1),u"精度"]
+		self.field["X_unit"] = [X_unit,(REF_ROW-2,0),u"温度单位"]
+		self.field["Y_unit"] = [Y_unit,(REF_ROW-2,2),u"信号单位"]
 		self.Refer_Table = []
 		if table:
 			self.SetTable(table)
@@ -55,8 +58,8 @@ class Thermo_Sensor():
 		self.field["model"][_VALUE]	= ''
 		self.field["value"][_VALUE]	= 0  
 		self.field["precision"][_VALUE]	= 0
-		self.field["X_unit"][_VALUE]	= u'\xb0C'
-		self.field["Y_unit"][_VALUE]	= u'ohm'
+		self.field["X_unit"][_VALUE]	= u'℃'
+		self.field["Y_unit"][_VALUE]	= u'Ω'
 		self.Refer_Table = []
 
 	def SetReferTable(self,table):
@@ -148,7 +151,7 @@ class Thermo_Sensor():
 		db_cursor.execute(cmd)
 		eut_b = db_cursor.fetchone()
 
-		obj_x = gZpickle.loads(eut_b[2]) 
+		obj_x = util.gZpickle.loads(eut_b[2]) 
 		self.field = obj_x.field
 		self.Refer_Table = obj_x.Refer_Table 
 		db_con.close()
@@ -176,10 +179,10 @@ class Thermo_Sensor():
 						style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
 					return None
 			break
-		print "obj len ......",len(gZpickle.dumps(self))
+		#print "obj len ......",len(util.gZpickle.dumps(self))
 		eut_bz = (self.field["PN"][_VALUE],
 				self.field["model"][_VALUE],
-				gZpickle.dumps(self)) 
+				util.gZpickle.dumps(self)) 
 		db_cursor.execute("insert into %s values (?,?,?)"%(self.table_name),eut_bz)
 		db_con.commit()
 		db_con.close()
@@ -192,7 +195,7 @@ class Thermo_Sensor():
 			window.SetNumberRows(table_len)
 			print "table length %d >>>>>> %d"%(window.GetNumberRows(),table_len)
 		col_ = col
-		for name in (u"温度/ \xb0C",u"最小值/ohm",u"中间值/ohm",u"最大值/ohm"):
+		for name in (u"温度/℃",u"最小值/Ω",u"中间值/Ω",u"最大值/Ω"):
 			window.SetCellValue(row,col_,name)
 			window.SetReadOnly(row,col_,True)
 			window.SetCellBackgroundColour(row,col_,"Grey")
@@ -367,8 +370,8 @@ class Thermo_Sensor():
 		db_con.close()
 		column_format = (
 				(1,u"序号",50),#column_num,view_text,width
-				(2,u"Model/温度传感器型号",180),
-				(3,u"PN/料号",120),) 
+				(2,u"温度传感器型号",180),
+				(3,u"料号",120),) 
 		return (entries,column_format) # fields of each should be matched	
 ############################################################################################################################################
 

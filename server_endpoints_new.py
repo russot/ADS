@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-#!python
 """---endpoints server module---"""
 
 
@@ -664,9 +663,12 @@ class Server_Endpoints(threading.Thread):
 		
 #----------------------------------------------------------------------------------------------------
 	def run(self):
-		tcpSerSock = socket(AF_INET,SOCK_STREAM)
-		tcpSerSock.bind((self.host,self.port))
-		tcpSerSock.listen(5)
+		try:
+			tcpSerSock = socket(AF_INET,SOCK_STREAM)
+			tcpSerSock.bind((self.host,self.port))
+			tcpSerSock.listen(5)
+		except:
+			return
 		while True:
 			print 'waiting for connection on %s:%d...'%(self.host,self.port)
 			tcpCliSock,addr=tcpSerSock.accept()

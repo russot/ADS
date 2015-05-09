@@ -1,18 +1,14 @@
 # -*- coding: utf-8 -*-
-#!python
 """Create a Frame instance and display image.""" 
 import sys 
+import wxversion
+wxversion.select("3.0")
 import wx 
-#import os 
 from signal_control import Signal_Control
 import string 
-#import wx.lib.scrolledpanel as scrolledpanel
-#import threading 
-#from Queue import Queue
-#import sqlite3 as sqlite
-#import config_db
-from time import sleep
-from util import *
+import time
+import util
+import pga
 
 import server_endpoints
 import wx.animate
@@ -27,40 +23,6 @@ class Frame(wx.Frame):   #3
 		self.signals = []
 		self.spaces = []
 		self.signals_count = 0
-		self.signals_status = "stopped"
-		#print "begin create splitter window"
-
-		
-
-
-		
-
-
-		#self.btn_add = wx.Button(self,-1,"add")
-		#self.btn_del = wx.Button(self,-1,"del")
-		#self.btn_run = wx.Button(self,-1,"start")
-		#self.btn_run.Show(False) 
-		#self.step_add = wx.SpinCtrl(self, -1,"5", wx.DefaultPosition, (50,-1), wx.SP_ARROW_KEYS,0, 20, 1)
-		#self.sizer_toolbar = wx.BoxSizer(wx.HORIZONTAL)# 创建一个分割窗
-		##self.sizer_toolbar.Add(self.btn_run)  # run 放在第一位
-		#self.sizer_toolbar.Add((100,20))
-		#self.sizer_toolbar.Add(self.step_add)
-		#self.sizer_toolbar.Add(self.btn_add)
-		#self.sizer_toolbar.Add(self.btn_del)
-		#self.btn_add.Bind(wx.EVT_BUTTON, self.OnAddSignals,self.btn_add)
-		#self.btn_del.Bind(wx.EVT_BUTTON, self.OnDelSignals,self.btn_del)
-		#self.btn_run.Bind(wx.EVT_BUTTON, self.OnRunSignals,self.btn_run)
-		
-
-
-
-		#self.panel_signals = wx.ScrolledWindow(self,-1)
-		#self.panel_signals.SetScrollbars(1,1,200,200)
-		##~ self.panel_signals = scrolledpanel.ScrolledPanel(self.scroller,-1,size=(200,500),style=wx.TAB_TRAVERSAL|wx.BORDER_SUNKEN)
-		#self.sizer_signals = wx.BoxSizer(wx.VERTICAL)# 创建一个分割窗
-		#self.panel_signals.SetSizer(self.sizer_signals)
-
-	   
 
 		
 
@@ -75,32 +37,41 @@ class Frame(wx.Frame):   #3
 		#print " create menu ok"
 
 
-		#创建 持久化线程,通过两个队列管道进行数据交换
-	#	self.queue_persist_in = Queue(-1)
-	#	self.queue_persist_out = Queue(-1)
-	#	self.persist = Thread_Sqlite(queue_in  = self.queue_persist_in, 
-	#						queue_out= self.queue_persist_out) 
-	#	self.persist.setDaemon(True)
-	#	self.persist.start()
 		self.SetEditable(False)
 		#print "add signal"
 
+		#有循环依赖关系: self.AddSignals() self.InitSession()
+		self.InitSession()
+		#重要：下面进行其它部分配置的更新!!!
+		pga.gPGA.SetVrefs()
 		self.AddSignals(1)
+		self.signals[0].signal_panel.ResumeSession()
 		#print "add signal OK"
 		self.Show(True)
 		print "now show logo"	
 		self.ShowLogo()
 
+
+		#self.signals[0].signal_panel.ResumeSession()
 		self.timer = wx.Timer(self,-1)
 		self.Bind(wx.EVT_TIMER,self.OnTimer,self.timer)
-		self.timer.Start(5000,False)
+		self.timer.Start(500,False)
+
+	def InitSession(self):
+		self.OpenSession("default.session")
+
 
 	def OnTimer(self,event):
+		self.StopLogo()
+
+	def StopLogo(self):
 		self.curGif.Stop()
 		self.curGif.Show(False)
+		self.timer.Stop()
 
 	def ShowLogo(self):
 		self.ShowGif('logo.gif')
+		pass
 
 
 	def ShowGif(self,fpath):
@@ -109,6 +80,7 @@ class Frame(wx.Frame):   #3
 		x0  = (mm[0] - img.GetWidth())/2
 		y0  = (mm[1] - img.GetHeight())/2
 		self.curGif = wx.animate.GIFAnimationCtrl(self,-1,fpath,(x0,y0),(img.GetWidth(), img.GetHeight()))
+		self.Bind(wx.EVT_LEFT_DOWN,self.OnTimer,self.signals[0])
 		self.curGif.GetPlayer().UseBackgroundColour(True)
 		self.curGif.Play()
 
@@ -140,17 +112,20 @@ class Frame(wx.Frame):   #3
 		self.menuBar = wx.MenuBar()# 创建菜单栏 
 		# 创建File菜单栏
 		self.menu1 = wx.Menu()
-		self.menu_open = self.menu1.Append(wx.NewId(), "&open", "open session")
-		self.menu_save = self.menu1.Append(wx.NewId(), "&save", "save session")
+		self.menu_open = self.menu1.Append(wx.NewId(), u"&Open/打开", "open session")
+		self.menu_save = self.menu1.Append(wx.NewId(), u"&Save/保存", "save session")
 		self.menu1.AppendSeparator()
-		self.menu_import = self.menu1.Append(wx.NewId(), "&import...", "import data")
-		self.menu_export = self.menu1.Append(wx.NewId(), "&export...", "export data")
-		self.menuBar.Append(self.menu1, u"&File文件")                
+		self.menu_run = self.menu1.Append(wx.NewId(), u"&Run|Pause/运行|暂停", "run or pause")
+		self.menu1.AppendSeparator()
+		self.menu1.AppendSeparator()
+		self.menu_exit = self.menu1.Append(wx.NewId(), u"&Exit/退出", "exit ")
+		self.menuBar.Append(self.menu1, u"&File/文件")                
 		 # 创建Edit菜单栏
 		self.menu2 = wx.Menu()
-		self.menu_setUPSW = self.menu2.Append(wx.NewId(), u"User Password/用户密码", "")
-		self.menu_setAPSW = self.menu2.Append(wx.NewId(), u"Admin Password/管理密码", "")
+		self.menu_setUPSW = self.menu2.Append(wx.NewId(), u"&User Password/用户密码", "")
+		self.menu_setAPSW = self.menu2.Append(wx.NewId(), u"&Admin Password/管理密码", "")
 		self.menu2.AppendSeparator()
+		self.menu_select = self.menu2.Append(wx.NewId(), u"&Select Comp./器件选择", "")
 		self.menu_option  = self.menu2.Append(wx.NewId(), u"&Options/选项...", "")
 		self.menuBar.Append(self.menu2, u"&Set设置")
 		
@@ -160,16 +135,19 @@ class Frame(wx.Frame):   #3
 
 		
 		helpmenu = wx.Menu()
-		helpmenu.Append(wx.ID_ABOUT, "About")
-		self.menuBar.Append(helpmenu, u"&Help帮助")
+		helpmenu.Append(wx.ID_ABOUT, u"&About/关于")
+		self.menuBar.Append(helpmenu, u"&Help/帮助")
 		
 		self.SetMenuBar(self.menuBar)
-		#self.Bind(wx.EVT_MENU, self.OnSaveSession, self.menu_save)
-		#self.Bind(wx.EVT_MENU, self.OnOpenSession, self.menu_open)
+		self.Bind(wx.EVT_MENU, self.OnSaveSession, self.menu_save)
+		self.Bind(wx.EVT_MENU, self.OnOpenSession, self.menu_open)
+		self.Bind(wx.EVT_MENU, self.OnRunPause, self.menu_run)
+		self.Bind(wx.EVT_MENU, self.OnExit, self.menu_exit)
 		self.Bind(wx.EVT_MENU, self.OnAbout, id=wx.ID_ABOUT)
 		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setUPSW)
-		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setUPSW)
+		self.Bind(wx.EVT_MENU, self.OnSetPassword, self.menu_setAPSW)
 		self.Bind(wx.EVT_MENU, self.OnSetupOptions, self.menu_option)
+		self.Bind(wx.EVT_MENU, self.OnSelectComponent, self.menu_select)
 		self.Bind(wx.EVT_MENU, self.OnQueryDB, self.menu_QueryDB)
 
 		self.statusBar = self.CreateStatusBar()#1 创建状态栏 
@@ -177,17 +155,6 @@ class Frame(wx.Frame):   #3
 
 
 		self.editable = False
-	#	self.popmenu1 = wx.Menu()
-	#	self.menu_run = self.popmenu1.Append(wx.NewId(), u"运行.全部", u"运行与暂停", kind=wx.ITEM_CHECK)
-	#	self.popmenu1.AppendSeparator()
-	#	#self.menu_query = self.popmenu1.Append(wx.NewId(), u"数据查询", u"查询已存储的数据")
-	#	self.menu_query_ui = self.popmenu1.Append(wx.NewId(), u"数据组合查询", u"组合查询已存储数据")
-	#	self.popmenu1.AppendSeparator()
-	#	self.menu_editable = self.popmenu1.Append(wx.NewId(), u"编辑状态", u"进出编辑状态，增加/删除测试点", kind=wx.ITEM_CHECK )
-	#	self.Bind(wx.EVT_CONTEXT_MENU, self.OnRightDown)
-	#	self.Bind(wx.EVT_MENU, self.OnRunSignals,self.menu_run)
-	#	self.Bind(wx.EVT_MENU, lambda evt: os.startfile('dialog_query.pyw'),self.menu_query_ui)
-	#	self.Bind(wx.EVT_MENU, self.OnToggleEdit,self.menu_editable)
 
 
 	def OnRightDown(self,event):
@@ -195,7 +162,7 @@ class Frame(wx.Frame):   #3
 		self.PopupMenu(self.popmenu1, pos)
 
 	def OnQueryDB(self,event):
-		QueryUI = Server_("python refer_table.py")
+		QueryUI = util.Server_("..\python27\python.exe refer_table.py")
 		QueryUI.start()
 
 	def OnSetupOptions(self,event):
@@ -204,19 +171,25 @@ class Frame(wx.Frame):   #3
 				return
 			signal.SetupOptions()
 
+	def OnSelectComponent(self,event):
+		for signal in self.signals:
+			if not signal:
+				return
+			signal.SelectComponent()
+
 	def OnSetPassword(self,event):
 
 		if event.GetId() == self.menu_setUPSW.GetId():
-			gAuthen.AuthenSetup('user')
+			util.gAuthen.AuthenSetup(util.USER)
 		else:
-			gAuthen.AuthenSetup('Admin')
+			util.gAuthen.AuthenSetup(util.ADMIN)
 
 	
 	def OnAbout(self, event):
 		"""Show the about dialog"""
 		info = wx.AboutDialogInfo()
 		# Make a template for the description
-		desc = [u"\nwxPython Cookbook Chapter 5\n",
+		desc = [u"\nwxPython Cookbook Chapter\n",
 		u"Platform Info: (%s,%s)",
 		u"License: Public Domain"]
 		desc = u"\n".join(desc)
@@ -230,7 +203,7 @@ class Frame(wx.Frame):   #3
 		# Populate with information
 		info.SetName(u"AboutBox Recipe")
 		info.SetVersion(u"1.0")
-		info.SetCopyright(u"Copyright () Joe Programmer")
+		info.SetCopyright(u"Copyright () ")
 		info.SetDescription(desc % (py_version, wx_info))
 		# Create and show the dialog
 		wx.AboutBox(info)
@@ -245,123 +218,61 @@ class Frame(wx.Frame):   #3
 		
 	def SetEditable(self, toggle):
 		pass
-		#self.btn_add.Show(toggle)
-		#self.btn_del.Show(toggle)
-		#self.step_add.Show(toggle)
 	
-#	def OnRunSignals(self,evt):
-#		if self.signals_count == 0:
-#			return 
-#		self.SetEditable(False)
-#		if self.signals_status != "stopped":
-#			self.signals_status = "stopped"
-#			self.btn_run.SetLabel("run")
-#			self.btn_run.SetBackgroundColour("green")
-#			for signal in self.signals:
-#				signal.Pause()
-#
-#		else:
-#			self.signals_status = "running"
-#			self.btn_run.SetLabel("pause")
-#			self.btn_run.SetBackgroundColour("red")
-#			for signal in self.signals:
-#				signal.Run()
-#
-#			
 	def OnExit(self, evt):
 		self.Close()
 
+	def OnRunPause(self,event):
+		for signal in self.signals:
+			signal.ToggleRun()
+		
 
-	
-	#def OnOpenSession(self,event):
-	#	self.DelSignals(self.signals_count)
-	#	dlg = wx.FileDialog(None,"select a file ")
-	#	if dlg.ShowModal()!=wx.ID_OK:
-	#		return
-	#	file_name = dlg.GetPath()
-	#	session_file = open(file_name,'r')
-	#	
-	#	#process each line as lSignal_Control object
-	#	for line in session_file.readlines():
-	#		line = line.replace(" ","").replace("\t","").replace("\n","")
-	#		for element in line.split(';'):
-	#			pair = element.split('=')
-	#			if pair[0] == "color_ok":
-	#				str_ = pair[1].strip('(').strip(')')
-	#				str_value = str_.split(',')
-	#				color_ok = wx.Colour(string.atoi(str_value[0]),
-	#						     string.atoi(str_value[1]),
-	#						     string.atoi(str_value[2]),
-	#						     string.atoi(str_value[3]))
-	#			elif pair[0] == "color_bad":
-	#				str_ = pair[1].strip('(').strip(')')
-	#				str_value = str_.split(',')
-	#				color_bad = wx.Colour(string.atoi(str_value[0]),
-	#						     string.atoi(str_value[1]),
-	#						     string.atoi(str_value[2]),
-	#						     string.atoi(str_value[3]))
-	#			elif pair[0] == "url_name":
-	#				url_name = pair[1].strip('"')
-	#			elif pair[0] == "refer_file":
-	#				refer_file = pair[1].strip('"')
-	#			elif pair[0] == "calib_file":
-	#				calib_file = pair[1].strip('"')
-	#			elif pair[0] == "eut_name":
-	#				eut_name = pair[1].strip('"')
-	#			elif pair[0] == "eut_serial":
-	#				eut_serial = pair[1].strip('"')
-	#			elif pair[0] == "points":
-	#				points_number = string.atoi(pair[1].strip('"'))
-	#			else:
-	#				pass
-	#				
-	#		signal_panel = lSignal_Control(parent=self.panel_signals,
-	#							id=-1, 
-	#							size_=(-1,-1),
-	#							color_ok=color_ok,
-	#							color_bad=color_bad,
-	#							url_name=url_name,
-	#							eut_name=eut_name,
-	#							eut_serial=eut_serial,
-	#							refer_file=refer_file,
-	#							calib_file=calib_file,
-	#							points=points_number,
-	#							persist = (self.queue_persist_in ,self.queue_persist_out)
-	#							)
-	#		
-	#		self.AddSignalOnce(signal_panel)
-	#	session_file.close()
-	#	self.Relayout()
-		
-	#def OnSaveSession(self,event):
-	#	dlg = wx.FileDialog(None,"select a file ")
-	#	if dlg.ShowModal()!=wx.ID_OK:
-	#		return
-	#	file_name = dlg.GetPath()
-	#	session_file = open(file_name,'w')
-	#	for signal in self.signals:
-	#		line = "color_ok=%s;\
-	#			color_bad=%s;\
-	#			url_name=%s;\
-	#			eut_name=%s;\
-	#			eut_serial=%s;\
-	#			refer_file=%s;\
-	#			calib_file=%s;\
-	#			points=%s\n"\
-	#			%(signal.color_ok,
-	#			signal.color_bad,
-	#			signal.url_name,
-	#			signal.eut_name,
-	#			signal.eut_serial,
-	#			signal.refer_file,
-	#			signal.calib_file,
-	#			signal.points)
-	#		session_file.write(line.replace(" ","").replace("\t",""))
-	#	session_file.close()
-		
-	def SaveSession_sqlite(self):
-		
-		pass
+
+	def OnSaveSession(self,event):
+		if not util.gAuthen.Authenticate(util.ADMIN):
+			return False
+		try:
+			print "\nsession saved to default.session"
+			print util.gSession
+			dlg = wx.FileDialog(None,u"选择会话文件",wildcard="*.session")
+			if dlg.ShowModal() != wx.ID_OK:
+				dlg.Destroy()
+				return
+			session_file = open(dlg.GetPath(),'wb')
+			session_file.write(util.gZpickle.dumps(util.gSession))
+			print "\nsession saved to %s OK"%dlg.GetPath()
+			session_file.close()
+			dlg.Destroy()
+		except Exception, e:
+			session_file.close()
+			print e
+
+	def OnOpenSession(self,event):
+		#try:
+		dlg = wx.FileDialog(None,u"选择会话文件",wildcard="*.session")
+		if dlg.ShowModal() != wx.ID_OK:
+			dlg.Destroy()
+			return
+		session_file_name = dlg.GetPath()
+		self.OpenSession(session_file_name)
+		#重要：下面进行其它部分配置的更新!!!
+		pga.gPGA.SetVrefs()
+		self.signals[0].signal_panel.ResumeSession()
+		dlg.Destroy()
+
+	def OpenSession(self,session_file_name):
+		try:
+			print "\nload new session"
+			session_file = open(session_file_name,'rb')
+			util.gSession = util.gZpickle.loads(session_file.read())
+			print util.gSession
+			session_file.close()
+			return True
+		except Exception,e:
+			print "\nload session failed:"
+			print e
+			return False
+		self.Refresh(True)
 
 	def OnAddSignals(self,event):
 		self.AddSignals(self.step_add.GetValue())
@@ -393,9 +304,6 @@ class Frame(wx.Frame):   #3
 						eut_name="",
 						eut_serial="",)
 			print "display size", wx.DisplaySize(),
-			signal_ctrl.signal_panel.SetGridColour(wx.Colour(0,250,250,200))
-			signal_ctrl.signal_panel.SetBackColour("Black")
-			signal_ctrl.signal_panel.SetBadColour(wx.Colour(200,0,200))
 			#signal_ctrl.populate_data()
 			self.AddSignalOnce(signal_ctrl)
 			signals_num -= 1
@@ -429,13 +337,12 @@ class Frame(wx.Frame):   #3
 
 ####################################################################################################
 if __name__=='__main__':
-	gServer4EP.start()
+	util.gServer4EP.start()
 	time.sleep(0.5)
 	app = wx.App()
 	frm = Frame(None, -1)
-
 	frm.Maximize()
-	frm.Show()
 	app.SetTopWindow(frm)
+	#frm.ShowFullScreen(True)
 	app.MainLoop()
 

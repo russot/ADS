@@ -1,5 +1,4 @@
 #-*- coding: utf-8 -*-
-#!python
 """Signal UI component .""" 
 import sys 
 import wx 
@@ -180,7 +179,7 @@ class Grouping_Filter(threading.Thread):
 ####################################################################################################
 
 ############################################################################################################################################
-class Eut_Source(threading.Thread):
+class Source(threading.Thread):
 	def __init__(self,queue_out):
 		threading.Thread.__init__(self)
 		self.queue_out = queue_out
@@ -254,7 +253,7 @@ if __name__=='__main__':
 				queue_cmd_out=None,
 				queue_data_in=queue_data_i,
 				queue_out=queue_data_o)
-	source = Eut_Source(queue_data_i)
+	source = Source(queue_data_i)
 	source.start()
 
 	while True:

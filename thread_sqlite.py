@@ -2,7 +2,6 @@
 #!python
 """sqlite module for persist session and data.""" 
 import sys 
-import wx 
 import os 
 import string 
 import threading 

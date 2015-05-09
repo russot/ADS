@@ -1,14 +1,9 @@
 # -*- coding: utf-8 -*-
-#!python
 """Signal UI component .""" 
 import math
 from refer_entry import Refer_Entry
 from thermo_sensor import *
-from pga import gPGA
-
-
-
-
+import pga
 
 
 #index for named cells
@@ -54,7 +49,7 @@ class Thermo():
 		if not self.init_ok:
 			print err_msg
 			return None
-		Rpt = gPGA.Get_Hex2Rpt(hex_PT)
+		Rpt = pga.gPGA.Get_Hex2Rpt(hex_PT)
 		self.temprature = self.PT.GetT(Rpt)
 
 		#print "temprature is %.3f now"%self.temprature
@@ -63,11 +58,11 @@ class Thermo():
 #----------------------------------------------------------------------------------------------------
 #below method based on NTC circuit 
 	def GetRntc(self,hex_NTC):
-		Rntc= gPGA.Get_Hex2Rntc(hex_NTC)
+		Rntc= pga.gPGA.Get_Hex2Rntc(hex_NTC)
 		return Rntc
 
 	def Validate(self,hex_NTC,hex_PT):
-		Rntc = gPGA.Get_Hex2Rntc(hex_NTC)
+		Rntc = pga.gPGA.Get_Hex2Rntc(hex_NTC)
 		temprature = self.GetTemprature(hex_PT)
 		Rref = self.NTC.GetR(temprature)
 		precision =float( self.NTC.GetPrecision())
@@ -86,7 +81,6 @@ Demo_PN = "010204"
 Demo_PT = "pt1000-01"
 gModule = False
 if __name__=='__main__':
-	#app = wx.App()
 	gModule = True
 	thermo  = Thermo()
 	thermo.SetPT(Demo_PT)

@@ -1,5 +1,4 @@
 #-*- coding: utf-8 -*-
-#!python
 """Signal UI component .""" 
 import sys 
 import os 
@@ -168,6 +167,7 @@ class Data_Source(threading.Thread,wx.Object):
 				newY= (float(newY__)-float(self.x10_magic) )/self.A1_to_A2
 			else:
 				newY= float(newY__)
+			#self.buffer_group.append( {"length":int(length),"value":(newX,newY),"flag":"new"} )
 			if len(self.buffer_group) == 0:
 				self.buffer_group.append( {"length":int(length),"value":(newX,newY),"flag":"new"} )
 			else:

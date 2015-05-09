@@ -1,24 +1,22 @@
 # -*- coding: utf-8 -*-
-#!python
 """Signal UI component .""" 
 import sys
 import glob
-import wx 
 import os 
 import string
 import time
 import const
-from Queue import Queue
-import math
-import re
-import struct 
+#from Queue import Queue
+#import math
+#import re
+#import struct 
 import config_db
 import sqlite3 as sqlite
 from refer_entry import Refer_Entry
-import pickle
 from eut import Eut
 from thermo_sensor import Thermo_Sensor
-from util import gAuthen,gZip,gZpickle 
+#from util import gAuthen,gZip,gZpickle 
+import util
 
 from thermo import Thermo
 
@@ -29,6 +27,7 @@ REF_COL = 6
 #index for named cells
 _VALUE	= int(0)
 _RC	= int(1)
+_STR	= int(2)
 
 gEut    = Eut()
 gThermo = Thermo()
@@ -65,23 +64,44 @@ class Test_Record():
 	#__slots__ = {'ID':str, 'field': dict, 'Refer_Table': list}
 	table_name = config_db.eut_record_TBname
 	db_name = config_db.eut_db
+	field_  =  {}
+	field_["PN"] =u"料号"
+	field_["thermo_PN"] =u"NTC料号"
+	field_["total_length"] =u"总长度"
+	field_["head_length"] =u"浮子长度"
+	field_["signal_num"] =u"信号数量"
+	field_["SN"] =u"编号"
+	field_["Ver"] =u"版本"
+	field_["model"]=u"型号"
+	field_["time"] =u"时间"
+	field_["tempr"]=u"温度"
+	field_["NTCvalue"] =u"NTC实测"
+	field_["NTCrefer"] =u"NTC参考"
+	field_["NTCresult"]=u"NTC结果"
+	field_["result"]   =u"总结果"
+	field_["X_unit"]   =u"位置单位"
+	field_["Y1_unit"]  =u"信号1单位"
+	field_["Y2_unit"]  =u"信号2单位"
+	field_["precision"]=u"精度"
+	field_["value"]= u"标准值"
+	field_["Y_unit"] = u"信号单位"
 	def __init__(self,PN='',SN='',Record_Table=[[],[]]):
 		create_time = time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time()))
 		self.Record_Table = Record_Table
 		self.result = 'Pass'
 		self.field = {}
-		self.field["PN"] = [PN,(0,0)]
-		self.field["SN"] = [SN,(0,1)]
-		self.field["model"]=['',(0,2)]
-		self.field["time"]=[create_time,(0,3)]
-		self.field["tempr"] = ['',(2,0)]
-		self.field["NTCvalue"] =['',(2,1)]
-		self.field["NTCrefer"] =['',(2,2)]
-		self.field["NTCresult"] =['',(2,3)]
-		self.field["result"] =['',(2,4)]
-		self.field["X_unit"] = ["mm",(REF_ROW-2,0)]
-		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2)]
-		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2)]
+		self.field["PN"] = [PN,(0,0),u"料号"]
+		self.field["SN"] = [SN,(0,1),u"编号"]
+		self.field["model"]=[None,(0,2),u"型号"]
+		self.field["time"]=[create_time,(0,3),u"时间"]
+		self.field["tempr"] = [None,(2,0),u"温度"]
+		self.field["NTCrefer"] = [None,(2,1),u"NTC参考"]
+		self.field["NTCvalue"] = [None,(2,2),u"NTC实测"]
+		self.field["NTCresult"] = [None,(2,3),u"NTC判定"]
+		self.field["result"] =[None,(2,4),u"总结果"]
+		self.field["X_unit"] = ["mm",(REF_ROW-2,0),u"位置单位"]
+		self.field["Y1_unit"] =["ohm",(REF_ROW-2,2),u"信号1单位"]
+		self.field["Y2_unit"] =["ohm",(REF_ROW-2,REF_COL+2),u"信号2单位"]
 		self.SetSN(SN)
 		self.SetPN(PN)
 		self.table_origin_row = 0
@@ -89,26 +109,46 @@ class Test_Record():
 		gThermo.SetPT(Demo_PT)
 
 #----------------------------------------------------------------------------------------------------
-	def GetResult4NTC(self):
-		return self.field["NTCresult"][_VALUE]
-
-#----------------------------------------------------------------------------------------------------
 	def GetResult(self):
 		return self.field["result"][_VALUE]
 
 #----------------------------------------------------------------------------------------------------
-	def SetResultPass(self):
-		self.field["result"][_VALUE] = "Pass" 
-		self.result = 'Pass'
+	def SetResultFail(self):
+		self.field["result"][_VALUE] = False 
+		self.result = True
 
 #----------------------------------------------------------------------------------------------------
-	def SetResultFail(self):
-		self.field["result"][_VALUE] = "Fail" 
-		self.result = 'Fail'
+	def SetResultPass(self):
+		self.field["result"][_VALUE] = True 
+		self.result = True
+
+#----------------------------------------------------------------------------------------------------
+	def SetResultNG(self):
+		self.SetResultFail()
 
 #----------------------------------------------------------------------------------------------------
 	def GetPN(self):
 		return self.field["PN"][_VALUE] 
+
+#----------------------------------------------------------------------------------------------------
+	def GetSN(self):
+		return self.field["SN"][_VALUE] 
+
+#----------------------------------------------------------------------------------------------------
+	def GetThermo(self):
+		return self.field["tempr"][_VALUE] 
+
+#----------------------------------------------------------------------------------------------------
+	def GetNTCrefer(self):
+		return self.field["NTCrefer"][_VALUE] 
+
+#----------------------------------------------------------------------------------------------------
+	def GetNTCvalue(self):
+		return self.field["NTCvalue"][_VALUE] 
+
+#----------------------------------------------------------------------------------------------------
+	def GetNTCresult(self):
+		return self.field["NTCresult"][_VALUE] 
 
 #----------------------------------------------------------------------------------------------------
 	def Show(self):
@@ -116,6 +156,10 @@ class Test_Record():
 		out += self.ShowField()
 		out += self.ShowRecord()
 		return out
+
+#----------------------------------------------------------------------------------------------------
+	def SetThermo(self,value):
+		self.field["tempr"][_VALUE] = float(value)
 
 #----------------------------------------------------------------------------------------------------
 	def GetRecord(self):
@@ -164,9 +208,9 @@ class Test_Record():
 		self.field["NTCvalue"][_VALUE] = float(Rntc)
 		self.field["NTCrefer"][_VALUE]  = float(Rref)
 		if result == True:
-			self.field["NTCresult"][_VALUE] = "Pass"
+			self.field["NTCresult"][_VALUE] = True
 		else:
-			self.field["NTCresult"][_VALUE] = "Fail"
+			self.field["NTCresult"][_VALUE] = False
 		
 		return (result,temprature,Rntc,Rref)
 
@@ -181,8 +225,11 @@ class Test_Record():
 		gEut.RestoreFromDBZ(PN)
 	#		return None
 		print "setup PN end...................................................................................................."
-		if gEut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
+		if gEut.HasNTC():#if has thermo_sensor,restore from DB
 			gThermo.SetNTC(gEut.field["thermo_PN"][_VALUE])
+			self.field["NTCvalue"] =[None,(2,1),u"NTC实测值"]
+			self.field["NTCrefer"] =[None,(2,2),u"NTC参考值"]
+			self.field["NTCresult"] =[None,(2,3),u"NTC结果"]
 
 		self.field["PN"][_VALUE]   = gEut.field["PN"][_VALUE]
 		self.field["model"][_VALUE]   = gEut.field["model"][_VALUE]
@@ -201,11 +248,15 @@ class Test_Record():
 
 #----------------------------------------------------------------------------------------------------
 	def InitRecord(self):
+		self.field["NTCvalue"][_VALUE] = None
+		self.field["NTCrefer"][_VALUE]  = None
+		self.field["NTCresult"][_VALUE]  = None
+		self.field["result"][_VALUE]  = None
 		self.Record_Table = [[],[]]
 		self.InitTable()
 
 	def InitTable(self):
-		self.last_row = self.table_origin_row 
+		#self.last_row = self.table_origin_row 
 		self.last_index = 0
 
 #----------------------------------------------------------------------------------------------------
@@ -266,8 +317,7 @@ class Test_Record():
 		db_cursor.execute(cmd)
 		for existed in db_cursor:
 			if existed[0] <= 0:
-				wx.MessageBox(u"抱歉！此记录不存在!",
-					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO)
+				util.ShowMessage(u"抱歉！此记录不存在!")
 				return None
 			else:
 				break
@@ -279,7 +329,7 @@ class Test_Record():
 			print "Warning:%s not found!\n"%SN
 			return None
 
-		obj_x = gZpickle.loads(eut_b[4]) 
+		obj_x = util.gZpickle.loads(eut_b[4]) 
 		self.field = obj_x.field
 		self.Record_Table = obj_x.Record_Table 
 		self.result = obj_x.result
@@ -296,23 +346,7 @@ class Test_Record():
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor = db_con.cursor()
 		self.CreateTable(db_cursor)
-	#	cmd = "select count(*) from %s where SN like '%s'"%(self.table_name,self.field["SN"][_VALUE])
-	#	db_cursor.execute(cmd)
-	#	for existed in db_cursor:
-	#		if existed[0] > 0:
-	#			if wx.NO == wx.MessageBox(u"注意！此记录已存在\n 确认要更新？",
-	#					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-	#				return
-	#			else:
-	#				cmd = "delete from %s where SN like '%s'" % (self.table_name, self.field["SN"][_VALUE])
-	#				db_cursor.execute(cmd)
-	#				db_con.commit()
-	#		else:
-	#			if  wx.NO == wx.MessageBox(u"确认要保存？",
-	#					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-	#				return
-	#		break
-		obj_dbz = gZpickle.dumps(self)
+		obj_dbz = util.gZpickle.dumps(self)
 		print "obj len ......",len(obj_dbz)
 		record_bz = (self.field["PN"][_VALUE],
 				self.field["SN"][_VALUE],
@@ -327,24 +361,14 @@ class Test_Record():
 
 #----------------------------------------------------------------------------------------------------
 	def UpdateTable(self,row=6,col=0,window=None):
-		#print "update record table"
-#		if not  self.field["PN"][_VALUE]:
-#			print "Error:invlid PN!"
-#			return 
-#		eut = Eut()
-#		eut.RestoreFromDBZ(self.field["PN"][_VALUE])
-#		
-#		if eut.field["thermo_PN"]:#if has thermo_sensor,restore from DB
-#			thermo_sensor = Thermo_Sensor()
-#			thermo_sensor.RestoreFromDBZ( eut.field["thermo_PN"])
-#
+		self.InitTable()
 		self.UpdateHeader(row,col,window)
-		self.UpdateRecord(col=col,window=window,tables=self.Record_Table)
+		self.UpdateRecord(col,window,self.Record_Table)
 
 #----------------------------------------------------------------------------------------------------
 	def UpdateHeader(self,row=6,col=0,window=None):
 		for table in self.Record_Table:
-			window.SetNumberRows(10)
+			#window.SetNumberRows(10)
 			if table is self.Record_Table[0]:
 				col_start = col
 				i    = 1
@@ -352,17 +376,25 @@ class Test_Record():
 				col_start = col + REF_COL
 				i    = 2
 			col_ = col_start
-			for name in (u"位置/mm",u"位偏移/mm",u"Sensor%d值"%(i),u"精度",u"结果"):
+			signal_ref =u"sig.%d ref.\n信号%d标准\n%s"%(i,i,window.GetCellValue(row-1,col_+2))
+			signal_real =u"sig.%d real.\n信号%d实测\n%s"%(i,i,window.GetCellValue(row-1,col_+2))
+			window.SetRowSize(row,60)
+			for width,name in ((50,u"Pos.\n位置\nmm"),(50,u"offset\n位偏移\n±mm"),(80,signal_ref),(80,signal_real),(120,u"judge\n结果")):
 				window.SetCellValue(row,col_,name)
 				window.SetReadOnly(row,col_,True)
 				window.SetCellBackgroundColour(row,col_,"Grey")
+				window.SetColSize(col_,width)
 				col_ += 1
 		self.last_row = row + 1
 		self.table_origin_row = row + 1
 		#print "last row>>>>>>>>>>>>>",self.last_row
-			
+
 #----------------------------------------------------------------------------------------------------
 	def UpdateRecord(self,col=0,window=None,tables=[]):
+		self.UpdateRecord_v2(col,window,tables)
+		#print "test_record update record.................."
+#----------------------------------------------------------------------------------------------------
+	def UpdateRecord_v1(self,col=0,window=None,tables=[]):
 		#print "test_record update record.................."
 		for table in tables:
 			if not table:
@@ -426,15 +458,72 @@ class Test_Record():
 
 			self.last_row = row_
 		#print "last row>>>>>>>>>>>>>",self.last_row
+		
+#----------------------------------------------------------------------------------------------------
+	def UpdateRecord_v2(self,col=0,window=None,tables=[]):
+		#print "test_record update record.................."
+		for table in tables:
+			if not table:
+				continue
+			row_ = self.last_row
+			if table is tables[0]:
+				col_start = col
+			else:
+				col_start = col + REF_COL
+			col_ = col_start
+			#print self.last_row
+			for record_entry in table:
+				if not record_entry:
+					continue
+				record		= record_entry.GetRecord()
+				refer_entry  	= record_entry.GetRefer()#index is  a tuple of (index_num,table_num)
+
+				(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
+				(Xvalue_,Xprecision_,Yvalue_,Yprecision_,Yoffset_,Ymin_,Ymax_)=record.Values()
+				#print record.Values()
+				#show refer values
+				color = "light gray"
+				result = ''
+				if record.GetLength() == 100:
+					if (Yprecision_ > Yprecision) :
+						result = u" Y轴(测量值)超差"
+						color = "red"
+					else:
+						result  = u"Y:PASS"
+						color = "green"
+					if (Xprecision_ > Xprecision) :
+						result += u"; X轴(位移)超差\n"
+				if result == '':
+					continue
+				sheet_len =window.GetNumberRows()  
+				window.SetNumberRows(sheet_len+1)
+				self.last_index += 1
+				window.SetRowLabelValue(row_,str(self.last_index))
+				window.SetRowSize(row_,20)
+
+				#show result 
+				col_ = col_start
+				for value in (Xvalue,Xvalue_,Yvalue,Yvalue_,result):
+					if isinstance(value,float):
+						value_str = str(round(value,2))
+					else:
+						value_str = value
+					window.SetCellBackgroundColour(row_,col_,color)
+					window.SetCellValue(row_,col_,value_str)
+					window.SetReadOnly(row_,col_,True)
+					col_ += 1
+				row_ += 1 # next record_entry
+
+			self.last_row = row_
 
 #----------------------------------------------------------------------------------------------------
 	def QueryDB(self, time_pattern,PN_pattern):
 		db_con   =sqlite.connect(self.db_name)
 		db_con.text_factory = str #解决8bit string 问题
 		db_cursor=db_con.cursor()
-		if time_pattern.find("Fail") >= 0:
-			time_pattern = time_pattern.strip("Fail")
-			SELECT = "SELECT PN,SN,time,result FROM %s WHERE time LIKE '%%%s%%' and PN LIKE '%%%s%%' and result LIKE '%%Fail%%'" %( 
+		if time_pattern.find("NG") >= 0:
+			time_pattern = time_pattern.strip("NG")
+			SELECT = "SELECT PN,SN,time,result FROM %s WHERE time LIKE '%%%s%%' and PN LIKE '%%%s%%' and result LIKE '%%NG%%'" %( 
 				self.table_name,time_pattern,PN_pattern)
 		elif time_pattern.find("Pass") >= 0:
 			time_pattern = time_pattern.strip("Pass")
@@ -463,7 +552,6 @@ class Test_Record():
 ####################################################################################################
 DEMO_PN    = 'R939-5y'
 if __name__=='__main__':
-	app = wx.App()
 	record = Test_Record()
 	#gModule = True
 	record.SetPN(DEMO_PN)

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-#!python
 """Hello, wxPython! program"""
 
 # FileName simple.py
 
 import sys 
+import wxversion
+wxversion.select("2.8")
 import wx 
 import os 
 from wx import xrc 

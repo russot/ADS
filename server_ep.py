@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-#!python
 """---endpoints server module---"""
 
 
@@ -26,7 +25,10 @@ IP_ADDRESS = '127.0.0.1'
 
 if __name__=='__main__':
 	server = Server_Endpoints(host=IP_ADDRESS,port=PORT)
-	server.start()
+	try:
+		server.start()
+	except:
+		pass
 
 
 	

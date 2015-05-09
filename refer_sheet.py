@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-#!python
 """Signal UI component .""" 
 import sys
 import glob
+import wxversion
+wxversion.select("3.0")
 import wx 
 import wx.grid 
 import wx.lib.sheet 
@@ -16,8 +17,8 @@ from Queue import Queue
 import math
 import csv
 import minidb
-from data_point import Data_Point,Data_Real,Data_Validated
-from data_validator import Data_Validator_Linear
+#from data_point import Data_Point,Data_Real,Data_Validated
+#from data_validator import Data_Validator_Linear
 import wx.lib.buttons as buttons 
 import re
 import wx.lib.agw.balloontip as btip
@@ -27,8 +28,8 @@ import config_db
 import sqlite3 as sqlite
 import wx.lib.scrolledpanel as scrolledpanel
 import codecs
-from data_point import Data_Point,Signal_Control_Basic
-from util import gAuthen,gZip,gZpickle 
+#from data_point import Data_Point,Signal_Control_Basic
+import util
 from eut import Eut
 from thermo_sensor import Thermo_Sensor
 from test_record import Test_Record 
@@ -48,6 +49,7 @@ gModule = False
 #index for named cells
 _VALUE	= int(0)
 _RC	= int(1)
+_STR	= int(2)
 
 #index for refer table RC
 REF_ROW = 6
@@ -61,7 +63,6 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		self.SetNumberCols(20)
 		self.SetNumberRows(500)
 		self.number_rows= 500
-		#self.Init_Named_Cells()
 		self.InitSheet()
 		self.eut = Eut()
 		self.SetEut(eut)
@@ -84,14 +85,18 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 
 
 	def InitSheet(self):
+		self.SetRowLabelSize(25)
 		self.SetNumberRows(0)
+		self.SetNumberRows(7)
+		for row in range(0,self.GetNumberRows()):
+			self.SetRowLabelValue(row,'')
 		self.Refresh(True)
 		font_ = self.GetCellFont(0,0)
 		font_.SetPointSize(12)
 		self.SetDefaultCellFont(font_)
 		self.SetDefaultRowSize(35,True)
 		self.SetDefaultColSize(100,True)
-		self.SetGridLineColour("RED")
+		self.SetGridLineColour('Light Grey')
 		self.SetDefaultCellAlignment(wx.ALIGN_CENTER,wx.ALIGN_CENTER)
 
 	def SetReadOnlyAll(self,read_only):
@@ -112,29 +117,43 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 
 
 	def UpdateField(self):
-		for (name,value) in self.eut.field.items():
+		for name,value in self.eut.field.items():
 			#print "field name&value:",name,value
+			if name.find("result") != -1:
+				if value[_VALUE] == None:
+					value[_VALUE] = ''
+				elif value[_VALUE] == True:
+					value[_VALUE] = 'PASS'
+				elif value[_VALUE] == False:
+					value[_VALUE] = 'NG'
 			if isinstance(value[_VALUE],int):
 				value_str = str(value[_VALUE])
 			elif isinstance(value[_VALUE],float):
-				value_str = str(round(value[_VALUE],6))
+				value_str = str(round(value[_VALUE],2))
 			elif isinstance(value[_VALUE],str):
 				value_str = value[_VALUE].decode('utf-8')
 			else:
 				value_str = value[_VALUE]
 
 			row,col = value[_RC]
-			#print value_str,'.....................................................................................................'
-			self.SetCellValue(row,col, str(name))
-			self.SetCellValue(row+1,col, value_str)
+			if util.gRunning == True or util.gHideField == True:
+				self.SetRowSize(row,0)
+				self.SetRowSize(row+1,0)
+			else:
+				self.SetRowSize(row,40)
+				self.SetRowSize(row+1,20)
+
+			self.SetCellValue(row,col,name+'\n'+Test_Record.field_[name])
+			if value_str:
+				self.SetCellValue(row+1,col, value_str)
 			self.SetReadOnly(row,col,True)
 			self.SetReadOnly(row+1, col,True)
 			self.SetCellBackgroundColour(row,col,"Light Grey")
 			if re.search(r"Y.*unit",name):
-				editor =  wx.grid.GridCellChoiceEditor( [u"Ohm",u"Volt",u"Amp"], False)
+				editor =  wx.grid.GridCellChoiceEditor( [u"Ohm/Ω",u"Volt/V",u"Amp/A"], False)
 				self.SetCellEditor( row+1, col, editor)
 			elif re.search(r"X.*unit",name):
-				editor =  wx.grid.GridCellChoiceEditor( [u"mm",u"\xb0C"], False)
+				editor =  wx.grid.GridCellChoiceEditor( [u"mm",u"℃"], False)
 				self.SetCellEditor( row+1, col, editor)
 			elif re.search(r"num",name):
 				editor =  wx.grid.GridCellChoiceEditor( [u"1",u"2"], False)
@@ -143,12 +162,13 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 	def UpdateTable(self):
 		self.eut.UpdateTable(row=REF_ROW,col=0,window=self)
 
-	def UpdateRecordOnce(self):#called upon new data received
+	def UpdateRecordOnce(self):#called upon new data arriving
 		if not isinstance(self.eut,Test_Record):
 			return
 		recordn_0,recordn_1 = self.eut.GetLastRecord()
 		tables = [[recordn_0,],[recordn_1,]]
 		self.eut.UpdateRecord(col=0,window=self,tables=tables)
+		#self.Refresh(True)
 
 	def show_record(self,tables):
 		for table in tables:
@@ -161,30 +181,24 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 				print record.record.ShowSensor()
 			
 	def UpdateCell(self):
-		self.UpdateTable()
+		self.InitSheet()
 		self.UpdateField()
-		#print "update_cell end ", self.eut.field
-		self.Refresh(True)
-
-
-
+		self.UpdateTable()
+		#self.AutoSizeColumns(True)
+		#self.Refresh(True)
 
 	def SaveEut(self):
 		self.eut.Save(window=self)
 		
 
 	def show(self,PN):
-		self.InitSheet()
 		self.eut.RestoreFromDBZ(PN)
-		if isinstance(self.eut,Test_Record):
-			self.eut.InitTable()
 		self.UpdateCell()
 
 	def QueryDB(self, model_pattern,PN_pattern):
 		return self.eut.QueryDB( model_pattern,PN_pattern)
 
 	def Import(self):
-		self.InitSheet()
 		self.eut.Import()
 		self.UpdateCell()
 	
@@ -192,11 +206,16 @@ class Refer_Sheet(wx.lib.sheet.CSheet):
 		dlg = wx.TextEntryDialog(None,u"请输入参考条目数:","  ","200")
 		if dlg.ShowModal() == wx.ID_OK:
 			num = int(dlg.GetValue())
-			self.SetNumberRows(num)
 			self.SetDefault()
+			self.SetNumberRows(num+7)
+			for row in range(7,num+7):
+				self.SetRowLabelValue(row,str(row-6))
 
 	def SetDefault(self):
-			self.eut.SetDefault()
+			try:
+				self.eut.SetDefault()
+			except:
+				pass
 			self.InitSheet()
 			self.UpdateCell()
 
