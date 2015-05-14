@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!python
 """Signal UI component .""" 
 import sys
 import glob
@@ -285,24 +286,24 @@ class Eut_Editor(wx.Dialog):
 		"""select table file to query"""
 		self.eut_list.ClearAll()         
 		if self.btn_selectType.GetSelection() == 2:
-			if wx.NO ==	wx.MessageBox(u'确认换到"传感器"!',
-					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-				return
+			#if wx.NO ==	wx.MessageBox(u'确认换到"传感器"!',
+			#		style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+			#	return
 
 			self.btn_selectType.SetLabel(u"Sensor")
 			self.refer_sheet.SetEut(Eut())
 		elif self.btn_selectType.GetSelection() == 0:
-			if wx.NO ==	wx.MessageBox(u'确认更换到"测试记录"!',
-					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-				return
+			#if wx.NO ==	wx.MessageBox(u'确认更换到"测试记录"!',
+			#		style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+			#	return
 			self.box_name.SetLabel(u"时间&&&& (结果)")
 			self.box_PN.SetLabel(u"料号")
 			self.btn_selectType.SetLabel(u"测试记录")
 			self.refer_sheet.SetEut(Test_Record())
 		elif self.btn_selectType.GetSelection() == 1:
-			if wx.NO ==	wx.MessageBox(u'确认更换到"NTC"!',
-					style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
-				return
+			#if wx.NO ==	wx.MessageBox(u'确认更换到"NTC"!',
+			#		style=wx.CENTER|wx.ICON_QUESTION|wx.YES_NO):
+			#	return
 
 			self.btn_selectType.SetLabel(u"NTC")
 			self.refer_sheet.SetEut(Thermo_Sensor())
@@ -580,6 +581,7 @@ class Signal(wx.Dialog):
 		self.cmd_queue.put(vout_cmd)
 
 	def SetRangHL(self):
+		return
 		eut = util.gSession["eut"]
 		rangeHL_cmd = "setup:PLC:com3:9600"
 		self.cmd_queue.put(rangeHL_cmd)
@@ -702,7 +704,7 @@ class Signal(wx.Dialog):
 		print pga_cmd
 		self.cmd_queue.put(pga_cmd)
 		time.sleep(0.1)
-		if self.AutoOption :
+		if self.config["AutoOption"]:
 			self.SetRangHL()
 
 
@@ -715,7 +717,7 @@ class Signal(wx.Dialog):
 			self.thread_source = Data_Source(self,self.GetUrl(),self.cmd_queue,self.data_queue)
 			self.thread_source.setDaemon(True)
 			self.thread_source.start() #启动后台线程, 与endpoint server进行连接与通信
-			serial_name = self.url.split("/")[1]
+			serial_name = self.GetUrl().split("/")[1]
 			open_cmd = "open:%s:%s"%(serial_name,'115200')
 			print open_cmd
 			self.cmd_queue.put(open_cmd)
@@ -772,7 +774,10 @@ class Signal(wx.Dialog):
 					continue
 				Xvalue_,Yvalue_ = item["value"]
 				#print "Xvalue,Yvalue:",Xvalue,';',Yvalue_
-				Xvalue = pga.gPGA.Get_Hex2MiliMeter(Xvalue_)
+				if self.config["AutoOption"]:
+					Xvalue = pga.gPGA.Get_Hex2MiliMeter(Xvalue_)
+				else:
+					Xvalue = None
 				Yvalue = pga.gPGA.Get_Hex2Float(Yvalue_)
 				length = item["length"]
 				if length > 100 or item['flag'] == 'step':
@@ -1190,9 +1195,11 @@ class Dialog_Setup(wx.Dialog):
 		self.Fit()
 
 Y_ = 0
-TEXT = 1
+Y_T = 1
 SHOW = 2
 VALUE = 3
+X_ = 4
+X_T= 5
 ############################################################################################################################################
 class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 	def __init__(self,  parent=None,
@@ -1217,6 +1224,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		#self.Bind(wx.EVT_LEFT_DCLICK, self.OnShowCurrent)
 		self.Bind(wx.EVT_MIDDLE_DCLICK, self.OnSetup)
 
+
 		self.popmenu1 = wx.Menu()
 		#self.menu_save = self.popmenu1.Append(wx.NewId(), u"保存数据", u"保存数据到数据库" )
 		self.menu_run = self.popmenu1.Append(wx.NewId(), u"运行.当前点", u"运行与暂停", kind=wx.ITEM_CHECK)
@@ -1239,6 +1247,11 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
 		self.Bind(wx.EVT_CHAR, self.OnKeyDown)
 		self.grid_v = [] 
+		self.grid_X = 1
+		self.grid_Y = 1
+		self.reverse = False
+		self.debug__ = True
+		self.FullScreen = False
 		self.SetRenderDefault()
 		
 	def GetInfo(self):
@@ -1256,7 +1269,7 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.log10_toggle = False
 		self.factorY    = 1.0
 		self.offsetY = 100 
-		self.screenXsize = 120
+		self.screenXsize = self.GetRect().width-590
 
 
 	def GetRecord(self):
@@ -1337,9 +1350,11 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		elif raw_code == 115 :# <F4> = setup
 			self.Setup()
 		elif raw_code == 116 :# <F5> = full screen
-			self.window.ShowFullScreen(True)
+			self.FullScreen = not self.FullScreen 
+			self.window.ShowFullScreen(self.FullScreen)
 		elif raw_code == 27 :# <ESC> = NOT full screen
-			self.window.ShowFullScreen(False)
+			self.FullScreen = False
+			self.window.ShowFullScreen(self.FullScreen)
 			app=wx.GetApp()
 			frame = app.GetTopWindow()
 			frame.StopLogo()
@@ -1491,20 +1506,45 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		refer_table = eut.GetReferTable()[0]
 		refer_num = len(refer_table)
 		max_Y  = self.GetRect().height
-		grid_Y = max_Y/(refer_num+1) 
-		self.grid_v = [] 
+		max_X  = self.screenXsize
+		self.grid_Y = max_Y/(refer_num+1) 
+		self.grid_X = max_X/(refer_num-1) 
+		self.grid_v = []
+		lastX = None
+		if refer_table[0].GetXvalue() > refer_table[1].GetXvalue():
+			self.reverse = True
+		for data in self.signals[0].GetData():
+			if not data:
+				continue
+			Yvalue = data.GetYvalue()
+			refer_entry = eut.GetReferEntry_Y(Yvalue=Yvalue)
+			if lastX != None:
+				self.reverse = False
+				if lastX > refer_entry.GetXvalue():
+					self.reverse = True
+				break
+			lastX =  refer_entry.GetXvalue()
+
 		for i in range(0,refer_num):
+			grid_Xi = self.grid_X*(i+1) 
 			if self.signals[0].GetYmirrorOption():
-				grid_Yi = grid_Y*(i+1) 
+				grid_Yi = self.grid_Y*(i+1) 
 			else:
-				grid_Yi = grid_Y*(refer_num-i) 
+				grid_Yi = self.grid_Y*(refer_num-i) 
 			show = True
 			if refer_num > 40 and i%2 != 0:
 				show = False
-			grid_Vi = float(refer_table[i].GetYvalue())
-			grid_Ti = "%.2f"%grid_Vi
-			self.grid_v.append([grid_Yi,grid_Ti,show,grid_Vi]) 
+			grid_Vyi = float(refer_table[i].GetYvalue())
+			grid_Tyi = "%.2f"%grid_Vyi
+			if self.reverse == True:
+				grid_Txi = "%d"%int(refer_table[-i-1].GetXvalue())
+			else:
+				grid_Txi = "%d"%int(refer_table[i].GetXvalue())
+			self.grid_v.append([grid_Yi,grid_Tyi,show,grid_Vyi,grid_Xi,grid_Txi]) 
+			if self.debug__:
+				print "\ngrid_Xi,grid_Txi:",grid_Xi,':',grid_Txi
 
+		self.debug__ = False
 
 
 
@@ -1592,10 +1632,11 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		dc.SetPen(wx.Pen(self.GetGridColour(),1,style = wx.DOT))
 		dc.SetTextForeground(self.GetGridColour())
 		for grid in self.grid_v:
+			dc.DrawRotatedText(grid[X_T] ,grid[X_],0,-90)
 			if grid[SHOW]!= True:
 				continue
 			dc.DrawLine(0,grid[Y_] ,clientRect.width,grid[Y_] )
-			dc.DrawText(grid[TEXT] ,0,grid[Y_]-15)
+			dc.DrawText(grid[Y_T] ,0,grid[Y_]-15)
 
 	def DrawGrid_v1(self):
 		eut = util.gSession["eut"]
@@ -1638,20 +1679,24 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.DrawSignal_v2(signal,dc,clientRect)
 
 	def DrawSignal_v2(self,signal,dc,clientRect):
-		x0_ = 1
-		x1_ = 1
-		maxY= signal.GetMaxY() 
-		maxX= signal.GetMaxX() 
-		max_height = clientRect.height
-		last_Y0    = max_height
+		x0_ = 0
+		x1_ = 0
+		maxY    = signal.GetMaxY() 
+		maxX    = signal.GetMaxX() 
+		last_Y0 = clientRect.height
 		for data_ in signal.GetData():
 			if not data_:
 				continue
 			if data_.GetYvalue() >= 0:
 				#print " data_.Yvalue::",data_.GetYvalue()
-				x1_ = x0_ + data_.GetLength()
-				x0  = x0_ *self.screenXsize/maxX
-				x1  = x1_ *self.screenXsize/maxX
+				if data_.GetLength() >=100: 
+					x1_ = x0_ + self.grid_X
+				else:
+					x1_ = x0_ + data_.GetLength()
+				#x0  = x0_ *self.screenXsize/maxX
+				#x1  = x1_ *self.screenXsize/maxX
+				x0  = x0_
+				x1  = x1_ 
 				if data_.GetValid() == True:
 					dc.SetPen(wx.Pen(signal.GetOkColour(),2,style = wx.SOLID))
 				else:
@@ -1703,12 +1748,15 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		self.SelectEut()
 
 	def SelectEut(self):
+		hide = bool(util.gHideField)#Field临时改为可见。
+		util.gHideField = False
 		Eut_editor = Eut_Editor(self)
 		if Eut_editor.ShowModal()!= wx.ID_OK:
 			return Eut_editor.Destroy()
 
 		obj_ = Eut_editor.GetEut()
 		if not obj_.GetPN():
+			util.gHideField = hide
 			return
 		if isinstance(obj_ ,Eut):
 			util.gSession["eut"] = obj_
@@ -1718,7 +1766,9 @@ class Signal_Panel(wx.lib.scrolledpanel.ScrolledPanel):   #3
 		else:
 			print u"错误：无效的Sensor!"
 			util.ShowMessage(u"错误：无效的Sensor!")
+			util.gHideField = hide
 			return False
+		util.gHideField = hide
 		return True
 
 

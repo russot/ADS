@@ -1,12 +1,20 @@
 # -*- coding: utf-8 -*-
+#!python
 """Create a Frame instance and display image.""" 
 import sys 
 import wxversion
 wxversion.select("3.0")
 import wx 
+#import os 
 from signal_control import Signal_Control
 import string 
+#import wx.lib.scrolledpanel as scrolledpanel
+#import threading 
+#from Queue import Queue
+#import sqlite3 as sqlite
+#import config_db
 import time
+import json
 import util
 import pga
 
@@ -162,7 +170,7 @@ class Frame(wx.Frame):   #3
 		self.PopupMenu(self.popmenu1, pos)
 
 	def OnQueryDB(self,event):
-		QueryUI = util.Server_("..\python27\python.exe refer_table.py")
+		QueryUI = Server_("python refer_table.py")
 		QueryUI.start()
 
 	def OnSetupOptions(self,event):

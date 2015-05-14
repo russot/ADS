@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!python
 """Signal UI component .""" 
 import wxversion
 wxversion.select("3.0")
@@ -254,7 +255,7 @@ class Eut():
 			col_ = col_start
 			signal_ref =u"信号%d标准值\n%s"%(i,window.GetCellValue(row-1,col_+2))
 			window.SetRowSize(row,40)
-			for width,name in ((50,u"位置\nmm"),(50,u"位偏移\n±mm"),(90,signal_ref),(50,u"精度\n%"),(50,u"修正值")):
+			for width,name in ((50,u"H/高度\nmm"),(50,u"偏差\n±mm"),(90,signal_ref),(50,u"精度\n%"),(50,u"修正值")):
 				window.SetCellValue(row,col_,name)
 				window.SetReadOnly(row,col_,True)
 				window.SetCellBackgroundColour(row,col_,"Grey")
@@ -371,14 +372,6 @@ class Eut():
 			return 1
 		except:
 			return -2
-	def InitValidStatus(self):
-		try:
-			for table in self.Refer_Table:
-				for i in table:
-					i.SetValidStatus(False)
-		except:
-			pass
-
 
 	def ShowRefer(self):
 		
@@ -452,19 +445,17 @@ class Eut():
 			for p1 in self.Refer_Table[table_num]:
 				y0 = p0.GetYvalue()
 				y1 = p1.GetYvalue()
-				delta0 = Yvalue - y0
-				delta1 = Yvalue - y1
+				delta0 = abs(Yvalue - y0)
+				delta1 = abs(Yvalue - y1)
 				#judge being within by comparing delta_sum 
 				if (delta0 + delta1) > abs(y1 - y0):
 					p0 = p1
 					continue
 				#use nearby Yvalue
-				if abs(delta0) < abs(delta1): 
+				if delta0 < delta1: 
 					refer_entry =  p0
-					p0.SetValidStatus(True)
 				else:
 					refer_entry =  p1
-					p1.SetValidStatus(True)
 				break
 		return refer_entry
 

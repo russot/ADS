@@ -1,4 +1,5 @@
 #-*- coding: utf-8 -*-
+#!python
 """Signal UI component .""" 
 import sys 
 import wx 
@@ -127,6 +128,7 @@ class Signal_Control(wx.Panel):   #3
 
 		
 		Dx,Dy = wx.DisplaySize()
+		print "\ndispaly________________",Dx,':',Dy
 		# 创建主分割窗
 		self.sizer_info = wx.BoxSizer(wx.VERTICAL)
 		#self.sp_window = wx.SplitterWindow(parent=self,size=(Dx-130,Dy-20))
@@ -166,6 +168,7 @@ class Signal_Control(wx.Panel):   #3
 		self.text_thermo = wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
 		self.text_NTC_ref= wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
 		self.text_NTC_measured = wx.TextCtrl(self,-1,"N/A",style=(wx.TE_READONLY))
+		self.text_NTC_measured.Bind(wx.EVT_LEFT_DCLICK, self.OnSetNTC)
 		self.labels= []
 		for label_name,txt in ((u"料号/PN",self.text_name),
 				(u"编号/SN",self.text_serial),
@@ -435,7 +438,6 @@ class Signal_Control(wx.Panel):   #3
 		self.SetSN(SN)
 		self.SetThermo(thermo)
 		self.SetNTCrefer(NTC_refer)
-		self.SetNTCvalue(NTC_value)
 		if result == None or result == '':
 			self.result.SetUnknown()
 		elif result == False or result == 'Fail':
@@ -443,6 +445,8 @@ class Signal_Control(wx.Panel):   #3
 		elif result == True or result == 'Pass':
 			self.result.SetPass()
 		self.result.Refresh(True)
+		self.SetNTCvalue(NTC_value, NTCresult)
+
 
 
 	def SetupOptions(self):
@@ -484,11 +488,18 @@ class Signal_Control(wx.Panel):   #3
 		self.text_NTC_ref.SetValue(str(refer_))
 		return True
 
-	def SetNTCvalue(self,value):
+	def OnSetNTC(self,event):
+		self.text_NTC_measured.SetBackgroundColour("green")
+
+	def SetNTCvalue(self,value,result):
 		if not value:
 			return False
 		value_ = round(float(value),2)
 		self.text_NTC_measured.SetValue(str(value_))
+		if result == True or result.startswith('Pass'):
+			self.text_NTC_measured.SetBackgroundColour("green")
+		else:
+			self.text_NTC_measured.SetBackgroundColour("red")
 		return True
 					
 	def ShowVout(self,Vout):

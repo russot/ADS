@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+
 from decimal import *
 import util
+import circuit
 #import configure
 
 
@@ -82,12 +84,14 @@ class  Pga():
 		self.SetVrefs()
 
 	def SetVrefs(self):
-		self.config=util.gSession["signal_config"]
+		#self.config=util.gSession["signal_config"]
+		self.config=[[],[],[],[],[]]
 		self.gains=[]
 		self.init_gains()
 		self.init_RR_series()
 		self.resolvs = 3.0
 		self.unit = 'Ohm'
+		self.Vrefs = util.gSession["signal_config"]["Vrefs"]
 
 	def GetVrefs(self):
 		return self.Vrefs
@@ -142,7 +146,7 @@ class  Pga():
 			r_par = 3.4E38
 			par_series = self.find_series(i)
 			for r_j in par_series:
-				Rx = Rs[_RR][r_j] + gRDSon
+				Rx = self.Rs[_RR][r_j] + gRDSon
 				r_par = r_par * Rx  / (r_par + Rx)
 
 			self.RR_par.append( [r_par,par_series] )
@@ -198,7 +202,7 @@ class  Pga():
 		elif unit.startswith('Vol') or  unit.startswith('vol') :	
 			self.unit = 'Volt'
 			self.find_solution4U(range_)
-		elif unit.starswith('Amp') or  unit.startswith('amp'):	
+		elif unit.startswith('Amp') or  unit.startswith('amp'):	
 			self.unit = 'Amp'
 			self.find_solution4I(range_)
 		return self.GetCode()
@@ -206,7 +210,7 @@ class  Pga():
 
 #----------------------------------------------------------------------------------------------------
 	def find_solution4R(self,range_):
-		Vresolv = self.config["Vrefs"][_VADC]/pow(2,self.ADC_BITS)
+		Vresolv = self.Vrefs[_VADC]/pow(2,self.ADC_BITS)
 		Rmin   = float(range_[_MIN])*float(0.99)
 		Rmin_r = float(range_[_MIN])
 		Rmax_r = float(range_[_MAX])
@@ -248,7 +252,7 @@ class  Pga():
 					#print Vo_max,'^^^^',(Vo_min_r-Vo_min)
 					break
 		if len(solutions) < 1:
-			print "%.3f--%.3f solution not found."%(range_[_MIN],range_[_MAX])
+			print u"%.3f--%.3f solution not found."%(range_[_MIN],range_[_MAX])
 			return
 		#solution found 
 		#solutions.sort(key=lambda x:(x[_VMAX]-x[_VMIN]))
@@ -288,8 +292,8 @@ class  Pga():
 	def Get_Hex2R(self,value_hex):
 		#print self.config
 
-		Vref = float(self.config["Vrefs"][_VREF])
-		Vadc = float(self.config["Vrefs"][_VADC])
+		Vref = float(self.Vrefs[_VREF])
+		Vadc = float(self.Vrefs[_VADC])
 		Rref   = float(self.Rs[_REF][0])
 		Rcon   = float(gRcon)
 		Volt_A1out= float(Vadc)*float(value_hex)/float(pow(2,self.ADC_BITS))
@@ -302,8 +306,8 @@ class  Pga():
 	def Get_R2Hex(self,value_R):
 		#print self.config
 		R_ = float(value_R)
-		Vref = float(self.config["Vrefs"][_VREF])
-		Vadc = float(self.config["Vrefs"][_VADC])
+		Vref = float(self.Vrefs[_VREF])
+		Vadc = float(self.Vrefs[_VADC])
 		Rref   = float(self.Rs[_REF][0])
 		Rpar   = float(self.config[_RR_][_G_])
 		Rcon   = float(gRcon)
@@ -315,7 +319,7 @@ class  Pga():
 		return hexValue 
 #----------------------------------------------------------------------------------------------------
 	def find_solution4U(self,range_):
-		Vadc = float(self.config["Vrefs"][_VADC])
+		Vadc = float(self.Vrefs[_VADC])
 		VMax = range_[_MAX]*1.01
 		RUH = self.Rs[_RUH][0]
 		Rcon   = float(gRcon)
@@ -372,8 +376,8 @@ class  Pga():
 	def Get_Hex2U(self,value_hex):
 		#print self.config
 		print "U_hex:",value_hex
-		Vref = float(self.config["Vrefs"][_VREF])
-		Vadc = float(self.config["Vrefs"][_VADC])
+		Vref = float(self.Vrefs[_VREF])
+		Vadc = float(self.Vrefs[_VADC])
 		RUH    = self.Rs[_RUH][0]
 		RDSon = gRDSon  
 		Rcon   = float(gRcon)
@@ -390,8 +394,8 @@ class  Pga():
 
 	def Get_U2Hex(self,Vin):
 		#print self.config
-		Vref = float(self.config["Vrefs"][_VREF])
-		Vadc = float(self.config["Vrefs"][_VADC])
+		Vref = float(self.Vrefs[_VREF])
+		Vadc = float(self.Vrefs[_VADC])
 		RUH    = self.Rs[_RUH][0]
 		Rcon   = float(gRcon)
 		Rpar_  = self.config[_RR_][_G_] + gRDSon
@@ -404,7 +408,7 @@ class  Pga():
 
 #----------------------------------------------------------------------------------------------------
 	def find_solution4I(self,range_):
-		Vadc = float(self.config["Vrefs"][_VADC])
+		Vadc = float(self.Vrefs[_VADC])
 		Imax = range_[_MAX]*1.01
 		solutions=[]
 		for ir in range(0,len(self.RR_par)):
@@ -458,7 +462,7 @@ class  Pga():
 
 	def Get_Hex2I(self,value_hex):
 		#print self.config
-		Vadc = float(self.config["Vrefs"][_VADC])
+		Vadc = float(self.Vrefs[_VADC])
 		Rpar_    = self.config[_RR_][_G_] + gRDSon
 		A_gain   = float(self.config[_RA1_][_G_])
 		Volt_Aout= Vadc*float(value_hex)/float(pow(2,self.ADC_BITS))
@@ -469,7 +473,7 @@ class  Pga():
 
 	def Get_I2Hex(self,Iin):
 		#print self.config
-		Vadc = float(self.config["Vrefs"][_VADC])
+		Vadc = float(self.Vrefs[_VADC])
 		Rpar_  = self.config[_RR_][_G_]+ gRDSon
 		A_gain = float(self.config[_RA1_][_G_])
 		Volt_Ain  = Iin * Rpar_
@@ -480,8 +484,8 @@ class  Pga():
 
 #----------------------------------------------------------------------------------------------------
 	def Get_Hex2Rpt(self,value_hex):
-		Vadc = float(self.config["Vrefs"][_VADC])
-		Vref = float(self.config["Vrefs"][_VREF])
+		Vadc = float(self.Vrefs[_VADC])
+		Vref = float(self.Vrefs[_VREF])
 		Rph   = float(self.Rs[_RPH][0])
 		Rpah   = float(self.Rs[_RPAH][0])
 		Rpal   = float(self.Rs[_RPAL][0])
@@ -492,8 +496,8 @@ class  Pga():
 		return Rpt
 
 	def Get_Rpt2Hex(self,Rpt):
-		Vadc = float(self.config["Vrefs"][_VADC])
-		Vref = float(self.config["Vrefs"][_VREF])
+		Vadc = float(self.Vrefs[_VADC])
+		Vref = float(self.Vrefs[_VREF])
 		Rph   = float(self.Rs[_RPH][0])
 		Rpah   = float(self.Rs[_RPAH][0])
 		Rpal   = float(self.Rs[_RPAL][0])
@@ -504,24 +508,24 @@ class  Pga():
 		return int(HexValue)
 
 	def Get_Hex2Rntc(self,value_hex):
-		Vadc = float(self.config["Vrefs"][_VADC])
-		Vref = float(self.config["Vrefs"][_VREF])
+		Vadc = float(self.Vrefs[_VADC])
+		Vref = float(self.Vrefs[_VREF])
 		Rnh   = float(self.Rs[_RNH][0])
 		Vntc  = Vadc*float(value_hex)/float(pow(2,self.ADC_BITS))
 		Rntc  = Vntc*Rnh/(Vref-Vntc)
 		return Rntc
 
 	def Get_Rntc2Hex(self,Rntc):
-		Vadc = float(self.config["Vrefs"][_VADC])
-		Vref = float(self.config["Vrefs"][_VREF])
+		Vadc = float(self.Vrefs[_VADC])
+		Vref = float(self.Vrefs[_VREF])
 		Rnh   = float(self.Rs[_RNH][0])
 		Vntc  = Vref*Rntc/(Rntc+Rnh)
 		HexValue  = Vntc/Vadc*float(pow(2,self.ADC_BITS))
 		return int(HexValue)
 
 	def Get_Hex2Vout(self,value_hex):
-		Vadc = float(self.config["Vrefs"][_VADC])
-		Vref = float(self.config["Vrefs"][_VREF])
+		Vadc = float(self.Vrefs[_VADC])
+		Vref = float(self.Vrefs[_VREF])
 		RL   = gVout_RL
 		RH   = gVout_RH
 		Vadc_in	  = Vadc*float(value_hex)/float(pow(2,self.ADC_BITS))
@@ -549,75 +553,75 @@ class  Pga():
 #		RR = self.config[_RR_][_R_]
 #		Ri = Volt_Rout/Vref*RR - RR 
 #		return Ri
-RA1_series = (	float(22),
-		float(200),
-		float(300),
-		float(511),
-		float(91000),
-		float(5100),
-		float(2000),
-		float(1200)
-		)
-#RA1_series = (2,4,8,16,32,180,220,250)
-RR_series = (	float(5), #R0
-		float(10),#R1
-		float(22),#R2
-		float(100),#R3
-		float(1200),#R4
-		float(511),#R5
-		float(300),#R6
-		float(200),#R7
-		float(2000),#R8
-		float(3300),#R9
-		float(3900),#R10
-		float(7800),#R11
-		float(99999999999),#R12
-		float(94000),#R13
-		float(47000),#R14
-		float(18000),#R15
-		)
-RAH_series = (float(1200),)
-RH_series = (float(18000),)
-RL_series = (float(2000),)
-REF_series = (float(50),)
-RUH_series = (float(3900),)
-#PT NTC series
-RPH_series =  (float(18000),)
-RPAH_series =  (float(18000),)
-RPAL_series =  (float(1200),)
-RNH_series  = (float(18000),)
-RUH_series  = (float(3900),)
+#RA1_series = (	float(22),
+#		float(200),
+#		float(300),
+#		float(511),
+#		float(91000),
+#		float(5100),
+#		float(2000),
+#		float(1200)
+#		)
+##RA1_series = (2,4,8,16,32,180,220,250)
+#RR_series = (	float(5), #R0
+#		float(10),#R1
+#		float(22),#R2
+#		float(100),#R3
+#		float(1200),#R4
+#		float(511),#R5
+#		float(300),#R6
+#		float(200),#R7
+#		float(2000),#R8
+#		float(3300),#R9
+#		float(3900),#R10
+#		float(99999999999),#R11
+#		float(99999999999),#R12
+#		float(99999999999),#R13
+#		float(47000),#R14
+#		float(18000),#R15
+#		)
+#RAH_series = (float(1200),)
+#RH_series = (float(18000),)
+#RL_series = (float(2000),)
+#REF_series = (float(50),)
+#RUH_series = (float(3900),)
+##PT NTC series
+#RPH_series =  (float(18000),)
+#RPAH_series =  (float(18000),)
+#RPAL_series =  (float(1200),)
+#RNH_series  = (float(18000),)
+#RUH_series  = (float(3900),)
+#
+#gVout_Full = 6000
+#gVout_RL   = float(1.5)
+#gVout_RH   = float(12.0)
+#gVout_Amp  = (gVout_RL+gVout_RH)/gVout_RL
+#
+#Rs = [None,None,None,None,None,None,None,None,None,None,None,None,None]
+#Rs[_RR]  = RR_series
+#Rs[_RA1] = RA1_series
+#Rs[_RAH] = RAH_series
+#Rs[_RH]  = RH_series
+#Rs[_RL]  = RL_series
+#Rs[_REF]  = REF_series
+#Rs[_RPH]  = RPH_series
+#Rs[_RPAH]  = RPAH_series
+#Rs[_RPAL]  = RPAL_series
+#Rs[_RNH]  = RNH_series
+#Rs[_RUH]  = RUH_series
 
-gVout_Full = 6000
-gVout_RL   = float(1.5)
-gVout_RH   = float(12.0)
-gVout_Amp  = (gVout_RL+gVout_RH)/gVout_RL
-
-Rs = [None,None,None,None,None,None,None,None,None,None,None,None]
-Rs[_RR]  = RR_series
-Rs[_RA1] = RA1_series
-Rs[_RAH] = RAH_series
-Rs[_RH]  = RH_series
-Rs[_RL]  = RL_series
-Rs[_REF]  = REF_series
-Rs[_RPH]  = RPH_series
-Rs[_RPAH]  = RPAH_series
-Rs[_RPAL]  = RPAL_series
-Rs[_RNH]  = RNH_series
-Rs[_RUH]  = RUH_series
-
-gPGA = Pga(Rs=Rs)
+gPGA = Pga(Rs=circuit.Rs)
 
 if __name__=='__main__':
 	gPGA.show_gains()
 	for range_,unit in (
 			((5.6,190.6),'Ohm'),
-			#((10,1000),'Ohm'),
-			#((20,2000),'Ohm'),
-			#((33,240),'Ohm'),
-			#((40,4000),'Ohm'),
-			#((50,5370),'Ohm'),
-			#((100,10070),'Ohm'),
+			((10,1000),'Ohm'),
+			((20,2000),'Ohm'),
+			((33,240),'Ohm'),
+			((40,4000),'Ohm'),
+			((50,5370),'Ohm'),
+			((100,10070),'Ohm'),
 			((150,7870),'Ohm'),
 			((200,20000),'Ohm'),
 			((300,30000),'Ohm'),

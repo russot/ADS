@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!python
 import glob
 import string
 
@@ -100,9 +101,9 @@ class Refer_Entry(object):
 	def Validate(self,Xvalue=None,Yvalue=0):
 		xstatus = True
 		ystatus = False
-		Xprecision = 0.0
+		Xprecision = -1
 		if Xvalue != None:
-			Xprecision = abs(Xvalue -self.Xvalue)
+			Xprecision = abs(Xvalue - self.Xvalue)
 			if Xprecision > self.Xprecision:
 				xstatus = False 
 		Yprecision = abs((Yvalue -self.Yvalue)/self.Yvalue)

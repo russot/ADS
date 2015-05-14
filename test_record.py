@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!python
 """Signal UI component .""" 
 import sys
 import glob
@@ -379,7 +380,7 @@ class Test_Record():
 			signal_ref =u"sig.%d ref.\n信号%d标准\n%s"%(i,i,window.GetCellValue(row-1,col_+2))
 			signal_real =u"sig.%d real.\n信号%d实测\n%s"%(i,i,window.GetCellValue(row-1,col_+2))
 			window.SetRowSize(row,60)
-			for width,name in ((50,u"Pos.\n位置\nmm"),(50,u"offset\n位偏移\n±mm"),(80,signal_ref),(80,signal_real),(120,u"judge\n结果")):
+			for width,name in ((50,u"Href\n高度参考\nmm"),(50,u"H\n高度实测\nmm"),(80,signal_ref),(80,signal_real),(120,u"judge@%\n结果@%")):
 				window.SetCellValue(row,col_,name)
 				window.SetReadOnly(row,col_,True)
 				window.SetCellBackgroundColour(row,col_,"Grey")
@@ -422,19 +423,21 @@ class Test_Record():
 
 				(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
 				(Xvalue_,Xprecision_,Yvalue_,Yprecision_,Yoffset_,Ymin_,Ymax_)=record.Values()
+				Xprecision_,Yprecision_x,xstatus_x,ystatus_x = refer_entry.Validate(Xvalue_,Yvalue_)
 				#print record.Values()
 				#show refer values
 				color = "light gray"
 				if record.GetLength() == 100:
 					result = ''
 					if (Yprecision_ > Yprecision) :
-						result = u" Y轴(测量值)超差"
+						result = u" 信号超差%.1f"%(Yprecision_*100)
 						color = "red"
 					else:
 						result  = u"Y:PASS"
 						color = "green"
-					if (Xprecision_ > Xprecision) :
-						result += u"; X轴(位移)超差\n"
+					if Xprecision >0 and (Xprecision_ > Xprecision) :
+							result += u";H偏差%.1fmm\n"%Xprecision_
+							color = "red"
 				col_ = col_start
 				for value in (Xvalue,Xprecision,Yvalue,Yprecision):
 					value_str = str(round(value,6))
@@ -480,19 +483,25 @@ class Test_Record():
 
 				(Xvalue,Xprecision,Yvalue,Yprecision,Yoffset,Ymin,Ymax)=refer_entry.Values()
 				(Xvalue_,Xprecision_,Yvalue_,Yprecision_,Yoffset_,Ymin_,Ymax_)=record.Values()
+				Xprecision_,Yprecision_x,xstatus_x,ystatus_x = refer_entry.Validate(Xvalue_,Yvalue_)
+				Xprecision_,Yprecision_x,xstatus_x,ystatus_x = refer_entry.Validate(None,Yvalue_)
 				#print record.Values()
 				#show refer values
 				color = "light gray"
 				result = ''
 				if record.GetLength() == 100:
 					if (Yprecision_ > Yprecision) :
-						result = u" Y轴(测量值)超差"
+						result = u"信号NG@%.1f"%(Yprecision_*100)
 						color = "red"
 					else:
-						result  = u"Y:PASS"
+						result = u"信号OK@%.1f"%(Yprecision_*100)
 						color = "green"
-					if (Xprecision_ > Xprecision) :
-						result += u"; X轴(位移)超差\n"
+					if Xprecision_ > Xprecision :
+						result += u";H偏差%.1fmm\n"%Xprecision_
+						color = "red"
+					else:
+						result += u";H偏差%.1fmm\n"%Xprecision_
+
 				if result == '':
 					continue
 				sheet_len =window.GetNumberRows()  

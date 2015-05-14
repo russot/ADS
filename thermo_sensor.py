@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!python
 """Signal UI component .""" 
 import os 
 import wxversion

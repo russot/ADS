@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!python
 
 """Signal UI component .""" 
 import sys
@@ -140,7 +141,7 @@ class Server_(threading.Thread):
 
 	def run(self):
 		os.system(self.commandline)
-gServer4EP = Server_("python server_ep.py")
+gServer4EP = Server_("..\python27\python.exe server_ep.py")
 
 
 gSession = 	{"eut":None,

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!python
 """Hello, wxPython! program"""
 
 # FileName simple.py

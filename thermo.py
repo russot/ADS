@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+#!python
 """Signal UI component .""" 
 import math
 from refer_entry import Refer_Entry
